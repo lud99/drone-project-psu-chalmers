@@ -47,7 +47,7 @@ def main() -> None:
                 for i, flyTo in enumerate(flyToList):
                     print(f"Drone {i} going to: (lat, lng, alt) {flyTo.lat, flyTo.lng, flyTo.alt}, \n angle: {angle}, link: https://www.google.com/maps/place/{flyTo.lat},{flyTo.lng}")
                 
-                droneOrigins = tuple([coord for coord in flyToList])
+                droneOrigins = tuple(reversed([coord for coord in flyToList]))
                 angles = angle,angle
                 
                 start_server(ATOScommunicator)
