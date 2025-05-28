@@ -1,7 +1,3 @@
-/* Originally sourced from
-* https://chromium.googlesource.com/external/webrtc/+/b6760f9e4442410f2bcb6090b3b89bf709e2fce2/webrtc/api/android/java/src/org/webrtc/CameraVideoCapturer.java
-* and rewritten to work for DJI drones.
-*  */
 package com.dji.sdk.sample;
 
 import org.webrtc.CapturerObserver;
@@ -39,10 +35,10 @@ public class DJIVideoCapturer implements VideoCapturer {
 
     private void setupVideoListener() {
         if (codecManager != null) {
-            return; // If codecManager is already initialized, return immediately
+            return; 
         }
     
-        // Pass SurfaceTexture as null to force the YUV callback - width and height do not matter here
+   
         codecManager = new DJICodecManager(context, (SurfaceTexture) null, 0, 0);
         codecManager.enabledYuvData(true);
         codecManager.setYuvDataCallback(new DJICodecManager.YuvDataCallback() {
@@ -50,7 +46,7 @@ public class DJIVideoCapturer implements VideoCapturer {
             public void onYuvDataReceived(MediaFormat mediaFormat, ByteBuffer videoBuffer, int dataSize, int width, int height) {
                 if (videoBuffer != null) {
                     try {
-                        // Convert to NV12Buffer and create a VideoFrame
+                        //Convert to NV12Buffer and create a VideoFrame
                         long timestampNS = TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime());
                         NV12Buffer buffer = new NV12Buffer(
                                 width,
