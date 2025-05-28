@@ -225,5 +225,5 @@ def getDronesLoc(
         long = droneOrigin.lng + delta_long
         flyTo_coords.append(Coordinate(lat, long, int(height)))
 
-    angle = np.arctan2(angle_axis[1], angle_axis[0])
+    angle = round(np.arctan2(angle_axis[1], angle_axis[0]))
     return flyTo_coords, np.degrees(angle)
