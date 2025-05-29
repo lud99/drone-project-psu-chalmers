@@ -1,32 +1,56 @@
-The ROS.py file depends on certain dependencies found in ATOS so make sure that you have ATOS installed. When ATOS is installed, do the follwing:
+# Communication Software - Backend Setup (2025 Version)
 
-# First time setup
-`cd atos_ws/src`
+This guide outlines the steps to set up the 2025 version of the Communication Software backend using Docker on a Linux system.
 
-`ln -s /home/$USERNAME$/az-drone-safety-platform/communication_software/communication_software`
-(The path should be the path to the folder containing this readme: `ln -s PATHTOTHISFOLDER`)
+## 1. Prerequisites
 
-`cd ..`
-`cd ..`
+Before you begin, ensure you have the following installed on your Linux system:
 
-`cd az-drone-safety-platform/communication_software`
+1.  **Git:** To clone the repository. (e.g., `sudo apt update && sudo apt install git`)
+2.  **Docker Engine:** Follow the official installation guide for your Linux distribution: [Install Docker Engine](https://docs.docker.com/engine/install/)
+3.  **Docker Compose:** This is usually included with Docker Desktop or can be installed as a plugin for Docker Engine. Verify by running `docker compose version`. If not found, see: [Install Docker Compose](https://docs.docker.com/compose/install/)
 
-# Building
-For the first time running a script, you have to perform these steps. __When changes are made in the code__, you have to perform these steps again.
+### 2. Navigate to the Project Directory
 
-`colcon build`
+Ensure your terminal is in the `communication_software` directory, which is located at the same level as this `README.md` file (if this `README.md` is in `$GIT_ROOT_REPOSITORY/communication_software/`). This directory contains the `docker-compose.yml` file required for the next steps.
 
-`source install/local_setup.bash`
+If your current directory is the root of the cloned repository (`$GIT_ROOT_REPOSITORY`), use:
 
-# Running scripts
-`ros2 run communication_software ENTRYPOINT`
+```bash
+cd communication_software
+```
 
-for example:
-`ros2 run communication_software run_main`
+### 3. Build and Start the Services
+To build the Docker images and start all the application services in detached mode (running in the background), execute the following command:
+```bash
+docker compose up -d --build
+```
+**Important Note on Build Time:**
+The very first time you run this command, the build process might take a considerable amount of time (approximately 700 seconds or more). Subsequent builds will be significantly faster because Docker caches the image layers.
 
+### 4. Verify Running Services
+Once the `docker compose up` command has finished, you can verify that all services are running as expected:
+```bash
+docker compose ps
+```
 
-# Adding entry points
-If you want to add new entry points (scripts to start from terminal), you can do so by adding them in "entry_points" in "setup.py". They should be in the following format:
-`PATH.FILENAME:METHODNAME` where PATH is the relativee path seen from setup.py
-For example:
-`run_main = communication_software.main:main`
+You should see an output listing the following containers, typically with a status indicating they are "Up" or "Running":
+- astazero-redis
+- atos
+- isoObject
+- image_stitching
+- backend
+- frontend
+
+### 5. Firewall and Network Configuration
+
+*   **Firewall Interaction:**
+    If you are using a host-based firewall on your Linux system, such as `ufw` (Uncomplicated Firewall) or `firewalld` (which may utilize `iptables-nft` or `iptables-legacy` as their backend), Docker is designed to manage its own network rules. This generally means that the ports exposed by the containers (as defined in your `docker-compose.yml` file) should automatically become accessible from other devices on the same local network (VLAN). Typically, you do not need to manually configure your host firewall for Docker's published ports, as Docker's rules take precedence.
+
+*   **Important Note for Eduroam (and similar isolated networks):**
+    Networks like **Eduroam** (commonly found in academic institutions) often implement a security feature called "client isolation" or "AP isolation." This feature places each connected device into its own separate virtual LAN (VLAN), effectively preventing direct peer-to-peer communication between devices (e.g., your Linux machine running the backend and your Android phone) even if they are connected to the same Wi-Fi access point.
+
+    **Workaround:** To enable communication between your backend service (running in Docker) and a client device (like an Android phone) when on such a network:
+    1.  Connect both the Linux machine (hosting the Docker backend) and your client device to a network that **does not** enforce client isolation.
+    2.  A common and effective solution is to use a **mobile hotspot** on your smartphone. Connect both devices to this hotspot.
+    3.  Alternatively, using a **personal Wi-Fi router** at home will also typically allow inter-device communication on the local network.

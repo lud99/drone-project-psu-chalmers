@@ -82,7 +82,6 @@ def get_drone_coordinates(ATOScommunicator):
 
     droneOrigins = tuple([coord for coord in flyToList])
     angles = angle, angle
-    # droneOrigins = (Coordinate(57.68563615886854, 11.978773372458502, 40),Coordinate(57.68545544703349, 11.978018269449219,40))
     return (droneOrigins, angles)
 
 
