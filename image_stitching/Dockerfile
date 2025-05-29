@@ -1,6 +1,7 @@
 # FROM python:3.13-slim
 FROM nvidia/cuda:12.8.1-base-ubuntu24.04
-
+# Match the cuda version with $ nvcc --version
+# See available images here: https://hub.docker.com/r/nvidia/cuda/tags
 COPY requirements.txt .
 
 

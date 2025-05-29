@@ -54,3 +54,12 @@ You should see an output listing the following containers, typically with a stat
     1.  Connect both the Linux machine (hosting the Docker backend) and your client device to a network that **does not** enforce client isolation.
     2.  A common and effective solution is to use a **mobile hotspot** on your smartphone. Connect both devices to this hotspot.
     3.  Alternatively, using a **personal Wi-Fi router** at home will also typically allow inter-device communication on the local network.
+
+### 6. GPU Acceleration
+
+There is support for Nvidia GPU acceleration.
+The library `nvidia-container-toolkit` has to be installed.
+Use the `docker-compose-gpu.yml` file instead.
+```bash
+docker compose -f docker-compose-gpu.yml up -d
+```
