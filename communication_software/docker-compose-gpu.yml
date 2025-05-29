@@ -21,6 +21,8 @@ services:
       - ENV_LATITUDE= 57.68819679236606
       - ENV_LONGITUDE= 11.98050450974414
       - DEBUG_MODE=True
+      - N_DRONES=2
+      - OVERLAP=0.5
     depends_on:
       - atos
       - redis

@@ -1,6 +1,6 @@
 services:
-  comm_software:
-    container_name: comm_software
+  backend:
+    container_name: backend
     stdin_open: true
     tty: true
     build: 
@@ -21,6 +21,8 @@ services:
       - ENV_LATITUDE= 57.77293201101717
       - ENV_LONGITUDE= 12.773497400522357
       - DEBUG_MODE=False
+      - N_DRONES=2
+      - OVERLAP=0.5
     depends_on:
       - atos
       - redis
@@ -68,7 +70,7 @@ services:
     ports:
       - 8001:80
     depends_on:
-      - comm_software
+      - backend
   image_stitching:
     container_name: image_stitching
     environment:

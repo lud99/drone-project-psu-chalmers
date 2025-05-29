@@ -196,9 +196,9 @@ def getDronesLoc(
 
     # Adjust the split offset to ensure the drone squares cover the entire rectangle
     split_offset = width * (1 + (1 - 2 * overlap))
+
     drone_centers = [center + (i - (n_drones - 1) / 2) * split_offset * split_axis for i in range(int(n_drones))]
 
-    # Calculate the height for the drones
     height = calculate_Height(width * height_r)
 
     if height < 30:
