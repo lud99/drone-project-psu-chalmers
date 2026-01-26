@@ -23,9 +23,13 @@ services:
       - DEBUG_MODE=False
       - N_DRONES=2
       - OVERLAP=0.5
+    volumes:
+      # bind-mount source code for live development (overrides Dockerfile COPY)
+      - .:/root/atos_ws/src/communication_software
     depends_on:
       - atos
       - redis
+
   atos:
     image: astazero/atos_docker_env:latest
     container_name: atos
@@ -60,6 +64,7 @@ services:
         reservations:
           cpus: "0.05"
           memory: 128M
+
   frontend:
     container_name: frontend
     build: 
@@ -69,8 +74,12 @@ services:
       - atos-net
     ports:
       - 8001:80
+    volumes:
+      # bind-mount frontend source for live development
+      - ../frontend:/usr/share/nginx/html
     depends_on:
       - backend
+
   image_stitching:
     container_name: image_stitching
     environment:
@@ -79,6 +88,9 @@ services:
       context: ../image_stitching
     networks:
       - atos-net
+    volumes:
+      # bind-mount image_stitching source for live development
+      - ../image_stitching:/app
     depends_on:
       - redis
     # deploy: 
@@ -88,6 +100,7 @@ services:
     #         - driver: nvidia
     #           count: "all" 
     #           capabilities: [gpu] 
+
   redis:
     container_name: astazero-redis
     image: public.ecr.aws/docker/library/redis:latest
