@@ -4,10 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <title>ATOS Drone Platform</title>
-    <link rel="stylesheet" href="bootstrap.min.css">
-    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"> -->
-    <link rel="stylesheet" href="leaflet.css" />
-    <!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" /> -->
+    <!-- <link rel="stylesheet" href="/misc/bootstrap.min.css"> -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <!-- <link rel="stylesheet" href="/misc/leaflet.css" /> -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         #map {
             height: 400px;
@@ -142,11 +142,13 @@
         </div>
     </div>
 
-    <script src="bootstrap.bundle.min.js"></script>
-    <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script> -->
-    <script src="leaflet.js"></script>
-    <!-- <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script> -->
+    <!-- <script src="/misc/bootstrap.bundle.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- <script src="/misc/leaflet.js"></script> -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
+        const BACKEND_URL = "ws://localhost:8000";
+
         // Initialize Map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -156,9 +158,9 @@
         };
 
         // WebSocket Connections
-        const droneWS = new WebSocket('${BACKEND_URL}/api/v1/ws/drone');
-        const atosWS = new WebSocket('${BACKEND_URL}/api/v1/ws/atos');
-        const flightmanagerWS = new WebSocket('${BACKEND_URL}/api/v1/ws/flightmanager');
+        const droneWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/drone`);
+        const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
+        const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
 
         // Handle Layout Changes
         document.getElementById('layoutSelect').addEventListener('change', function () {

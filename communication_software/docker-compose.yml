@@ -6,7 +6,7 @@ services:
     build: 
       context: .
       dockerfile: ./Dockerfile
-    command: bash -c "source /root/atos_ws/install/local_setup.bash ; ros2 run communication_software run_main"
+    command: ${backend_command}
     networks:
       - atos-net
     ports:
@@ -16,6 +16,7 @@ services:
       - 8000:8000
       - 3478:3478/udp  # STUN server port
       - 8765:8765/udp  # WebRTC signaling port
+      - 5678:5678 # Python debugger port
     environment: # 
       - ENV_ALTITUDE= 15 # does not matter probably
       - ENV_LATITUDE= 57.77293201101717
@@ -45,8 +46,6 @@ services:
       - "55555:55555"
       - "443:443"
       - "9090:9090" 
-    volumes: 
-      - .astazero/ATOS/:/root/.astazero/ATOS/
     command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
     depends_on:
       - isoObject
@@ -70,15 +69,13 @@ services:
     build: 
       context: ../frontend
       dockerfile: ../frontend/Dockerfile
+    volumes:
+      - ../frontend:/usr/share/nginx/html
     networks:
       - atos-net
     ports:
       - 8001:80
-    volumes:
-      # bind-mount frontend source for live development
-      - ../frontend:/usr/share/nginx/html
-    depends_on:
-      - backend
+    
 
   image_stitching:
     container_name: image_stitching
@@ -90,9 +87,10 @@ services:
       - atos-net
     volumes:
       # bind-mount image_stitching source for live development
-      - ../image_stitching:/app
+      - ../image_stitching/src:/root/image_stitching/src
     depends_on:
       - redis
+    command: ${image_stitching_command}
     # deploy: 
     #   resources:
     #     reservations:

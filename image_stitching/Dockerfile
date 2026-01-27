@@ -2,7 +2,11 @@
 FROM nvidia/cuda:12.8.1-base-ubuntu24.04
 # Match the cuda version with $ nvcc --version
 # See available images here: https://hub.docker.com/r/nvidia/cuda/tags
-COPY requirements.txt .
+
+ENV WORKSPACE_DIR=/root/image_stitching
+RUN mkdir -p ${WORKSPACE_DIR}
+
+COPY requirements.txt ${WORKSPACE_DIR}
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,14 +19,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r ${WORKSPACE_DIR}/requirements.txt
 
 RUN apt-get update && apt-get install -y libgl1 libglx-mesa0
 
-COPY image_stitching.py main.py
-COPY annotator.py . 
-COPY coordinateMapping.py .
-COPY models/ /models
+# vscode is so weird and refused to open WORKSPACE_DIR, and instead uses /root. so have to code the .vscode older to there
+COPY .vscode root/.vscode
+
+WORKDIR ${WORKSPACE_DIR}
+CMD ["/bin/bash"]
 # COPY yolov8s.pt .
 
-CMD ["python3", "main.py"]
+# CMD ["python3", "main.py"]
