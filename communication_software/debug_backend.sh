@@ -4,4 +4,4 @@
 export backend_command="sleep infinity"
 
 # Start everything else
-docker compose up -d --build
+docker compose up -d

@@ -51,23 +51,27 @@ Running ```docker compose up -d``` (without --build) will be substantially faste
 To see the logs of a container after it has started, or is detatched, run ```docker compose logs -f <name>```
 Access the terminal of the container: ```docker compose exec <name> bash```
 
-### How to debug and work with the containers
+If you have made a change to a dockerfile, you must run ```--build```. If you have made changes to sourcode, then you shouldn't have to.
+Try to avoid running --build as it will build a new image, and after many runs your disk will be full
+
+# How to debug and work with the containers
 
 I have changed to we use a volume instead of copying the source files to the container. Practically, this means that any changes made to the container will actually persist. You can use the normal way of starting the docker containers, but you will not be able to debug any python code, nor easliy apply your changes without having to restart the container. It is your preference how you wish to do.
 
-# How to work and debug inside a container
+## Work and debug inside a container
 The programming and debugging of the backend should be done in the docker container, for the respective submodule you wish to work on.
 
 Install the Vs Code extensions ```Docker```and ```Dev Containers```
 
 Run the script depending on what you want to debug, in a git bash terminal window: ```debug_all.sh, debug_backend.sh or begug_image_stitching.sh```. The one you aren't debugging will automatically start when the container starts, as usual. Note: These wont rebuild the dockerfile, if you have made any changes
 
-Now in Vs Code press ```Ctrl + P, type >Attach to running container, and select the python container you wish to debug (backend or image_stitching)```.
-It will open a new window and load. Install the python (debugger) extension in your attatched Vs Code window, and wait. You will have to do this every time you attach
+Now in Vs Code press ```Ctrl + P, type >Attach to running container``` and select the python container you wish to debug (backend or image_stitching).
+It will open a new window and load. Install the python (debugger) extension in your attatched Vs Code window, and wait. You will have to do this every time you attach.
+https://marketplace.visualstudio.com/items?itemName=ms-python.python
 
 Press ```F5``` to start a debugger, voila! you can now edit code and restart without having to restart the entire container.
 
-If you restart the container(s), you will have to reload the vs code window and wait some time.
+If you restart the container(s), you will have to reload the vs code window and wait some time, aswell as install the extensions again
 
 ## Frontend
 Rebuilding the frontend container was horribly slow, but i removed the dependency on the backend. The webcontents are mounted as volume so that editing the files are just as simple as that.

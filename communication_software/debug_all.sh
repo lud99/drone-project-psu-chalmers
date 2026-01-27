@@ -5,4 +5,4 @@ export backend_command=sleep infinity
 export image_stitching_command=sleep infinity
 
 # Start everything else
-docker compose up backend -d --build
+docker compose up backend -d
