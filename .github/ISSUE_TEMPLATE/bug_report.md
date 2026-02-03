@@ -7,16 +7,13 @@ assignees: ''
 
 ---
 
-**Describe the bug**
+### Describe the bug
 
-**How to Reproduce**
+### How to Reproduce
 
-**Expected behavior**
+### Screenshots (if applicable)
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Platform:**
+### Platform (if applicable)
  - Device type/name:
  - OS and version: 
  - Browser name and version:
