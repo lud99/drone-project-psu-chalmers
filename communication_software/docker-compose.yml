@@ -69,6 +69,8 @@ services:
     build: 
       context: ../frontend
       dockerfile: ../frontend/Dockerfile
+    depends_on:
+      - backend
     volumes:
       - ../frontend:/usr/share/nginx/html
     networks:
