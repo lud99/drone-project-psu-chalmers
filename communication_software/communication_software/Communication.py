@@ -331,9 +331,10 @@ class Communication:
         try:
             while True:
                 data = await ws.recv()
-                # print(f"Received from {connection_id}: {data}")
+                print(f"Received from {connection_id}: {data}")
                 await self.on_message(data, connection_id)
         except websockets.exceptions.ConnectionClosedError:
+            print(websockets.exceptions.ConnectionClosedError)
             print(f"Client {connection_id} disconnected.")
         finally:
             self.cleanup_connection(connection_id)
