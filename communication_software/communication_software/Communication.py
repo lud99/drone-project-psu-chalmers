@@ -9,6 +9,7 @@ import asyncio
 import redis
 import cv2
 import numpy as np
+from communication_software.multicast_sender import MulticastSender
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
@@ -74,6 +75,11 @@ class Communication:
         server = await websockets.serve(self.webs_server, ip, 14500)
         print(f"WebSocket server started on ws://{ip}:14500")
 
+        # Start multicasting now after websocket server has started
+        sender = MulticastSender()
+        multicast_thread = threading.Thread(target=sender.send_packets)
+        multicast_thread.start()
+
         try:
             await server.wait_closed()
         finally:
@@ -85,6 +91,9 @@ class Communication:
                 if self.redis_listener_task.is_alive():
                     print("Warning: Redis listener thread did not stop gracefully.")
             print("WebSocket server stopped.")
+            sender.stop()
+            multicast_thread.join()
+            print("Stopped multicast sender thread")
 
     def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
         """Transforms coordinates into required format."""
