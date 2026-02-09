@@ -9,7 +9,7 @@ class MulticastSender:
         self.list_of_ips = self.get_ipv4_interfaces()
         self.port = 9992
         self.multicast_group_ip = "239.255.42.99"
-        self.frequency_in_seconds = 5 
+        self.frequency_in_seconds = 1 
         self.name = "Backend1" # TODO implement properly
 
         self.stop_event = threading.Event()
