@@ -1,0 +1,38 @@
+
+// Mission, created and stored in the backend (in redis or in new thread?). One Mission may contain ceveral Tasks. 
+// First task gets sent to app, when task is done app sends "Task xxx done" next task gets sent and so on...
+// Just a first draft. Modify as needed
+
+
+{
+    "mission_id": "mission_101",
+    "drone_id": "AZL-55555",
+    "tasks": [
+        {
+        "action": "go_to",
+        "action_params": { "lat": 57.7090, "lon": 11.9750, "alt": 25.0, "heading": 180 },
+        "index": 0
+        },
+        {
+        "action": "camera_angle",
+        "action_params": { "pitch": -45, "yaw": 0, "transition_time": 2.0 },
+        "index": 1
+        },
+        {
+        "action": "play_audio",
+        "action_params": { "file": "warning_alarm.mp3", "volume": 1.0, "duration_seconds": 60 },
+        "index": 2
+        },
+        {
+        "action": "go_home", 
+        "action_params": {},
+        "index": 3
+        }
+    ],
+    "on_complete": "hover" // "go_home",  "mission_102"
+}
+
+// More tasks could be:
+// stream_audio: stream audio from mic at frontend
+// flash_light: flash light in a certain pattern
+// land: tell drone to land at current grids

@@ -46,7 +46,7 @@ If not all appear, run ```docker compose restart``` until all of them are visibl
 You can start a single container with ```docker compose up <name>```. Note the lack of ```-d```. ```-d```stars in detatched mode, so you dont see any command output.
 Not including it means you can see the logs.
 
-Running ```docker compose up -d``` (without --build) will be substantially faster, any changes to the files on the host system will not be copied over (except those in a volume, wich the source code should be)
+Running ```docker compose up -d``` (without --build) will be substantially faster, any changes to the files on the host system will not be copied over (except those in a volume, wich the source code should be). You can also run ```docker compose restart <name>```.
 
 To see the logs of a container after it has started, or is detatched, run ```docker compose logs -f <name>```
 Access the terminal of the container: ```docker compose exec <name> bash```
@@ -74,13 +74,15 @@ Press ```F5``` to start a debugger, voila! you can now edit code and restart wit
 If you restart the container(s), you will have to reload the vs code window and wait some time, aswell as install the extensions again
 
 ## Frontend
-Rebuilding the frontend container was horribly slow, but i removed the dependency on the backend. The webcontents are mounted as volume so that editing the files are just as simple as that.
+Rebuilding the frontend container depends on the backend starting. The webcontents are mounted as volume so that editing the files are just as simple as that.
 
 
 ### 5. Firewall and Network Configuration
 
 *   **Firewall Interaction:**
     If you are using a host-based firewall on your Linux system, such as `ufw` (Uncomplicated Firewall) or `firewalld` (which may utilize `iptables-nft` or `iptables-legacy` as their backend), Docker is designed to manage its own network rules. This generally means that the ports exposed by the containers (as defined in your `docker-compose.yml` file) should automatically become accessible from other devices on the same local network (VLAN). Typically, you do not need to manually configure your host firewall for Docker's published ports, as Docker's rules take precedence.
+
+    Issues may arise when connecting the android app to the backend, where the connection will suddenly be closed. We (think) we fixed it by disabling the windows firewall on the computer running the backend.
 
 *   **Important Note for Eduroam (and similar isolated networks):**
     Networks like **Eduroam** (commonly found in academic institutions) often implement a security feature called "client isolation" or "AP isolation." This feature places each connected device into its own separate virtual LAN (VLAN), effectively preventing direct peer-to-peer communication between devices (e.g., your Linux machine running the backend and your Android phone) even if they are connected to the same Wi-Fi access point.
