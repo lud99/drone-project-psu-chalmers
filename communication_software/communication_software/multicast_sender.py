@@ -28,7 +28,7 @@ class MulticastSender:
         while not self.stop_event.is_set():
             for ip in self.list_of_ips:
                 try:
-                    message = json.dumps({ "msg_type": "backend_discovery", 
+                    message = "CTH" + json.dumps({ "msg_type": "backend_discovery", 
                                           "name": self.name, 
                                           "ip": ip, 
                                           "port": self.port})
