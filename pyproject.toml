@@ -38,7 +38,7 @@ target-version = "py39"
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
 select = ["E402", "E7", "E9", "F401", "F821", "F841", "F811", "F823", "N8", "N999"]
-ignore = ["E203", "E302", "E303", "N804", ]
+ignore = ["E", "N804"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
