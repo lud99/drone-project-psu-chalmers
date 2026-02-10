@@ -10,6 +10,16 @@ Before you begin, ensure you have the following installed on your Linux system:
 2.  **Docker Engine:** Follow the official installation guide for your Linux distribution: [Install Docker Engine](https://docs.docker.com/engine/install/)
 3.  **Docker Compose:** This is usually included with Docker Desktop or can be installed as a plugin for Docker Engine. Verify by running `docker compose version`. If not found, see: [Install Docker Compose](https://docs.docker.com/compose/install/)
 
+### Required extensions for our workflow
+https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff For linting and formatting  
+https://marketplace.visualstudio.com/items?itemName=ms-python.python  
+https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker  
+https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens Optional, but much better than built-in Git  
+
+Also, install ```codespell```, ```ruff``` and ```pre-commit```  with ```pip install codespell ruff pre-commit```, or your choice of installing python packages.
+In the root of the repo, run ```pre-commit install``` to install the spellchecker and linter check for every commit you make.
+
+
 ### 2. Navigate to the Project Directory
 
 Ensure your terminal is in the `communication_software` directory, which is located at the same level as this `README.md` file (if this `README.md` is in `$GIT_ROOT_REPOSITORY/communication_software/`). This directory contains the `docker-compose.yml` file required for the next steps.
