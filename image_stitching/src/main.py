@@ -14,7 +14,9 @@ import torch
 
 
 if torch.cuda.is_available():
-    print(f"[INFO] PyTorch CUDA detected. Available devices: {torch.cuda.device_count()}")
+    print(
+        f"[INFO] PyTorch CUDA detected. Available devices: {torch.cuda.device_count()}"
+    )
 else:
     print("[INFO] PyTorch CUDA not detected. YOLO will use CPU.")
 
@@ -26,6 +28,7 @@ redis_url = os.environ.get("REDIS_URL", "localhost")
 r = redis.StrictRedis(host=redis_url, port=6379, db=0, decode_responses=True)
 
 ## ---- HELPER FUNCTIONS ----
+
 
 async def consume_async_generator(gen, queue, stop_event):
     """
@@ -42,6 +45,7 @@ async def consume_async_generator(gen, queue, stop_event):
         queue.put(frame)
     queue.put(None)  # Signal the end of the stream
 
+
 def detect_objects(frame: np.ndarray) -> sv.Detections:
     """
     Run YOLO for object detection on a frame.
@@ -56,7 +60,13 @@ def detect_objects(frame: np.ndarray) -> sv.Detections:
     detections = sv.Detections.from_ultralytics(results[0])
     return detections
 
-def get_weighted_gps(pixel_x: int, frame_width: int, left_gps: tuple[float, float], right_gps: tuple[float, float]) -> tuple[float, float]:
+
+def get_weighted_gps(
+    pixel_x: int,
+    frame_width: int,
+    left_gps: tuple[float, float],
+    right_gps: tuple[float, float],
+) -> tuple[float, float]:
     """
     Calculate a weighted GPS position based on object position in the image.
 
@@ -74,7 +84,8 @@ def get_weighted_gps(pixel_x: int, frame_width: int, left_gps: tuple[float, floa
     gps_lon = left_gps[1] * (1 - alpha) + right_gps[1] * alpha
     return (gps_lat, gps_lon)
 
-async def set_frame(img: np.ndarray)-> None:  # Receives a frame and sends it to Redis
+
+async def set_frame(img: np.ndarray) -> None:  # Receives a frame and sends it to Redis
     """
     Store a frame in Redis as JPEG.
 
@@ -97,6 +108,7 @@ async def set_frame(img: np.ndarray)-> None:  # Receives a frame and sends it to
     except Exception as e:
         print(f"Fel i set_frame: {e}")
 
+
 ### MERGE STREAMS ###
 async def stream_drone_frames(drone_id: int):
     """
@@ -109,7 +121,7 @@ async def stream_drone_frames(drone_id: int):
         bytes: JPEG encoded frame.
     """
     redis_key = f"frame_drone{drone_id}"
-    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8) # Pre-create dummy frame
+    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)  # Pre-create dummy frame
 
     while True:
         frame_to_encode = None
@@ -134,18 +146,36 @@ async def stream_drone_frames(drone_id: int):
                     frame_to_encode = frame
                 else:
                     # If decoding fails, prepare a dummy image for encoding
-                    print(f"[WARNING] Failed to decode frame from Redis for drone {drone_id}")
-                    dummy_frame_copy = dummy_frame.copy() # Use a copy
-                    cv2.putText(dummy_frame_copy, f"Drone {drone_id}: invalid frame data",
-                                (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    print(
+                        f"[WARNING] Failed to decode frame from Redis for drone {drone_id}"
+                    )
+                    dummy_frame_copy = dummy_frame.copy()  # Use a copy
+                    cv2.putText(
+                        dummy_frame_copy,
+                        f"Drone {drone_id}: invalid frame data",
+                        (50, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (0, 0, 255),
+                        2,
+                    )
                     frame_to_encode = dummy_frame_copy
 
             except Exception as e:
-                 print(f"[ERROR] Error processing frame data from Redis for drone {drone_id}: {e}")
-                 dummy_frame_copy = dummy_frame.copy()
-                 cv2.putText(dummy_frame_copy, f"Drone {drone_id}: error reading",
-                            (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                 frame_to_encode = dummy_frame_copy
+                print(
+                    f"[ERROR] Error processing frame data from Redis for drone {drone_id}: {e}"
+                )
+                dummy_frame_copy = dummy_frame.copy()
+                cv2.putText(
+                    dummy_frame_copy,
+                    f"Drone {drone_id}: error reading",
+                    (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 0, 255),
+                    2,
+                )
+                frame_to_encode = dummy_frame_copy
 
         else:
             # If no frame exists in Redis, prepare a dummy image for encoding
@@ -167,13 +197,15 @@ async def stream_drone_frames(drone_id: int):
             # If encoding fails, log and skip (yield None or wait?)
             # Yielding None might be better handled by the consumer
             print(f"[ERROR] Failed to encode frame to JPEG for drone {drone_id}")
-            await asyncio.sleep(0.033) # wait a bit before the next attempt
-            continue # Skip this iteration
+            await asyncio.sleep(0.033)  # wait a bit before the next attempt
+            continue  # Skip this iteration
 
         # *** FIX: Yield ONLY the raw JPEG bytes ***
         yield buffer.tobytes()
 
         await asyncio.sleep(0.033)  # Approximately 30fps
+
+
 async def merge_stream(drone_ids: tuple[int, int]) -> None:
     """
     Merge video streams from two drones, detect objects, and save annotated output.
@@ -188,13 +220,13 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
     stop_event = threading.Event()
 
     # Create async generators to consume drone streams
-    frameLeft = stream_drone_frames(id1)
-    frameRight = stream_drone_frames(id2)
+    frame_left = stream_drone_frames(id1)
+    frame_right = stream_drone_frames(id2)
 
     # Standard frame size
     frame_width = 600
     frame_height = None
-    overlap_width = int(frame_width * 0.495) #Adjust if necessary
+    overlap_width = int(frame_width * 0.495)  # Adjust if necessary
 
     # Camera GPS positions and altitude
     left_camera_location = (57.6900, 11.9800)  # example coordinates
@@ -204,8 +236,8 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
     resolution = (1920, 1080)
 
     # Start async tasks to consume frames
-    asyncio.create_task(consume_async_generator(frameLeft, left_queue, stop_event))
-    asyncio.create_task(consume_async_generator(frameRight, right_queue, stop_event))
+    asyncio.create_task(consume_async_generator(frame_left, left_queue, stop_event))
+    asyncio.create_task(consume_async_generator(frame_right, right_queue, stop_event))
 
     try:
         while True:
@@ -223,8 +255,8 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
 
             right_frame_array = np.frombuffer(right_frame_data, dtype=np.uint8)
             right = cv2.imdecode(right_frame_array, cv2.IMREAD_COLOR)
-            
-            # check if decoding fails 
+
+            # check if decoding fails
             if left is None or right is None:
                 print("[INFO] Left or right image is None")
                 print(f"left: {left}")
@@ -247,11 +279,17 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
             for i in range(overlap_width):
                 alpha = i / overlap_width
                 stitched_frame[:, frame_width - overlap_width + i] = cv2.addWeighted(
-                    left[:, frame_width - overlap_width + i], 1 - alpha,
-                    right[:, i], alpha, 0)
+                    left[:, frame_width - overlap_width + i],
+                    1 - alpha,
+                    right[:, i],
+                    alpha,
+                    0,
+                )
 
             # adjust the right image and put it to the end
-            right_fixed = cv2.resize(right[:, overlap_width:], (frame_width, frame_height))
+            right_fixed = cv2.resize(
+                right[:, overlap_width:], (frame_width, frame_height)
+            )
             stitched_frame[:, frame_width:] = right_fixed
 
             # ---- OBJECT DETECTION ----
@@ -265,21 +303,47 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
                     y_center = int((box[1] + box[3]) / 2)
 
                     # Calculate GPS from left and right camera
-                    gps_left = coordinateMapping.pixelToGps((x_center, y_center), left_camera_location, altitude, fov=fov, resolution=resolution)
-                    gps_right = coordinateMapping.pixelToGps((x_center, y_center), right_camera_location, altitude, fov=fov, resolution=resolution)
+                    gps_left = coordinateMapping.pixel_to_gps(
+                        (x_center, y_center),
+                        left_camera_location,
+                        altitude,
+                        fov=fov,
+                        resolution=resolution,
+                    )
+                    gps_right = coordinateMapping.pixel_to_gps(
+                        (x_center, y_center),
+                        right_camera_location,
+                        altitude,
+                        fov=fov,
+                        resolution=resolution,
+                    )
 
                     # Weighted average calculation
-                    best_gps = get_weighted_gps(x_center, frame_width * 2, gps_left, gps_right)
+                    best_gps = get_weighted_gps(
+                        x_center, frame_width * 2, gps_left, gps_right
+                    )
                     gps_positions.append(best_gps)
 
                 # ---- SHOW RESULTS ----
-                labels = [f"ID: {d} GPS: {round(g[0], 6)}, {round(g[1], 6)}" for d, g in zip(detections.tracker_id, gps_positions)]
-                position_labels = [f"({int(d[0])}, {int(d[1])})" for d in detections.xyxy]
+                labels = [
+                    f"ID: {d} GPS: {round(g[0], 6)}, {round(g[1], 6)}"
+                    for d, g in zip(detections.tracker_id, gps_positions)
+                ]
+                position_labels = [
+                    f"({int(d[0])}, {int(d[1])})" for d in detections.xyxy
+                ]
 
                 annotator = Annotator()  # Create an annotator
-                annotated_frame = annotator.annotateFrame(frame=stitched_frame, detections=detections, labels=labels, positionLabels=position_labels)
+                annotated_frame = annotator.annotate_frame(
+                    frame=stitched_frame,
+                    detections=detections,
+                    labels=labels,
+                    positionLabels=position_labels,
+                )
             else:
-                annotated_frame = stitched_frame  # no detection, only show composite image
+                annotated_frame = (
+                    stitched_frame  # no detection, only show composite image
+                )
 
             # Send the composite and annotated image to Redis
             annotated_frame = cv2.resize(annotated_frame, (640, 380))
@@ -294,10 +358,12 @@ async def merge_stream(drone_ids: tuple[int, int]) -> None:
         stop_event.set()
         cv2.destroyAllWindows()
 
+
 async def main() -> None:
     print("[INFO] Startar drönarvideoprocessorer...")
     while True:
         await merge_stream((1, 2))  # Call with drone ID 1 and 2
+
 
 if __name__ == "__main__":
     asyncio.run(main())
