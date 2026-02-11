@@ -46,12 +46,17 @@ public class MulticastReceiver {
 
     private final Lock backendsLock = new ReentrantLock(true);
 
+    public static final int PayloadLength = 1200;
+
     private final Map<String, BackendInformation> availableBackends = new HashMap<>();
 
-    MulticastReceiver(Context context, int port)
+    MulticastReceiver(int port)
     {
         this.port = port;
+    }
 
+    public void startListening(Context context)
+    {
         wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         multicastLock = wifi.createMulticastLock("discovery-lock");
 
@@ -84,51 +89,61 @@ public class MulticastReceiver {
 
     private void receivePackets(MulticastSocket socket) throws IOException {
         while (!Thread.currentThread().isInterrupted()) {
-            byte[] buf = new byte[1024];
+            byte[] buf = new byte[PayloadLength];
             DatagramPacket packet = new DatagramPacket(buf, buf.length);
 
             socket.receive(packet);
 
-            // Check magic bytes so we have received what we expect
-            boolean valid = true;
-            for (int i = 0; i < magicBytes.length; i++) {
-                if (buf[i] != magicBytes[i]) {
-                    Log.d(TAG, "Received unexpected multicast packet, ignoring it");
-                    valid = false;
-                }
-            }
-            if (!valid)
-            {
-                continue;
-            }
-
-            String message = new String(buf, StandardCharsets.UTF_8);
-            try {
-                Log.d(TAG, "Received multicast packet " + message);
-
-                JSONObject jsonMessage = new JSONObject(message);
-                String type = jsonMessage.getString("msg_type");
-                if (!type.equals("backend_discovery")) {
-                    Log.d(TAG, "Unknown msg_type: " + type);
-                    continue;
-                }
-
-                String name = jsonMessage.getString("name");
-                String ip = jsonMessage.getString("ip");
-                int port = jsonMessage.getInt("port");
-
-                backendsLock.lock();
-                availableBackends.put(name, new BackendInformation(name, ip, port));
-                backendsLock.unlock();
-            }
-            catch (JSONException e)
-            {
-                Log.d(TAG, "Failed to parse json " + message);
-                e.printStackTrace();
-            }
+            handlePacket(packet, buf);
         }
 
         socket.close();
+    }
+
+    public boolean handlePacket(DatagramPacket packet, byte[] buf)
+    {
+        // Check magic bytes so we have received what we expect
+        boolean valid = true;
+        for (int i = 0; i < magicBytes.length; i++) {
+            if (buf[i] != magicBytes[i]) {
+                Log.d(TAG, "Received unexpected multicast packet, ignoring it");
+                valid = false;
+            }
+        }
+        if (!valid)
+        {
+            return false;
+        }
+
+        String message = new String(buf, StandardCharsets.UTF_8).substring(3);
+        try {
+            Log.d(TAG, "Received multicast packet " + message);
+
+            JSONObject jsonMessage = new JSONObject(message);
+            String type = jsonMessage.getString("msg_type");
+            if (!type.equals("backend_discovery")) {
+                Log.d(TAG, "Unknown msg_type: " + type);
+                return false;
+            }
+
+            String name = jsonMessage.getString("name");
+            String ip = jsonMessage.getString("ip");
+            int port = jsonMessage.getInt("port");
+
+            backendsLock.lock();
+            availableBackends.put(name, new BackendInformation(name, ip, port));
+            backendsLock.unlock();
+
+            Log.d(TAG, "Saved backend information");
+
+            return true;
+        }
+        catch (JSONException e)
+        {
+            Log.d(TAG, "Failed to parse json " + message);
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public ArrayList<BackendInformation> getAvailableBackends()

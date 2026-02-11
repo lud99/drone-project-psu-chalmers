@@ -8,7 +8,7 @@ services:
       dockerfile: ./Dockerfile
     command: ${backend_command}
     networks:
-      - atos-net
+      - atos-net 
     ports:
       - 8765:8765
       - 14500:14500
@@ -26,7 +26,6 @@ services:
       - N_DRONES=2
       - OVERLAP=0.5
     volumes:
-      # bind-mount source code for live development (overrides Dockerfile COPY)
       - .:/root/atos_ws/src/communication_software
     depends_on:
       - atos
@@ -78,7 +77,6 @@ services:
       - atos-net
     ports:
       - 8001:80
-    
 
   image_stitching:
     container_name: image_stitching

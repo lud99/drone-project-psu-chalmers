@@ -5,12 +5,18 @@ import threading
 import time
 
 class MulticastSender:
-    def __init__(self) -> None:
-        self.list_of_ips = self.get_ipv4_interfaces()
+    def __init__(self, transparent_ip: str) -> None:
+        """
+        transparent_ip: the IP assigned to your transparent network inside the container
+        """
+        self.transparent_ip = transparent_ip
         self.port = 9992
         self.multicast_group_ip = "239.255.42.99"
         self.frequency_in_seconds = 1 
-        self.name = "Backend1" # TODO implement properly
+        self.name = "Backend1"
+
+        if len(self.name) > 50:
+            self.name = self.name[:40]
 
         self.stop_event = threading.Event()
 
@@ -25,24 +31,54 @@ class MulticastSender:
         return ips
     
     def send_packets(self):
+                
+        # HOST_IP = "host.docker.internal"  # Docker Desktop shortcut to host
+        # HOST_PORT = 50000                  # must match relay LISTEN_PORT
+
+        # s = socket(AF_INET, SOCK_DGRAM)
+        # while True:
+        #     message = "CTH" + json.dumps({
+        #         "msg_type": "backend_discovery", 
+        #         "name": self.name, 
+        #         "ip": self.transparent_ip, 
+        #         "port": self.port
+        #     })
+                
+        #     if len(message) > 1200:
+        #         print("Multicast message is larger than 1200 bytes, will not send!!!")
+        #         continue
+
+        #     s.sendto(message.encode("utf-8"), (HOST_IP, HOST_PORT))
+        #     print("Sent to host relay")
+        #     time.sleep(1)
+
+
         while not self.stop_event.is_set():
-            for ip in self.list_of_ips:
-                try:
-                    message = "CTH" + json.dumps({ "msg_type": "backend_discovery", 
-                                          "name": self.name, 
-                                          "ip": ip, 
-                                          "port": self.port})
-                    s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-                    s.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
-                    s.setsockopt(IPPROTO_IP, IP_MULTICAST_IF, inet_aton(ip))
-                    s.sendto(message.encode("utf-8"), (self.multicast_group_ip, self.port))
-                    s.close()
-                    
-                    print("try send " + ip)
-                except Exception as e:
-                    print(f"{ip} failed: {e}")
+            try:
+                message = "CTH" + json.dumps({
+                    "msg_type": "backend_discovery", 
+                    "name": self.name, 
+                    "ip": self.transparent_ip, 
+                    "port": self.port
+                })
+                
+                if len(message) > 1200:
+                    print("Multicast message is larger than 1200 bytes, will not send!!!")
+
+                # create UDP socket
+                s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+                # set TTL
+                s.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
+                # bind to transparent interface
+                s.setsockopt(IPPROTO_IP, IP_MULTICAST_IF, inet_aton(self.transparent_ip))
+                # send multicast
+                s.sendto(message.encode("utf-8"), (self.multicast_group_ip, self.port))
+                s.close()
+                print(f"Sent multicast from {self.transparent_ip}")
+            except Exception as e:
+                print(f"Failed to send: {e}")
             
             time.sleep(self.frequency_in_seconds)
-
+    
     def stop(self):
         self.stop_event.set()

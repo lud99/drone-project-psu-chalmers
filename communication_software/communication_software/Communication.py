@@ -76,9 +76,10 @@ class Communication:
         print(f"WebSocket server started on ws://{ip}:14500")
 
         # Start multicasting now after websocket server has started
-        sender = MulticastSender()
+        sender = MulticastSender("10.0.43.48")
         multicast_thread = threading.Thread(target=sender.send_packets)
         multicast_thread.start()
+        print("started")
 
         try:
             await server.wait_closed()

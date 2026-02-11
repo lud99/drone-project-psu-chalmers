@@ -1,6 +1,6 @@
 from socket import *
 import psutil
-
+import json
 
 
 def get_ipv4_interfaces():
@@ -19,10 +19,15 @@ PORT = 9992
 
 for ip in get_ipv4_interfaces():
     try:
+        message = "CTH" + json.dumps({ "msg_type": "backend_discovery", 
+                                          "name": "backend1", 
+                                          "ip": ip, 
+                                          "port": int(9992)})
+        
         s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         s.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
         s.setsockopt(IPPROTO_IP, IP_MULTICAST_IF, inet_aton(ip))
-        s.sendto(b"hello", (MCAST_GRP, PORT))
+        s.sendto(message.encode("utf-8"), ("239.255.42.99", 9992))
         s.close()
         
         print("try send " + ip)

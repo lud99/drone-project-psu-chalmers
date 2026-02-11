@@ -90,7 +90,8 @@ public class MainActivity extends AppCompatActivity {
             checkAndRequestPermissions();
         }
 
-        multicastReceiver = new MulticastReceiver(getApplicationContext(), multicastPort);
+        multicastReceiver = new MulticastReceiver(multicastPort);
+        multicastReceiver.startListening(getApplicationContext());
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
