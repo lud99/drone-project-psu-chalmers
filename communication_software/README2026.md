@@ -16,7 +16,7 @@ https://marketplace.visualstudio.com/items?itemName=ms-python.python
 https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker  
 https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens Optional, but much better than built-in Git  
 
-Also, install ```codespell```, ```ruff``` and ```pre-commit```  with ```pip install codespell ruff pre-commit```, or your choice of installing python packages.
+Install ```pre-commit```  with ```pip install pre-commit```, or your choice of installing python packages.
 In the root of the repo, run ```pre-commit install``` to install the spellchecker and linter check for every commit you make.
 
 
