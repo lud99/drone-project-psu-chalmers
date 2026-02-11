@@ -11,4 +11,4 @@ repos:
     hooks:
       - id: codespell
         args:
-         ["--ignore-words=dictionary.txt"]
+         ["--ignore-words=codespell_ignore.txt"]
