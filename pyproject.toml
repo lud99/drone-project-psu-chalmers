@@ -61,6 +61,6 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.codespell]
-skip = "./frontend/misc, ./.git"
+skip = "./frontend/misc, ./.git, ./communication_software/.vscode-server, ./android-app/app/build, ./android-app/build, ./communication_software/.dotnet, ./communication_software/.dotnet, ./communication_software/.astazero"
 check-filenames = true
 check-hidden = true
