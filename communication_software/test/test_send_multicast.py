@@ -1,4 +1,4 @@
-from socket import *
+import socket
 import psutil
 import json
 
@@ -7,7 +7,7 @@ def get_ipv4_interfaces():
     ips = []
     for iface, addrs in psutil.net_if_addrs().items():
         for addr in addrs:
-            if addr.family == AF_INET:
+            if addr.family == socket.AF_INET:
                 # if not addr.address.startswith("127."):
                 ips.append(addr.address)
     return ips
@@ -24,12 +24,12 @@ for ip in get_ipv4_interfaces():
                                           "ip": ip, 
                                           "port": int(9992)})
         
-        s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-        s.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 1)
-        s.setsockopt(IPPROTO_IP, IP_MULTICAST_IF, inet_aton(ip))
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip))
         s.sendto(message.encode("utf-8"), ("239.255.42.99", 9992))
         s.close()
         
         print("try send " + ip)
-    except:
+    except Exception as _e:
         print(ip + " failed")

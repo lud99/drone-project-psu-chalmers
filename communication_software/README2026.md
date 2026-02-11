@@ -28,6 +28,9 @@ docker compose up -d --build
 **Important Note on Build Time:**
 The very first time you run this command, the build process might take a considerable amount of time (approximately 700 seconds or more). Subsequent builds will be significantly faster because Docker caches the image layers.
 
+### 3.1
+To enable the backend to send multicast UDP packets to the network, you must run forward_multicast.py outside of the docker container.
+
 ### 4. Verify Running Services
 Once the `docker compose up` command has finished, you can verify that all services are running as expected:
 ```bash

@@ -3,9 +3,9 @@ import threading
 import psutil
 
 # Configuration
-LISTEN_PORT = 50000          # unicast port container sends to
+LISTEN_PORT = 50000 # unicast port container sends to
 MULTICAST_GROUP = "239.255.42.99"
-MULTICAST_PORT = 9992        # original multicast port
+MULTICAST_PORT = 9992 # original multicast port
 
 # UDP socket to receive from container
 recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -29,6 +29,8 @@ def relay():
     while True:
         data, addr = recv_sock.recvfrom(4096)
         print(f"Received {len(data)} bytes from {addr}, forwarding to multicast")
+
+        # We must forward on all interfaces to ensure the packet arrives
         for ip in ips:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -36,7 +38,8 @@ def relay():
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip))
                 s.sendto(data, (MULTICAST_GROUP, MULTICAST_PORT))
                 s.close()
-            except:
+            # Ignore it, it's okay
+            except Exception as _e:
                 pass
             
 threading.Thread(target=relay, daemon=True).start()
