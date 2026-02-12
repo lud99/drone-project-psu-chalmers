@@ -3,6 +3,9 @@ services:
     container_name: backend
     stdin_open: true
     tty: true
+    env_file:
+      - path: ./.env
+      - path: ./host_ip.env
     build: 
       context: .
       dockerfile: ./Dockerfile
@@ -11,7 +14,7 @@ services:
       - atos-net 
     ports:
       - 8765:8765
-      - 14500:14500
+      - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
       - 5000:5000
       - 8000:8000
       - 3478:3478/udp  # STUN server port
@@ -25,6 +28,7 @@ services:
       - DEBUG_MODE=False
       - N_DRONES=2
       - OVERLAP=0.5
+      - WEBSOCKET_PORT=${WEBSOCKET_PORT}
     volumes:
       - .:/root/atos_ws/src/communication_software
     depends_on:

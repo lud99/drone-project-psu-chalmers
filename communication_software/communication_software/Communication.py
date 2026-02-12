@@ -7,6 +7,7 @@ from communication_software.ConvexHullScalable import Coordinate
 import threading
 import asyncio
 import redis
+import os
 import cv2
 import numpy as np
 from communication_software.multicast_sender import MulticastSender
@@ -72,14 +73,16 @@ class Communication:
             )
             self.start_redis_listener_thread()  # Assumes self.loop is set
 
-        server = await websockets.serve(self.webs_server, ip, 14500)
-        print(f"WebSocket server started on ws://{ip}:14500")
+        websocket_port = int(os.environ.get("WEBSOCKET_PORT", 14500))
+        host_ip = str(os.environ.get("HOST_IP"))
+
+        server = await websockets.serve(self.webs_server, ip, websocket_port)
+        print(f"WebSocket server started on ws://{ip}:{websocket_port}")
 
         # Start multicasting now after websocket server has started
-        sender = MulticastSender("10.0.43.48")
+        sender = MulticastSender(host_ip, websocket_port)
         multicast_thread = threading.Thread(target=sender.send_packets)
         multicast_thread.start()
-        print("started")
 
         try:
             await server.wait_closed()

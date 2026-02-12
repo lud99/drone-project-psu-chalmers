@@ -1,17 +1,21 @@
 import socket
 import threading
 import psutil
+import os
+from dotenv import load_dotenv
 
 # Configuration
+load_dotenv(".env")
+multicast_port = int(os.getenv("MULTICAST_PORT", 9992))
+
 LISTEN_PORT = 50000 # unicast port container sends to
 MULTICAST_GROUP = "239.255.42.99"
-MULTICAST_PORT = 9992 # original multicast port
 
 # UDP socket to receive from container
 recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-recv_sock.bind(("0.0.0.0", LISTEN_PORT)) # change to 127.0.0.0 ?
+recv_sock.bind(("0.0.0.0", LISTEN_PORT))
 
-print(f"Relay running: receiving on {LISTEN_PORT}, sending to {MULTICAST_GROUP}:{MULTICAST_PORT}")
+print(f"Relay running: receiving on {LISTEN_PORT}, sending to {MULTICAST_GROUP}:{multicast_port}")
 
 
 def get_ipv4_interfaces():
@@ -28,6 +32,9 @@ ips = get_ipv4_interfaces()
 def relay():
     while True:
         data, addr = recv_sock.recvfrom(4096)
+        if data[:3] != b"CTH":
+            continue
+
         print(f"Received {len(data)} bytes from {addr}, forwarding to multicast")
 
         # We must forward on all interfaces to ensure the packet arrives
@@ -36,8 +43,9 @@ def relay():
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip))
-                s.sendto(data, (MULTICAST_GROUP, MULTICAST_PORT))
+                s.sendto(data, (MULTICAST_GROUP, multicast_port))
                 s.close()
+                # print(f"Forwarded packet on interface {ip}")
             # Ignore it, it's okay
             except Exception as _e:
                 pass

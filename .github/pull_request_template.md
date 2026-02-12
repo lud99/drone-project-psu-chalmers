@@ -6,6 +6,7 @@
 Closes #
 
 ### Checklist
+- [ ] Added/Updated tests
 - [ ] Tests passed
-- [ ] Updated code documentation
-- [ ] Have reviewed my code (contains no commented out code, code and files follows naming conventions)
+- [ ] Updated code or repo documentation
+- [ ] Have reviewed my code (code and files follows naming conventions)
