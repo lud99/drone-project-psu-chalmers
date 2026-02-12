@@ -9,4 +9,5 @@ Closes #
 - [ ] Added/Updated tests
 - [ ] Tests passed
 - [ ] Updated code or repo documentation
+- [ ] Linked an issue
 - [ ] Have reviewed my code (code and files follows naming conventions)
