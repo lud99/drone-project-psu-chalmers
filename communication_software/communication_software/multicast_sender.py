@@ -11,7 +11,6 @@ class MulticastSender:
         """
         self.host_ip = host_ip
         self.port = host_port
-        self.multicast_group_ip = "239.255.42.99"
         self.frequency_in_seconds = 1 
         self.name = "Backend1" # TODO implement properly
 
@@ -45,8 +44,12 @@ class MulticastSender:
                 "ip": self.host_ip, 
                 "port": self.port
             })
+
+            # To prevent UDP packets from being fragmented and risk being dropped, use a packet size in range 
+            # 1200 - 1400 bytes
+            max_udp_packet_size = 1200
                 
-            if len(message) > 1200:
+            if len(message) > max_udp_packet_size:
                 print("Multicast message is larger than 1200 bytes, will not send!!!")
                 continue
 

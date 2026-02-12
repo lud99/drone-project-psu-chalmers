@@ -9,6 +9,9 @@ load_dotenv(".env")
 multicast_port = int(os.getenv("MULTICAST_PORT", 9992))
 
 LISTEN_PORT = 50000 # unicast port container sends to
+
+# 239.0.0.0/8 is designated as Administratively Scoped Multicast
+# This means ips in that range are safe to use locally
 MULTICAST_GROUP = "239.255.42.99"
 
 # UDP socket to receive from container
