@@ -3,20 +3,24 @@ services:
     container_name: backend
     stdin_open: true
     tty: true
+    env_file:
+      - path: ./.env
+      - path: ./host_ip.env
     build: 
       context: .
       dockerfile: ./Dockerfile
     command: ${backend_command}
     networks:
-      - atos-net
+      - atos-net 
     ports:
       - 8765:8765
-      - 14500:14500
+      - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
       - 5000:5000
       - 8000:8000
       - 3478:3478/udp  # STUN server port
       - 8765:8765/udp  # WebRTC signaling port
       - 5678:5678 # Python debugger port
+      - 9992:9992/udp # Multicast port
     environment: # 
       - ENV_ALTITUDE= 15 # does not matter probably
       - ENV_LATITUDE= 57.77293201101717
@@ -24,8 +28,8 @@ services:
       - DEBUG_MODE=False
       - N_DRONES=2
       - OVERLAP=0.5
+      - WEBSOCKET_PORT=${WEBSOCKET_PORT}
     volumes:
-      # bind-mount source code for live development (overrides Dockerfile COPY)
       - .:/root/atos_ws/src/communication_software
     depends_on:
       - atos
@@ -77,7 +81,6 @@ services:
       - atos-net
     ports:
       - 8001:80
-    
 
   image_stitching:
     container_name: image_stitching

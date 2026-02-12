@@ -7,8 +7,10 @@ from communication_software.ConvexHullScalable import Coordinate
 import threading
 import asyncio
 import redis
+import os
 import cv2
 import numpy as np
+from communication_software.multicast_sender import MulticastSender
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
@@ -71,8 +73,16 @@ class Communication:
             )
             self.start_redis_listener_thread()  # Assumes self.loop is set
 
-        server = await websockets.serve(self.webs_server, ip, 14500)
-        print(f"WebSocket server started on ws://{ip}:14500")
+        websocket_port = int(os.environ.get("WEBSOCKET_PORT", 14500))
+        host_ip = str(os.environ.get("HOST_IP"))
+
+        server = await websockets.serve(self.webs_server, ip, websocket_port)
+        print(f"WebSocket server started on ws://{ip}:{websocket_port}")
+
+        # Start multicasting now after websocket server has started
+        sender = MulticastSender(host_ip, websocket_port)
+        multicast_thread = threading.Thread(target=sender.send_packets)
+        multicast_thread.start()
 
         try:
             await server.wait_closed()
@@ -85,6 +95,9 @@ class Communication:
                 if self.redis_listener_task.is_alive():
                     print("Warning: Redis listener thread did not stop gracefully.")
             print("WebSocket server stopped.")
+            sender.stop()
+            multicast_thread.join()
+            print("Stopped multicast sender thread")
 
     def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
         """Transforms coordinates into required format."""
