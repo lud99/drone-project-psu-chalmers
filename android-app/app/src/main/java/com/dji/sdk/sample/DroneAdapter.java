@@ -1,3 +1,10 @@
+/**
+     * Contains the structure for the adapter for each drone type.
+     * Each drone type should have it own class "<drone_type>Adapter" Eg. DJIAdapter/MavlinkAdapter that follows this structure.
+     * Contains both methods to execute tasks and retrieve data
+     * The methods that executes tasks should also include the functionality that sends "task_complete"-messages to backend
+*/
+
 
 public interface DroneAdapter {
 
