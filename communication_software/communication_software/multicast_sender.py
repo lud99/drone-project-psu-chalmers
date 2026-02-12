@@ -46,7 +46,7 @@ class MulticastSender:
             })
 
             # To prevent UDP packets from being fragmented and risk being dropped, use a packet size in range 
-            # 1200 - 1400 bytes
+            # 1200 - 1400 bytes. Wifi has max size of 1500 bytes
             max_udp_packet_size = 1200
                 
             if len(message) > max_udp_packet_size:
