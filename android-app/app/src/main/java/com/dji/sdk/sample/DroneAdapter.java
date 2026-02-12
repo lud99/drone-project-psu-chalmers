@@ -1,5 +1,3 @@
-import org.json.JSONObject;
-
 
 public interface DroneAdapter {
 
@@ -48,6 +46,6 @@ public interface DroneAdapter {
     void abortTask(String missionID, int taskIndex);
     void land(String missionID, int taskIndex);
 
-    JSONObject getTelemetry(); 
-    JSONObject getRegistrationData();
+    Telemetry getTelemetry(); 
+    RegistrationData getRegistrationData();
 }
