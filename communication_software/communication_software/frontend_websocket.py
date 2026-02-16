@@ -251,21 +251,21 @@ async def flightmanager_websocket(websocket: WebSocket):
 @app.get("/api/v1/video_feed/drone1")
 async def drone1_feed():
     return StreamingResponse(
-        stream_drone_frames(1), media_type="multipart/x-mixed-replace; boundary=frame"
+        stream_drone_frames("1"), media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 @app.get("/api/v1/video_feed/drone2")
 async def drone2_feed():
     return StreamingResponse(
-        stream_drone_frames(2), media_type="multipart/x-mixed-replace; boundary=frame"
+        stream_drone_frames("2"), media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 @app.get("/api/v1/video_feed/merged")
 async def merged_feed():
     return StreamingResponse(
-        stream_drone_frames("_merged"),
+        stream_drone_frames("_merged_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -287,7 +287,7 @@ def run_server(atos_communicator):
 
 
 # Video Frames Generation Based on Drone ID
-async def stream_drone_frames(drone_id: int):
+async def stream_drone_frames(drone_id: str):
 
     redis_key = f"frame_drone{drone_id}"
     while True:
