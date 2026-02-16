@@ -184,9 +184,6 @@ async def stream_drone_frames(drone_id: int):
             r.mget, redis_keys
         )
 
-        print(capabilities)
-        print(telemetry)
-
         try:
             capabilities = json.loads(capabilities) if capabilities else {}
             telemetry = json.loads(telemetry) if telemetry else {}
@@ -446,7 +443,7 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
         cv2.destroyAllWindows()
 
 
-async def annotate_steam(drone_id: int) -> None:
+async def annotate_stream(drone_id: int) -> None:
     """
     Merge video streams from two drones, detect objects, and save annotated output.
 
@@ -506,7 +503,7 @@ async def annotate_steam(drone_id: int) -> None:
 
             # Send the results to redis
             await set_frame(f"{drone_id}", annotated_frame, detections)
-            print("Setting video frame and detections in Redis")
+            print(f"Setting video frame and detections in Redis for drone {drone_id}")
     finally:
         stop_event.set()
 
@@ -680,7 +677,7 @@ async def test_stream_frame():
 
     await test_adding_redis_frame(img, 1)
 
-    await annotate_steam(1)
+    await annotate_stream(1)
 
     # Don't know how to test reading the redis data here
     # But modifying the code to read detections, it works
@@ -707,8 +704,12 @@ async def test_stream_merge_frame():
 async def main() -> None:
     print("[INFO] Startar drönarvideoprocessorer...")
 
-    await test_stream_merge_frame()
+    # await test_stream_merge_frame()
     # await test_detect_and_annotate_image()
+
+    # await annotate_stream(1)
+
+    await asyncio.gather(annotate_stream(1), annotate_stream(2))
 
     # await merge_stream((1, 2))  # Call with drone ID 1 and 2
 
