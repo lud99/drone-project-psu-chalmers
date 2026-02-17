@@ -163,7 +163,7 @@ public class WebsocketClientHandler {
         };
         webSocketClient.setConnectTimeout(15000);
         webSocketClient.setReadTimeout(30000);
-        webSocketClient.enableAutomaticReconnection(1000);
+        //webSocketClient.enableAutomaticReconnection(1000);
     }
 
     public URI getUri() {
