@@ -5,7 +5,7 @@
      * The methods that executes tasks should also include the functionality that sends "task_complete"-messages to backend
 */
 
-
+/*
 public interface DroneAdapter {
 
     public static Telemetry {
@@ -55,4 +55,4 @@ public interface DroneAdapter {
 
     Telemetry getTelemetry(); 
     RegistrationData getRegistrationData();
-}
+}*/
