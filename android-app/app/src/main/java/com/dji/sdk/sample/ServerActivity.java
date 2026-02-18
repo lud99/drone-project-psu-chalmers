@@ -30,7 +30,7 @@ public class ServerActivity extends AppCompatActivity {
 
 
 
-    private AutoConnectManager autoConnectManager;
+    //private AutoConnectManager autoConnectManager;
 
 
     @Override
@@ -41,7 +41,7 @@ public class ServerActivity extends AppCompatActivity {
         portEdit = findViewById(R.id.portEdit);
         
         //
-        autoConnectManager = AutoConnectManager.getInstance(this);
+        //autoConnectManager = AutoConnectManager.getInstance(this);
     }
 
     @Override
@@ -76,7 +76,18 @@ public class ServerActivity extends AppCompatActivity {
         try {
             String ip = ipTextEdit.getText().toString();
             int port = Integer.parseInt(portEdit.getText().toString());
-            autoConnectManager.setManualConnection(ip, port);
+
+            /*if (AutoConnectManager.isReady())
+            {
+                AutoConnectManager autoConnectManager = AutoConnectManager.getInstance(this);
+                autoConnectManager.setManualConnection(ip, port);
+            }
+            else {
+                toastOnUIThread("Cannot connect, product not registered yet!");
+            }*/
+
+           AutoConnectManager.getInstance(this).start()
+
             Log.i(TAG, "Manual connection set: " + ip + ":" + port);
         } catch (NumberFormatException e) {
             Log.e(TAG, "Invalid port number", e);
