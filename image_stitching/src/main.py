@@ -6,7 +6,7 @@ from queue import Queue
 from ultralytics import YOLO
 import supervision.detection.core as sv
 from annotator import Annotator
-import coordinateMapping
+import coordinate_mapping
 import redis
 import asyncio
 import os
@@ -14,10 +14,7 @@ import torch
 import io
 import json
 
-from common.frame_utils import (
-    create_not_connected_frame,
-    create_error_frame   
-)
+from common.frame_utils import create_not_connected_frame, create_error_frame
 
 if torch.cuda.is_available():
     print(
@@ -79,7 +76,6 @@ async def consume_async_generator(gen, queue, stop_event, drone_id):
     queue.put(None)  # Signal the end of the stream
 
 
-
 def detect_objects(frame: np.ndarray) -> sv.Detections:
     """
     Run YOLO for object detection on a frame.
@@ -94,13 +90,6 @@ def detect_objects(frame: np.ndarray) -> sv.Detections:
     detections = sv.Detections.from_ultralytics(results[0])
     return detections
 
-
-def get_weighted_gps(
-    pixel_x: int,
-    frame_width: int,
-    left_gps: tuple[float, float],
-    right_gps: tuple[float, float],
-) -> tuple[float, float]:
 
 def get_weighted_gps(
     pixel_x: int,
@@ -220,19 +209,22 @@ async def stream_drone_frames(drone_id: int):
                     print(
                         f"[WARNING] Failed to decode frame from Redis for drone {drone_id}"
                     )
-                   
-                    frame_to_encode = create_error_frame(dummy_frame.copy(), drone_id, "invalid frame data")
+
+                    frame_to_encode = create_error_frame(
+                        dummy_frame.copy(), drone_id, "invalid frame data"
+                    )
 
             except Exception as e:
                 print(
                     f"[ERROR] Error processing frame data from Redis for drone {drone_id}: {e}"
                 )
-                frame_to_encode = create_error_frame(dummy_frame.copy(), drone_id, "error reading")
+                frame_to_encode = create_error_frame(
+                    dummy_frame.copy(), drone_id, "error reading"
+                )
 
         else:
             # If no frame exists in Redis, prepare a dummy image for encoding
             frame_to_encode = create_not_connected_frame(dummy_frame.copy(), drone_id)
-
 
         # Convert selected frame (real or dummy) to JPEG bytes
         ret, buffer = cv2.imencode(".jpg", frame_to_encode)
@@ -240,8 +232,6 @@ async def stream_drone_frames(drone_id: int):
             # If encoding fails, log and skip (yield None or wait?)
             # Yielding None might be better handled by the consumer
             print(f"[ERROR] Failed to encode frame to JPEG for drone {drone_id}")
-            await asyncio.sleep(0.033)  # wait a bit before the next attempt
-            continue  # Skip this iteration
             await asyncio.sleep(0.033)  # wait a bit before the next attempt
             continue  # Skip this iteration
 
@@ -275,10 +265,10 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
 
     # Start async tasks to consume frames
     asyncio.create_task(
-        consume_async_generator(frameLeft, left_queue, stop_event, drone_ids[0])
+        consume_async_generator(frame_left, left_queue, stop_event, drone_ids[0])
     )
     asyncio.create_task(
-        consume_async_generator(frameRight, right_queue, stop_event, drone_ids[1])
+        consume_async_generator(frame_right, right_queue, stop_event, drone_ids[1])
     )
 
     try:
@@ -332,12 +322,6 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
             for i in range(overlap_width):
                 alpha = i / overlap_width
                 stitched_frame[:, frame_width - overlap_width + i] = cv2.addWeighted(
-                    left[:, frame_width - overlap_width + i],
-                    1 - alpha,
-                    right[:, i],
-                    alpha,
-                    0,
-                )
                     left[:, frame_width - overlap_width + i],
                     1 - alpha,
                     right[:, i],
@@ -484,7 +468,7 @@ def detect_and_annotate_image(
             # but the detection positions are upscaled to the original resolution.
             # Thats why it's valid to pass the original image size as the resolution.
             gps_positions = [
-                coordinateMapping.pixelToGps(
+                coordinate_mapping.pixel_to_gps(
                     (x_center, y_center),
                     drone_coordinate,
                     altitude,
@@ -514,11 +498,11 @@ def detect_and_annotate_image(
             detections_complete.append(Detection(model.names[class_id], gps_position))
 
         annotator = Annotator()
-        annotated_frame = annotator.annotateFrame(
+        annotated_frame = annotator.annotate_frame(
             frame=pixel_array,
             detections=detections,
             labels=labels,
-            positionLabels=position_labels,
+            position_labels=position_labels,
         )
     else:
         annotated_frame = pixel_array  # no detection, only show image
@@ -675,4 +659,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-
