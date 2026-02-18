@@ -59,6 +59,8 @@ async def consume_async_generator(gen, queue, stop_event, drone_id):
         if stop_event.is_set():
             break
 
+        print(capabilities, telemetry)
+
         if not capabilities:
             print(f"Capabilities for drone {drone_id} not found, not doing detection")
             await asyncio.sleep(0.033)  # wait a bit before the next attempt
@@ -612,9 +614,14 @@ async def test_insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
             ]
         )
 
+        expiration = 60
         with r.pipeline() as pipe:
             pipe.set(redis_key_telemetry, json.dumps(telemetry))
+            pipe.expire(redis_key_telemetry, expiration)
+
             pipe.set(redis_key_capabilities, json.dumps(capabilities))
+            pipe.expire(redis_key_capabilities, expiration)
+
             pipe.execute()  # Execute both commands together
             print("Added test capabilities and telemetry data to redis")
     except Exception as e:
@@ -680,7 +687,7 @@ async def test_stream_frame():
     await annotate_stream(1)
 
     # Don't know how to test reading the redis data here
-    # But modifying the code to read detections, it works
+    # But modifying the code to read detections, we can see that it works
 
 
 async def test_stream_merge_frame():
