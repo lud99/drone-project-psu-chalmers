@@ -69,6 +69,10 @@ public class AutoConnectManager {
         return instance;
     }
 
+    public static synchronized boolean isReady() {
+        return instance != null;
+    }
+
     //Starts auto connect
     public void start() {
         if (!isRunning) { 
@@ -232,13 +236,22 @@ public class AutoConnectManager {
     private void attemptConnect(WebsocketClientHandler handler) {
         connecting = true;
 
-        boolean connected = handler.connect();
+        WebsocketClientHandler oldHandler = WebsocketClientHandler.getInstance();
+        if (oldHandler != null) {
+            oldHandler.closeConnection();
+        }
+
+        // Resets and creates handler
+        WebsocketClientHandler newHandler = WebsocketClientHandler.resetClientHandler(context, oldHandler.getUri());
+
+        boolean connected = newHandler.connect();
+        /*handler.isConnected()
 
         if (connected) {
             Log.i(TAG, "Reconnection initiated successfully");
         } else {
             Log.i(TAG, "Failed to initiate reconnection");
-        }
+        }*/
         connecting = false;
     }
 

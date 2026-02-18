@@ -68,7 +68,7 @@ public class WebsocketClientHandler {
         return webSocketClient;
     }
 
-    
+
 
     private WebsocketClientHandler(Context context, URI uri){
         this.uri = uri;
@@ -143,8 +143,9 @@ public class WebsocketClientHandler {
             public void onException(Exception e) {
                 Log.e(TAG, e.toString());
                 if (e instanceof IOException){
-                    closeConnection();
+                    //closeConnection();
                 }
+                WebsocketClientHandler.status_update.release(); //?
             }
 
             @Override
@@ -209,9 +210,13 @@ public class WebsocketClientHandler {
     }
 
     public void closeConnection(){
-        if (isConnected()){
-            webSocketClient.close(1, 1001, "Connection closed by app");
-            connected = false;
+        connected = false;
+
+        try {
+            webSocketClient.close(0, 1001, "Connection closed by app");
+        } catch (Exception e) {
+            Log.d(TAG, "Failed to close connection!");
+            e.printStackTrace();
         }
     }
 
@@ -239,12 +244,12 @@ public class WebsocketClientHandler {
         if (webSocketClient != null){
             initializeWebRTCClient();
             webSocketClient.connect();
-            WSPosition WSPosition = new WSPosition(webSocketClient);
-            Thread thread = new Thread(WSPosition);
-            thread.start();
+
             return true;
         }
         return false;
+
+
     }
 
     private HandlerThread wsPositionHandlerThread;
