@@ -355,10 +355,10 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
             right_location = (right_telemetry["lat"], right_telemetry["lon"])
 
             if left_fov != right_fov:
-                print("[ERROR] Fov missmatch!")
+                print("[ERROR] Fov mismatch!")
                 continue
             if left_altitude != right_altitude:
-                print("[ERROR] Altidude missmatch!")
+                print("[ERROR] Altidude mismatch!")
                 continue
 
             (annotated_frame, detections) = detect_and_annotate_image(
@@ -466,7 +466,7 @@ def detect_and_annotate_image(
             # Calculate GPS from camera position.
             # It is a bit confusing about the resolution passed here. The image is downsampled in when running the detection,
             # but the detection positions are upscaled to the original resolution.
-            # Thats why it's valid to pass the original image size as the resolution.
+            # That's why it's valid to pass the original image size as the resolution.
             gps_positions = [
                 coordinate_mapping.pixel_to_gps(
                     (x_center, y_center),
