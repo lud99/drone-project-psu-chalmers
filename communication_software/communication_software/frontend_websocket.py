@@ -1,15 +1,13 @@
 import asyncio
 import json
-import random
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 import uvicorn
 import cv2
-import numpy as np
 from datetime import datetime
-from itertools import islice
 import redis
 import redis.exceptions
+import numpy as np
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
@@ -84,14 +82,14 @@ async def drone_websocket(websocket: WebSocket):
                         lng = data_dict.get("longitude")
                         alt = data_dict.get("altitude")
                         speed = data_dict.get("speed")
-                        batteryPercent = data_dict.get("batteryPercent")
+                        battery_percent = data_dict.get("batteryPercent")
 
                         if (
                             lat is None
                             or lng is None
                             or alt is None
                             or speed is None
-                            or batteryPercent is None
+                            or battery_percent is None
                         ):
                             print(
                                 f"Warning: Missing position, battery or speed data fields in {redis_key}. Found: {data_dict}"
@@ -113,7 +111,7 @@ async def drone_websocket(websocket: WebSocket):
                                 "lng": lng,
                                 "alt": alt,
                                 "speed": speed,
-                                "battery": batteryPercent,
+                                "battery": battery_percent,
                             }
                         )
                         processed_data_for_cycle[drone_id] = atos.drone_data[drone_id]
@@ -281,7 +279,7 @@ def run_server(atos_communicator):
     global ATOScommunicator
     ATOScommunicator = atos_communicator
     uvicorn.run(
-        "communication_software.frontendWebsocket:app",
+        "communication_software.frontend_websocket:app",
         host="0.0.0.0",
         port=8000,
         reload=False,
@@ -331,11 +329,10 @@ async def stream_drone_frames(drone_id: int):
             continue
 
         yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+            b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
         )
         await asyncio.sleep(0.033)  # Approximately 30 frames per second
 
 
 if __name__ == "__main__":
-    uvicorn.run("frontendWebsocket:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("frontend_websocket:app", host="0.0.0.0", port=8000, reload=True)

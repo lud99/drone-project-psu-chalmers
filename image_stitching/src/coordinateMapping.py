@@ -1,79 +1,93 @@
 import numpy as np
 import math
 
-def pixelToGps(pixel, cameraLocation, altitude,
-               orientation=0, fov=83.0, resolution=(1920, 1080)):
+
+def pixel_to_gps(
+    pixel, camera_location, altitude, orientation=0, fov=83.0, resolution=(1920, 1080)
+):
     """
     Converts a pixel position to GPS coordinates, based on camera location, altitude, and FoV.
     """
-    EARTH_RADIUS = 6378137  # in meters
-    lat, lon = cameraLocation
+    EARTH_RADIUS = 6378137  # in meters  # noqa: N806
+    lat, lon = camera_location
     width, height = resolution
     x, y = pixel
 
     # Calculate the field of view in vertical direction based on image aspect ratio
-    fovWidth, fovHeight = fov, fov * (height / width)
+    fov_width, fov_height = fov, fov * (height / width)
 
     # Calculate the ground distance covered by the image
-    groundHeight = 2 * (np.tan(np.radians(fovHeight / 2)) * altitude)
-    groundWidth = 2 * (np.tan(np.radians(fovWidth / 2)) * altitude)
+    ground_height = 2 * (np.tan(np.radians(fov_height / 2)) * altitude)
+    ground_width = 2 * (np.tan(np.radians(fov_width / 2)) * altitude)
 
     # Calculate the ground distance covered by each pixel
-    pixelWidth = groundWidth / width
-    pixelHeight = groundHeight / height
+    pixel_width = ground_width / width
+    pixel_height = ground_height / height
 
     # Calculate offsets for the given pixel from the image center
-    xOffset = pixelWidth * (x - width / 2)
-    yOffset = pixelHeight * (height / 2 - y)  # Invert Y axis
+    x_offset = pixel_width * (x - width / 2)
+    y_offset = pixel_height * (height / 2 - y)  # Invert Y axis
 
     # Rotate the offsets by the orientation
-    orientationRad = np.radians(orientation)
-    xOffsetRotated = xOffset * np.cos(orientationRad) + yOffset * np.sin(orientationRad)
-    yOffsetRotated = -xOffset * np.sin(orientationRad) + yOffset * np.cos(orientationRad)
+    orientation_rad = np.radians(orientation)
+    x_offset_rotated = x_offset * np.cos(orientation_rad) + y_offset * np.sin(
+        orientation_rad
+    )
+    y_offset_rotated = -x_offset * np.sin(orientation_rad) + y_offset * np.cos(
+        orientation_rad
+    )
 
     # Calculate new coordinates
-    deltaLat = (yOffsetRotated / EARTH_RADIUS) * (180 / np.pi)
-    deltaLon = (xOffsetRotated / (EARTH_RADIUS * np.cos(np.radians(lat)))) * (180 / np.pi)
+    delta_lat = (y_offset_rotated / EARTH_RADIUS) * (180 / np.pi)
+    delta_long = (x_offset_rotated / (EARTH_RADIUS * np.cos(np.radians(lat)))) * (
+        180 / np.pi
+    )
 
-    return lat + deltaLat, lon + deltaLon
+    return lat + delta_lat, lon + delta_long
 
-def gpsDeltaToMeters(originCoord, coord):
-    '''
+
+def gps_to_delta_meters(origin_coord, coord):
+    """
     Calculates object's (x,y) meter offsets from drone location using
     object's gps coordinate and drone's gps coordinate
 
     Useful for testing gps calculation accuracy
-    '''
-    metersPerDegLat = 111111
+    """
+    meters_per_deg_lat = 111111
 
-    delatLat = coord[0] - originCoord[0]
-    deltaLon = coord[1] - originCoord[1]
+    delta_lat = coord[0] - origin_coord[0]
+    delta_long = coord[1] - origin_coord[1]
 
     # Convert differences to meters (approximation)
-    deltaLatMeters = delatLat * metersPerDegLat
-    deltaLonMeters = deltaLon * metersPerDegLat * math.cos(math.radians((originCoord[0] + coord[0]) / 2))
+    delta_lat_meters = delta_lat * meters_per_deg_lat
+    delta_long_meters = (
+        delta_long
+        * meters_per_deg_lat
+        * math.cos(math.radians((origin_coord[0] + coord[0]) / 2))
+    )
 
-    return deltaLonMeters, deltaLatMeters
+    return delta_long_meters, delta_lat_meters
 
-def offsetFromDrone(pixel, resolution, altitude, fov):
-    resolutionWidth, resolutionHeight = resolution
+
+def offset_from_drone(pixel, resolution, altitude, fov):
+    resolution_width, resolution_height = resolution
     x, y = pixel
 
-    fovWidth, fovHeight = fov, fov * (resolutionHeight / resolutionWidth)
+    fov_width, fov_height = fov, fov * (resolution_height / resolution_width)
 
-    groundHeight = 2 * (np.tan(np.radians(fovHeight / 2)) * altitude)
-    groundWidth = 2 * (np.tan(np.radians(fovWidth / 2)) * altitude)
+    ground_height = 2 * (np.tan(np.radians(fov_height / 2)) * altitude)
+    ground_width = 2 * (np.tan(np.radians(fov_width / 2)) * altitude)
 
-    pixelWidth = groundWidth / resolutionWidth
-    pixelHeight = groundHeight / resolutionHeight
+    pixel_width = ground_width / resolution_width
+    pixel_height = ground_height / resolution_height
 
-    centerX = resolutionWidth / 2
-    centerY = resolutionHeight / 2
+    center_x = resolution_width / 2
+    center_y = resolution_height / 2
 
-    pixelOffsetX = x - centerX
-    pixelOffsetY = centerY - y
+    pixel_offset_x = x - center_x
+    pixel_offset_y = center_y - y
 
-    xOffset = pixelOffsetX * pixelWidth
-    yOffset = pixelOffsetY * pixelHeight
+    x_offset = pixel_offset_x * pixel_width
+    y_offset = pixel_offset_y * pixel_height
 
-    return xOffset, yOffset
+    return x_offset, y_offset

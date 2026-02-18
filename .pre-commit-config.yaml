@@ -1,0 +1,14 @@
+repos:
+  # Ruff: correctness + style
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.0
+    hooks:
+      - id: ruff
+
+  # Codespell: human-language typos
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args:
+         ["--ignore-words=codespell_ignore.txt"]

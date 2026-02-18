@@ -10,6 +10,16 @@ Before you begin, ensure you have the following installed on your Linux system:
 2.  **Docker Engine:** Follow the official installation guide for your Linux distribution: [Install Docker Engine](https://docs.docker.com/engine/install/)
 3.  **Docker Compose:** This is usually included with Docker Desktop or can be installed as a plugin for Docker Engine. Verify by running `docker compose version`. If not found, see: [Install Docker Compose](https://docs.docker.com/compose/install/)
 
+### Required extensions for our workflow
+https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff For linting and formatting  
+https://marketplace.visualstudio.com/items?itemName=ms-python.python  
+https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker  
+https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens Optional, but much better than built-in Git  
+
+Install ```pre-commit```  with ```pip install pre-commit```, or your choice of installing python packages.
+In the root of the repo, run ```pre-commit install``` to install the spellchecker and linter check for every commit you make.
+
+
 ### 2. Navigate to the Project Directory
 
 Ensure your terminal is in the `communication_software` directory, which is located at the same level as this `README.md` file (if this `README.md` is in `$GIT_ROOT_REPOSITORY/communication_software/`). This directory contains the `docker-compose.yml` file required for the next steps.
@@ -46,12 +56,12 @@ You should see an output listing the following containers, typically with a stat
 - frontend
 
 If not all appear, run ```docker compose restart``` until all of them are visible. Don't know why, but it worked for me after a few attempts.
-You can start a single container with ```docker compose up <name>```. Note the lack of ```-d```. ```-d```stars in detatched mode, so you dont see any command output.
+You can start a single container with ```docker compose up <name>```. Note the lack of ```-d```. ```-d```stars in detached so you dont see any command output.
 Not including it means you can see the logs.
 
-Running ```docker compose up -d``` (without --build) will be substantially faster, any changes to the files on the host system will not be copied over (except those in a volume, wich the source code should be). You can also run ```docker compose restart <name>```.
+Running ```docker compose up -d``` (without --build) will be substantially faster, any changes to the files on the host system will not be copied over (except those in a volume, which the source code should be). You can also run ```docker compose restart <name>```.
 
-To see the logs of a container after it has started, or is detatched, run ```docker compose logs -f <name>```
+To see the logs of a container after it has started, or is detached, run ```docker compose logs -f <name>```
 Access the terminal of the container: ```docker compose exec <name> bash```
 
 If you have made a change to a dockerfile, you must run ```--build```. If you have made changes to sourcode, then you shouldn't have to.
@@ -66,15 +76,15 @@ The programming and debugging of the backend should be done in the docker contai
 
 Install the Vs Code extensions ```Docker```and ```Dev Containers```
 
-Run the script depending on what you want to debug, in a git bash terminal window: ```debug_all.sh, debug_backend.sh or begug_image_stitching.sh```. The one you aren't debugging will automatically start when the container starts, as usual. Note: These wont rebuild the dockerfile, if you have made any changes
+Run the script depending on what you want to debug, in a git bash terminal window: ```debug_all.sh, debug_backend.sh or begug_image_stitching.sh```. The one you aren't debugging will automatically start when the container starts, as usual. Note: These won't rebuild the dockerfile, if you have made any changes
 
 Now in Vs Code press ```Ctrl + P, type >Attach to running container``` and select the python container you wish to debug (backend or image_stitching).
-It will open a new window and load. Install the python (debugger) extension in your attatched Vs Code window, and wait. You will have to do this every time you attach.
+It will open a new window and load. Install the python (debugger) extension in your attached Vs Code window, and wait. You will have to do this every time you attach.
 https://marketplace.visualstudio.com/items?itemName=ms-python.python
 
 Press ```F5``` to start a debugger, voila! you can now edit code and restart without having to restart the entire container.
 
-If you restart the container(s), you will have to reload the vs code window and wait some time, aswell as install the extensions again
+If you restart the container(s), you will have to reload the vs code window and wait some time, as well as install the extensions again
 
 ## Frontend
 Rebuilding the frontend container depends on the backend starting. The webcontents are mounted as volume so that editing the files are just as simple as that.
