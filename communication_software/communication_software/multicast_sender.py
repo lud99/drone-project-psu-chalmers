@@ -4,6 +4,9 @@ import psutil
 import threading
 import time
 
+HOST_IP = "host.docker.internal"  # Docker Desktop shortcut to host
+HOST_PORT = 50000  # must match relay LISTEN_PORT
+
 
 class MulticastSender:
     def __init__(self, host_ip: str, host_port: int) -> None:
@@ -31,10 +34,6 @@ class MulticastSender:
         return ips
 
     def send_packets(self):
-
-        HOST_IP = "host.docker.internal"  # Docker Desktop shortcut to host
-        HOST_PORT = 50000  # must match relay LISTEN_PORT
-
         print(f"Start sending discovery packets for {self.host_ip}:{self.port}")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

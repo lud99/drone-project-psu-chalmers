@@ -1,5 +1,6 @@
 import cv2
 
+
 def create_not_connected_frame(frame, drone_id):
     cv2.putText(
         frame,
@@ -11,6 +12,7 @@ def create_not_connected_frame(frame, drone_id):
         2,
     )
     return frame
+
 
 def create_error_frame(frame, drone_id, error):
     cv2.putText(
