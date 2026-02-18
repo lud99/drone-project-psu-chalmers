@@ -9,7 +9,6 @@ from communication_software.misc import (
     init_rclpy,
 )
 
-
 def main() -> None:
     Interface.print_welcome()
     init_rclpy()

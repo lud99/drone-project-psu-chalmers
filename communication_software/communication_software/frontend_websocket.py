@@ -9,6 +9,11 @@ import redis
 import redis.exceptions
 import numpy as np
 
+from communication_software.common.frame_utils import (
+    create_not_connected_frame,
+    create_error_frame   
+)
+
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()  # Check if the connection is successful
@@ -262,6 +267,20 @@ async def drone2_feed():
     )
 
 
+@app.get("/api/v1/video_feed/drone1_annotated")
+async def drone1_feed_annotated():
+    return StreamingResponse(
+        stream_drone_frames("1_annotated"), media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+@app.get("/api/v1/video_feed/drone2_annotated")
+async def drone2_feed_annotated():
+    return StreamingResponse(
+        stream_drone_frames("2_annotated"), media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
 @app.get("/api/v1/video_feed/merged")
 async def merged_feed():
     return StreamingResponse(
@@ -299,28 +318,12 @@ async def stream_drone_frames(drone_id: str):
             frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
             if frame is None:
                 # If decoding fails, fall back to a dummy image.
-                frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                cv2.putText(
-                    frame,
-                    f"Drone {drone_id}: invalid frame",
-                    (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 0, 255),
-                    2,
-                )
+                frame = create_error_frame(np.zeros((480, 640, 3), dtype=np.uint8), drone_id, "invalid frame")
+
         else:
             # No frame found in Redis, so generate a dummy frame.
-            frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(
-                frame,
-                f"Drone {drone_id} not connected",
-                (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
+            frame = create_not_connected_frame(np.zeros((480, 640, 3), dtype=np.uint8), drone_id)
+
         # Encode frame as JPEG
         ret, buffer = cv2.imencode(".jpg", frame)
         if not ret:

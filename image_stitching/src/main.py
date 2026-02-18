@@ -14,6 +14,10 @@ import torch
 import io
 import json
 
+from common.frame_utils import (
+    create_not_connected_frame,
+    create_error_frame   
+)
 
 if torch.cuda.is_available():
     print(
@@ -59,7 +63,8 @@ async def consume_async_generator(gen, queue, stop_event, drone_id):
         if stop_event.is_set():
             break
 
-        print(capabilities, telemetry)
+        # For debug
+        # print(capabilities, telemetry)
 
         if not capabilities:
             print(f"Capabilities for drone {drone_id} not found, not doing detection")
@@ -215,74 +220,19 @@ async def stream_drone_frames(drone_id: int):
                     print(
                         f"[WARNING] Failed to decode frame from Redis for drone {drone_id}"
                     )
-                    dummy_frame_copy = dummy_frame.copy()  # Use a copy
-                    cv2.putText(
-                        dummy_frame_copy,
-                        f"Drone {drone_id}: invalid frame data",
-                        (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 0, 255),
-                        2,
-                    )
-                    print(
-                        f"[WARNING] Failed to decode frame from Redis for drone {drone_id}"
-                    )
-                    dummy_frame_copy = dummy_frame.copy()  # Use a copy
-                    cv2.putText(
-                        dummy_frame_copy,
-                        f"Drone {drone_id}: invalid frame data",
-                        (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 0, 255),
-                        2,
-                    )
-                    frame_to_encode = dummy_frame_copy
+                   
+                    frame_to_encode = create_error_frame(dummy_frame.copy(), drone_id, "invalid frame data")
 
             except Exception as e:
                 print(
                     f"[ERROR] Error processing frame data from Redis for drone {drone_id}: {e}"
                 )
-                dummy_frame_copy = dummy_frame.copy()
-                cv2.putText(
-                    dummy_frame_copy,
-                    f"Drone {drone_id}: error reading",
-                    (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 0, 255),
-                    2,
-                )
-                frame_to_encode = dummy_frame_copy
-                print(
-                    f"[ERROR] Error processing frame data from Redis for drone {drone_id}: {e}"
-                )
-                dummy_frame_copy = dummy_frame.copy()
-                cv2.putText(
-                    dummy_frame_copy,
-                    f"Drone {drone_id}: error reading",
-                    (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 0, 255),
-                    2,
-                )
-                frame_to_encode = dummy_frame_copy
+                frame_to_encode = create_error_frame(dummy_frame.copy(), drone_id, "error reading")
 
         else:
             # If no frame exists in Redis, prepare a dummy image for encoding
-            dummy_frame_copy = dummy_frame.copy()
-            cv2.putText(
-                dummy_frame_copy,
-                f"Drone {drone_id} not connected",
-                (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (255, 255, 255),
-                2,
-            )
-            frame_to_encode = dummy_frame_copy
+            frame_to_encode = create_not_connected_frame(dummy_frame.copy(), drone_id)
+
 
         # Convert selected frame (real or dummy) to JPEG bytes
         ret, buffer = cv2.imencode(".jpg", frame_to_encode)
@@ -467,6 +417,8 @@ async def annotate_stream(drone_id: int) -> None:
 
     try:
         while True:
+            await insert_dummy_telemetry_and_capabilities(drone_id)
+
             frame_data, capabilities, telemetry = await asyncio.to_thread(queue.get)
 
             if frame_data is None:
@@ -574,7 +526,7 @@ def detect_and_annotate_image(
     return (annotated_frame, detections_complete)
 
 
-async def test_insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
+async def insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
     """
     Store a frame in Redis as JPEG.
 
@@ -628,7 +580,7 @@ async def test_insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
         print(f"Exception in test_insert_dummy_telemetry_and_capabilities: {e}")
 
 
-async def test_adding_redis_frame(img, drone_id):
+async def adding_redis_frame(img, drone_id):
     buf = io.BytesIO()
 
     # 2. Save the image to the stream, specifying the format
@@ -680,9 +632,9 @@ async def test_stream_frame():
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
-    await test_insert_dummy_telemetry_and_capabilities(1)
+    await insert_dummy_telemetry_and_capabilities(1)
 
-    await test_adding_redis_frame(img, 1)
+    await adding_redis_frame(img, 1)
 
     await annotate_stream(1)
 
@@ -696,11 +648,11 @@ async def test_stream_merge_frame():
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
-    await test_insert_dummy_telemetry_and_capabilities(1)
-    await test_insert_dummy_telemetry_and_capabilities(2)
+    await insert_dummy_telemetry_and_capabilities(1)
+    await insert_dummy_telemetry_and_capabilities(2)
 
-    await test_adding_redis_frame(img, 1)
-    await test_adding_redis_frame(img, 2)
+    await adding_redis_frame(img, 1)
+    await adding_redis_frame(img, 2)
 
     await merge_and_annotate_stream((1, 2))
 
