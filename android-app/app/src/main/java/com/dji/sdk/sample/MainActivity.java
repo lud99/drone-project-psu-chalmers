@@ -169,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
                             Log.d(TAG, String.format("onProductConnect newProduct:%s", baseProduct));
                             showToast("Product Connected");
                             notifyStatusChange();
+                            AutoConnectManager.getInstance(getApplicationContext()).start();
 
                         }
                         @Override
