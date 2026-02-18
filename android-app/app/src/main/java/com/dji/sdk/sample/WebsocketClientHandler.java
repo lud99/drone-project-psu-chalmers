@@ -81,26 +81,10 @@ public class WebsocketClientHandler {
 
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    if (webRTCClient == null) {
-                        try {
-                            Log.d(TAG, "Initializing WebRTCClient...");
-                            VideoCapturer videoCapturer = new DJIVideoCapturer("DJI Mavic Enterprise 2");
-                            WebRTCMediaOptions mediaOptions = new WebRTCMediaOptions();
-                            webRTCClient = new WebRTCClient(context, videoCapturer, mediaOptions);
-                            Log.d(TAG, "WebRTCClient initialized successfully.");
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error initializing WebRTCClient: " + e.getMessage(), e);
-                        }
-                    } else {
-                        Log.w(TAG, "WebRTCClient already initialized.");
-                    }
                     startPositionSending(); // Ensure position sending starts properly
                     WebsocketClientHandler.status_update.release();
                 });
             }
-
-
-
 
             @Override
             public void onTextReceived(String message) {
@@ -118,6 +102,10 @@ public class WebsocketClientHandler {
                     FlightManager flightManager = FlightManager.getFlightManager();
                         flightManager.onArm();
                     } else if (type.equals("offer") || type.equals("candidate") || type.equals("answer")) {
+                        if(webRTCClient == null)
+                        {
+                            Log.d(TAG, "RTC CLIENT IS NULL");
+                        }
                         webRTCClient.handleWebRTCMessage(jsonMessage);
                     } else if (type.equals("flight_take_off")) {
                         Log.d(TAG, "Attempting to take off");
@@ -227,11 +215,29 @@ public class WebsocketClientHandler {
         }
     }
 
+    private void initializeWebRTCClient()
+    {
+        if (webRTCClient == null) {
+            try {
+                Log.d(TAG, "Initializing WebRTCClient...");
+                VideoCapturer videoCapturer = new DJIVideoCapturer("DJI Mavic Enterprise 2");
+                WebRTCMediaOptions mediaOptions = new WebRTCMediaOptions();
+                webRTCClient = new WebRTCClient(context, videoCapturer, mediaOptions);
+                Log.d(TAG, "WebRTCClient initialized successfully.");
+            } catch (Exception e) {
+                Log.e(TAG, "Error initializing WebRTCClient: " + e.getMessage(), e);
+            }
+        } else {
+            Log.w(TAG, "WebRTCClient already initialized!!.");
+        }
+    }
+
     public boolean connect(){
         if (isConnected()){
             return false;
         }
         if (webSocketClient != null){
+            initializeWebRTCClient();
             webSocketClient.connect();
             WSPosition WSPosition = new WSPosition(webSocketClient);
             Thread thread = new Thread(WSPosition);

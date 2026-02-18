@@ -33,6 +33,7 @@ ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
 
+
 class Communication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
@@ -346,8 +347,10 @@ class Communication:
                 data = await ws.recv()
                 print(f"Received from {connection_id}: {data}")
                 await self.on_message(data, connection_id)
-        except websockets.exceptions.ConnectionClosedError:
-            print(websockets.exceptions.ConnectionClosedError)
+        except websockets.exceptions.ConnectionClosedOK as e:
+            print(f"Client {connection_id} closed (cleanly):", e.code)
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"ConnectionClosedError: {e.code}, {e.reason}")
             print(f"Client {connection_id} disconnected.")
         finally:
             self.cleanup_connection(connection_id)
@@ -497,7 +500,7 @@ class Communication:
     ###WEBBRTC###
 
     async def send_message(self, connection_id, message):
-        """"Sends a message to the WebSocket connection."""
+        """ "Sends a message to the WebSocket connection."""
         print(
             f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"
         )
@@ -520,7 +523,6 @@ class Communication:
         except Exception as e:
             print(f"[DroneStream] Error in createOffer(): {e}")
 
-  
     def create_peer_connection(self, connection_id):
         """Create and configure the RTCPeerConnection."""
         try:
@@ -543,7 +545,7 @@ class Communication:
 
             @self.peer_connections[connection_id].on("track")
             def on_track(track):
-                
+
                 print(f"[DroneStream] Received track: {track.kind}")
 
                 async def process_video(track):
