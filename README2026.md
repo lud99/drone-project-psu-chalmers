@@ -10,15 +10,12 @@ Before you begin, ensure you have the following installed on your Linux system:
 2.  **Docker Engine:** Follow the official installation guide for your Linux distribution: [Install Docker Engine](https://docs.docker.com/engine/install/)
 3.  **Docker Compose:** This is usually included with Docker Desktop or can be installed as a plugin for Docker Engine. Verify by running `docker compose version`. If not found, see: [Install Docker Compose](https://docs.docker.com/compose/install/)
 
-### Required extensions for our workflow
-https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff For linting and formatting  
+### Required extensions for our workflow 
 https://marketplace.visualstudio.com/items?itemName=ms-python.python  
 https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker  
 https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens Optional, but much better than built-in Git  
 
-Install ```pre-commit```  with ```pip install pre-commit```, or your choice of installing python packages.
-In the root of the repo, run ```pre-commit install``` to install the spellchecker and linter check for every commit you make.
-
+Refer to ```Linting setup.md``` for setting up linter
 
 ### 2. Navigate to the Project Directory
 
@@ -39,7 +36,7 @@ docker compose up -d --build
 The very first time you run this command, the build process might take a considerable amount of time (approximately 700 seconds or more). Subsequent builds will be significantly faster because Docker caches the image layers.
 
 ### 3.1
-To enable the backend to send multicast UDP packets to the network, refer to ```README Multicast.md``` for instructions.
+To enable the backend to send multicast UDP packets to the network, refer to ```Multicast.md``` for instructions.
 
 ### 4. Verify Running Services
 Once the `docker compose up` command has finished, you can verify that all services are running as expected:

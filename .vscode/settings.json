@@ -3,5 +3,6 @@
     "python.analysis.typeCheckingMode": "standard",
     "[python]": {
         "editor.formatOnSave": true
-    }
+    },
+    "files.eol": "\r\n"
 }
