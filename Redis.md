@@ -7,29 +7,8 @@
 | telemetry_drone{id}   | TelemetrySchema        |
 | capabilities_drone{id}   | CapabilitiesSchema        |
 
-```
-TelemetrySchema:
-{
-    lat: double,
-    lon: double,
-    altitude: float,
-    heading: int,
-    speed: float,
-    batteryPercent: int
-}
-```
+For schemas, see ```json_schemas.py```
 
-```
-CapabilitiesSchema:
-{
-    camera: null or {
-        aspect_ratio: double,
-        horizontal_fov: double,
-        resolution: [int, int]
-    }
-    // More in the future?
-}
-```
 
 ```
 DetectionsSchema:

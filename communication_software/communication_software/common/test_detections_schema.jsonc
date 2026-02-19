@@ -1,0 +1,9 @@
+[
+    [{
+        "gps_position": [
+            12,
+            13.2
+        ],
+        "class_name": "bicycle"
+    }]
+]

@@ -1,0 +1,113 @@
+// All the messages getting sent between app and backend
+// Just a first draft. Modify as needed
+[
+    // app --> backend, on connection
+    {
+        "msg_type": "drone_registration",
+        "drone_type": "DJI",
+        "model": "Mavic 2 Enterprise",
+        "drone_id": "AZL-55555",
+        "capabilities": {
+            "camera": {
+                "aspect_ratio": 1.77776,
+                "horizontal_fov": 84.0,
+                "resolution_width": 1920,
+                "resolution_height": 1080
+            }, // This is possible to retrieve (at least from DJI SDK)
+            "led": {
+                "colors": [
+                    "white",
+                    "red"
+                ]
+            }, // Depends on what info we can get from the drone
+            "spotlight": false,
+            "speaker": true,
+            "max_speed": 15
+        }
+    },
+    // app --> backend, sent continuously
+    {
+        "msg_type": "telemetry", // called "Position" in prev. code, maybe keep that?
+        "drone_id": "AZL-55555",
+        "lat": 57.7089,
+        "lon": 11.9746,
+        "alt": 30.5,
+        "heading": 180, // Not in current code, maybe add?
+        "speed": 5.20,
+        "battery_percent": 70
+    },
+    // backend --> app, send task. Giving a few examples.
+    {
+        "msg_type": "task",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555",
+        "index": 0,
+        "task": {
+            "action": "go_to",
+            "params": {
+                "lat": 57.7090,
+                "lon": 11.9750,
+                "alt": 25.0,
+                "heading": 180
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "drone_id": "AZL-55555",
+        "index": 1,
+        "task": {
+            "action": "play_audio",
+            "params": {
+                "file": "alarm.mp3",
+                "volume": 1.0,
+                "duration_seconds": 60
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task": {
+            "action": "led",
+            "params": {
+                "color": "red",
+                "pattern": "pulse",
+                "duration_seconds": -1
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 3,
+        "drone_id": "AZL-55555",
+        "task": {
+            "action": "spotlight",
+            "params": {
+                "pattern": "steady",
+                "duration_seconds": 90
+            }
+        }
+    },
+    // app --> backend, when drone completed prev. task
+    {
+        "msg_type": "task_event",
+        "mission_id": "mission_101",
+        "index": 0,
+        "event": "task_complete", // Could be ex. "mission_aborted", "mission_started",
+        "drone_id": "AZL-55555",
+        "message": "",
+        "timestamp": 1707123500
+    },
+    // backend --> app, abort current task
+    {
+        "msg_type": "abort_task",
+        "mission_id": "mission_101",
+        "index": 0,
+        "next": "go_home" // "hover", "land"
+    }
+]
