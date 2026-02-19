@@ -8,15 +8,3 @@
 | capabilities_drone{id}   | CapabilitiesSchema        |
 
 For schemas, see ```json_schemas.py```
-
-
-```
-DetectionsSchema:
-[
-    {
-        gps_position: [double, double],
-        class_name: string
-    }
-]
-
-```

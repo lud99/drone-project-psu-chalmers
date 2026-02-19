@@ -17,7 +17,7 @@ def read_json_with_comments(file_path):
 
 
 try:
-    data_string = read_json_with_comments("./test_app_backend_interface.jsonc")
+    data_string = read_json_with_comments("./test_drone_message_schema.jsonc")
 
     for example in json.loads(data_string):
         try:
@@ -56,7 +56,7 @@ try:
     data_string = read_json_with_comments("./test_detections_schema.jsonc")
 
     try:
-        json_schemas.parse_detections(json.dumps(data_string))
+        json_schemas.parse_detections(data_string)
         print("Successfully parsed decection")
 
     except Exception as e:

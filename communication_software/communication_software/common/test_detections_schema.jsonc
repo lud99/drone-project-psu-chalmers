@@ -1,9 +1,18 @@
 [
-    [{
+    {
         "gps_position": [
             12,
             13.2
         ],
-        "class_name": "bicycle"
-    }]
+        "class_name": "bicycle",
+        "drone_ids": ["1"]
+    },
+    {
+        "gps_position": [
+            12,
+            13.2
+        ],
+        "class_name": "vehicle",
+        "drone_ids": ["1", "2"]
+    }
 ]

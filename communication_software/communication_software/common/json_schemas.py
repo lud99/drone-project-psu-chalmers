@@ -1,8 +1,6 @@
 from __future__ import annotations
-from typing import Annotated, List, Union, Literal
-from pydantic import BaseModel, Field, ValidationError, TypeAdapter
-import json
-
+from typing import Annotated, Union, Literal
+from pydantic import BaseModel, RootModel, Field, TypeAdapter
 ### Capabilities and telemetry
 
 
@@ -14,7 +12,7 @@ class CameraCapabilities(BaseModel):
 
 
 class LEDCapabilities(BaseModel):
-    colors: List[str]  # will likely have to change
+    colors: list[str]  # will likely have to change
 
 
 class Capabilities(BaseModel):
@@ -157,80 +155,36 @@ AnyMessage = Annotated[
 
 ### Detections schema
 class SingleDetection(BaseModel):
-    gps_position: tuple[int, int]
+    gps_position: tuple[float, float]
     class_name: str
+    drone_ids: Annotated[list[str], Field(min_length=1)]
 
 
-class Detections(BaseModel):
-    detections: list[SingleDetection]
+class Detections(RootModel):
+    root: list[SingleDetection]
 
 
 def parse_drone_message(message: str) -> AnyMessage:
-    try:
-        # We use TypeAdapter or wrap the Union in a field to validate
-        # The easiest way for a list of mixed types is TypeAdapter:
+    # We use TypeAdapter or wrap the Union in a field to validate
+    # The easiest way for a list of mixed types is TypeAdapter:
 
-        adapter = TypeAdapter(AnyMessage)
+    adapter = TypeAdapter(AnyMessage)
+    return adapter.validate_json(message)
 
-        validated = adapter.validate_python(json.loads(message))
-
-        # Now 'validated' is an instance of whichever class matched!
-        return validated
-
-        # Example of handling different types
-        # if isinstance(validated, TelemetryMessage):
-        #     print(f" -> Drone is at {validated.lat}, {validated.lon}")
-        # elif isinstance(validated, TaskMessage):
-        #     print(f" -> New task: {validated.task.action}")
-
-    except ValidationError as e:
-        print(f"Validation failed for a message: {e}")
-        return None
-    except json.decoder.JSONDecodeError as e:
-        print(f"Failed to parse message: {message}, {e}")
-        return None
+    # Example of handling different types
+    # if isinstance(validated, TelemetryMessage):
+    #     print(f" -> Drone is at {validated.lat}, {validated.lon}")
+    # elif isinstance(validated, TaskMessage):
+    #     print(f" -> New task: {validated.task.action}")
 
 
 def parse_capabilities(message: str) -> Capabilities:
-    try:
-        adapter = TypeAdapter(Capabilities)
-
-        validated = adapter.validate_python(json.loads(message))
-        return validated
-
-    except ValidationError as e:
-        print(f"Validation failed for a capabilities: {e}")
-        return None
-    except json.decoder.JSONDecodeError as e:
-        print(f"Failed to parse capabilities: {message}, {e}")
-        return None
+    return Capabilities.model_validate_json(message)
 
 
 def parse_telemetry(message: str) -> Telemetry:
-    try:
-        adapter = TypeAdapter(Telemetry)
-
-        validated = adapter.validate_python(json.loads(message))
-        return validated
-    except ValidationError as e:
-        print(f"Validation failed for a telemetry: {e}")
-        return None
-    except json.decoder.JSONDecodeError as e:
-        print(f"Failed to parse telemetry: {message}, {e}")
-        return None
+    return Telemetry.model_validate_json(message)
 
 
 def parse_detections(message: str) -> Detections:
-    try:
-        # adapter = TypeAdapter(Detections)
-        print(message)
-        adapter = TypeAdapter(List[SingleDetection])
-
-        validated = adapter.validate_python(json.loads(message))
-        return validated
-    except ValidationError as e:
-        print(f"Validation failed for a detections: {e}")
-        return None
-    except json.decoder.JSONDecodeError as e:
-        print(f"Failed to parse detections: {message}, {e}")
-        return None
+    return Detections.model_validate_json(message)

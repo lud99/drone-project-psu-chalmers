@@ -25,6 +25,20 @@
             "max_speed": 15
         }
     },
+     // app --> backend, on connection
+    {
+        "msg_type": "drone_registration",
+        "drone_type": "MAVLink",
+        "model": "MAVLink drone",
+        "drone_id": "AZL-55555",
+        "capabilities": {
+            "camera": null, // This is possible to retrieve (at least from DJI SDK)
+            "led": null, // Depends on what info we can get from the drone
+            "spotlight": false,
+            "speaker": true,
+            "max_speed": 15
+        }
+    },
     // app --> backend, sent continuously
     {
         "msg_type": "telemetry", // called "Position" in prev. code, maybe keep that?
