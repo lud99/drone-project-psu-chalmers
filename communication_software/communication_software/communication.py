@@ -328,7 +328,7 @@ class Communication:
         connection_id = str(id(ws))
         self.connections[connection_id] = ws
         self.create_peer_connection(connection_id)
-        await self.start_drone_stream(connection_id)
+        # await self.start_drone_stream(connection_id)
 
         available_coords = [
             coord

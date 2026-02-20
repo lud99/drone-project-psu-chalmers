@@ -68,7 +68,7 @@ public class WebsocketClientHandler {
         return webSocketClient;
     }
 
-    
+
 
     private WebsocketClientHandler(Context context, URI uri){
         this.uri = uri;
@@ -82,6 +82,7 @@ public class WebsocketClientHandler {
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
                     startPositionSending(); // Ensure position sending starts properly
+                    startHeartbeat();
                     WebsocketClientHandler.status_update.release();
                 });
             }
@@ -142,9 +143,10 @@ public class WebsocketClientHandler {
             @Override
             public void onException(Exception e) {
                 Log.e(TAG, e.toString());
-                if (e instanceof IOException){
-                    closeConnection();
-                }
+                connected = false;
+                stopHeartbeat();
+                stopPositionSending();
+                WebsocketClientHandler.status_update.release();
             }
 
             @Override
@@ -152,6 +154,7 @@ public class WebsocketClientHandler {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
                 stopPositionSending();
+                stopHeartbeat();
                 if (webRTCClient != null) {
                     webRTCClient.dispose();
                     webRTCClient = null; // Nullify to prevent further usage
@@ -163,7 +166,7 @@ public class WebsocketClientHandler {
         };
         webSocketClient.setConnectTimeout(15000);
         webSocketClient.setReadTimeout(30000);
-        webSocketClient.enableAutomaticReconnection(1000);
+        //webSocketClient.enableAutomaticReconnection(1000);
     }
 
     public URI getUri() {
@@ -209,9 +212,13 @@ public class WebsocketClientHandler {
     }
 
     public void closeConnection(){
-        if (isConnected()){
-            webSocketClient.close(1, 1001, "Connection closed by app");
-            connected = false;
+        connected = false;
+
+        try {
+            webSocketClient.close(0, 1001, "Connection closed by app");
+        } catch (Exception e) {
+            Log.d(TAG, "Failed to close connection!");
+            e.printStackTrace();
         }
     }
 
@@ -239,12 +246,12 @@ public class WebsocketClientHandler {
         if (webSocketClient != null){
             initializeWebRTCClient();
             webSocketClient.connect();
-            WSPosition WSPosition = new WSPosition(webSocketClient);
-            Thread thread = new Thread(WSPosition);
-            thread.start();
+
             return true;
         }
         return false;
+
+
     }
 
     private HandlerThread wsPositionHandlerThread;
@@ -281,6 +288,45 @@ public class WebsocketClientHandler {
             wsPositionHandler = null;
         }
     }
+
+
+private Handler heartbeatHandler = null;
+
+private synchronized void startHeartbeat() {
+    stopHeartbeat();
+    heartbeatHandler = new Handler(Looper.getMainLooper());
+    heartbeatHandler.postDelayed(heartbeatRunnable, 5000); 
+}
+
+private synchronized void stopHeartbeat() {
+    if (heartbeatHandler != null) {
+        heartbeatHandler.removeCallbacks(heartbeatRunnable);
+        heartbeatHandler = null;
+    }
+}
+
+
+
+private final Runnable heartbeatRunnable = new Runnable() {
+    @Override
+    public void run() {
+        if (!connected) return;
+
+        try {
+            String ping = "{\"msg_type\": \"ping\"}";
+            webSocketClient.send(ping);
+            Log.d(TAG, "Heartbeat ping sent");
+            if (heartbeatHandler != null) {
+                heartbeatHandler.postDelayed(this, 5000);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Heartbeat failed: " + e.getMessage());
+            connected = false;
+            stopHeartbeat();
+            status_update.release();
+        }
+    }
+};
 
 }
 

@@ -24,9 +24,14 @@ import dji.thirdparty.afinal.core.AsyncTask;
 
 public class ServerActivity extends AppCompatActivity {
     private final String TAG = ServerActivity.class.getName();
-    private WebsocketClientHandler websocketClientHandler;
+    private volatile boolean isStatusUpdateRunning = false;
     EditText ipTextEdit;
     EditText portEdit;
+
+
+
+    //private AutoConnectManager autoConnectManager;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,19 +39,33 @@ public class ServerActivity extends AppCompatActivity {
         setContentView(R.layout.activity_server);
         ipTextEdit = findViewById(R.id.ip_adress_edit);
         portEdit = findViewById(R.id.portEdit);
+        
+        //
+        //autoConnectManager = AutoConnectManager.getInstance(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        updateStatus(); //Start updating the status as soon as the activity is resumed.
+        runOnUiThread(updateRunnable);
+        if (!isStatusUpdateRunning) {
+            updateStatus();
+        }
     }
-
+    @Override
+    protected void onPause() {
+        super.onPause();
+        isStatusUpdateRunning = false;
+        WebsocketClientHandler.status_update.release();
+    }
     /**
      * Handles the onclick event of the connect button. First, it creates a URI based on
      * the IP and Port fields. Then, it works what webSocketClientHandler to use and stores that.
      * Finally, it connects if the current client isn't already connected.
      */
+    
+
+
     public void connectClick(View v) {
         Log.e(TAG, "button clicked!");
         URI newUri;
@@ -57,25 +76,26 @@ public class ServerActivity extends AppCompatActivity {
             return;
         }
 
-        // There is a new URI in the field, create a new Client
-        if (WebsocketClientHandler.isInstanceCreated() && newUri != websocketClientHandler.getUri()) {
-            websocketClientHandler = WebsocketClientHandler.resetClientHandler(getApplicationContext(),newUri);
-        } else if (WebsocketClientHandler.isInstanceCreated()) {
-            //Otherwise, it's the same socket, just get the new one
-            websocketClientHandler = WebsocketClientHandler.getInstance();
-        } else {
-            // If there is none, create a new one.
-            websocketClientHandler = WebsocketClientHandler.createInstance(getApplicationContext(),newUri);
-        }
+        try {
+            String ip = ipTextEdit.getText().toString();
+            int port = Integer.parseInt(portEdit.getText().toString());
 
-        //Connect only if the client isn't connected
-        if (!websocketClientHandler.isConnected()) {
-            //This is OK, following block above
-            websocketClientHandler.connect();
-            toastOnUIThread("Connecting...");
-        } else {
-            toastOnUIThread("Already connected!");
+            /*if (AutoConnectManager.isReady())
+            {
+                AutoConnectManager autoConnectManager = AutoConnectManager.getInstance(this);
+                autoConnectManager.setManualConnection(ip, port);
+            }
+            else {
+                toastOnUIThread("Cannot connect, product not registered yet!");
+            }*/
+
+           AutoConnectManager.getInstance(this).setManualConnection(ip, port);
+
+            Log.i(TAG, "Manual connection set: " + ip + ":" + port);
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Invalid port number", e);
         }
+        toastOnUIThread("Manual connection set. Connecting...");
     }
 
 
@@ -84,8 +104,16 @@ public class ServerActivity extends AppCompatActivity {
      */
     public void sendClick(View v) {
         Log.e(TAG, "send clicked!");
+    
+    // LÄGG TILL DESSA RADER:
+        WebsocketClientHandler handler = WebsocketClientHandler.getInstance();
+        if (handler == null || !handler.isConnected()) {
+            Toast.makeText(this, "Not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+    
         String message = "{\"msg_type\": \"Debug\",\"msg\": \"Hello, from Android!\"}";
-        websocketClientHandler.send(message);
+        handler.send(message);  // ÄNDRAT: använd handler istället för websocketClientHandler
     }
 
     /**
@@ -101,31 +129,36 @@ public class ServerActivity extends AppCompatActivity {
      * Currently only checking for Connection/No connection/No instance
      */
     private void updateStatus() {
+        isStatusUpdateRunning = true;
         AsyncTask.execute(() -> {
-            //This uses busy-wait, which isn't great...
-            while (true) {
+            while (isStatusUpdateRunning) {
                 try {
-                    runOnUiThread(updateRunnable);
                     WebsocketClientHandler.status_update.acquire();
+                    runOnUiThread(updateRunnable);
                 } catch (InterruptedException e) {
                     Log.e(TAG, "interrupted!");
+                    break;
                 }
             }
         });
     }
 
     private final Runnable updateRunnable = new Runnable() {
-        //Factored out into a separate runnable to avoid so many levels of nesting.
-        @Override
-        public void run() {
-            TextView connectionStatusView = findViewById(R.id.banankaka);
-            if (WebsocketClientHandler.isInstanceCreated() && websocketClientHandler.isConnected()) {
-                connectionStatusView.setText(String.format("Connected to: %s", websocketClientHandler.getUri()));
-            } else if (WebsocketClientHandler.isInstanceCreated()) {
-                connectionStatusView.setText(String.format("Disconnected from: %s", websocketClientHandler.getUri()));
-            } else {
-                connectionStatusView.setText("No Client initialized");
-            }
+    @Override
+    public void run() {
+        TextView connectionStatusView = findViewById(R.id.banankaka);
+        
+        // LÄGG TILL DENNA RAD:
+        WebsocketClientHandler handler = WebsocketClientHandler.getInstance();
+        
+        // ÄNDRA FRÅN websocketClientHandler TILL handler:
+        if (handler != null && handler.isConnected()) {
+            connectionStatusView.setText(String.format("Connected to: %s", handler.getUri()));
+        } else if (handler != null) {
+            connectionStatusView.setText(String.format("Disconnected from: %s", handler.getUri()));
+        } else {
+            connectionStatusView.setText("No Client initialized");
+        }
         }
     };
 }
