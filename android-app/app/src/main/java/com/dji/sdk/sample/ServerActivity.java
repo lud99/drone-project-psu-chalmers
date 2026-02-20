@@ -24,7 +24,7 @@ import dji.thirdparty.afinal.core.AsyncTask;
 
 public class ServerActivity extends AppCompatActivity {
     private final String TAG = ServerActivity.class.getName();
-    private WebsocketClientHandler websocketClientHandler;
+    private volatile boolean isStatusUpdateRunning = false;
     EditText ipTextEdit;
     EditText portEdit;
 
@@ -47,13 +47,16 @@ public class ServerActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        //autoConnectManager.start();
-        updateStatus();  //Start updating the status as soon as the activity is resumed.
+        runOnUiThread(updateRunnable);
+        if (!isStatusUpdateRunning) {
+            updateStatus();
+        }
     }
-    
     @Override
     protected void onPause() {
         super.onPause();
+        isStatusUpdateRunning = false;
+        WebsocketClientHandler.status_update.release();
     }
     /**
      * Handles the onclick event of the connect button. First, it creates a URI based on
@@ -86,7 +89,7 @@ public class ServerActivity extends AppCompatActivity {
                 toastOnUIThread("Cannot connect, product not registered yet!");
             }*/
 
-           AutoConnectManager.getInstance(this).start()
+           AutoConnectManager.getInstance(this).setManualConnection(ip, port);
 
             Log.i(TAG, "Manual connection set: " + ip + ":" + port);
         } catch (NumberFormatException e) {
@@ -126,14 +129,15 @@ public class ServerActivity extends AppCompatActivity {
      * Currently only checking for Connection/No connection/No instance
      */
     private void updateStatus() {
+        isStatusUpdateRunning = true;
         AsyncTask.execute(() -> {
-            //This uses busy-wait, which isn't great...
-            while (true) {
+            while (isStatusUpdateRunning) {
                 try {
-                    runOnUiThread(updateRunnable);
                     WebsocketClientHandler.status_update.acquire();
+                    runOnUiThread(updateRunnable);
                 } catch (InterruptedException e) {
                     Log.e(TAG, "interrupted!");
+                    break;
                 }
             }
         });
