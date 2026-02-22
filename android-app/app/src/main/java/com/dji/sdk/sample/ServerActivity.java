@@ -29,12 +29,22 @@ public class ServerActivity extends AppCompatActivity {
     EditText portEdit;
 
 
+<<<<<<< HEAD
+=======
+
+    //private AutoConnectManager autoConnectManager;
+
+
+>>>>>>> 43dc50c4a0587a3aebd7bbaf93b7112e3eb1ad02
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_server);
         ipTextEdit = findViewById(R.id.ip_adress_edit);
         portEdit = findViewById(R.id.portEdit);
+        
+        //
+        //autoConnectManager = AutoConnectManager.getInstance(this);
     }
 
     @Override

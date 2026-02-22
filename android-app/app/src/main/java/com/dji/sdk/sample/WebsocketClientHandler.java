@@ -82,7 +82,7 @@ public class WebsocketClientHandler {
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
                     startPositionSending(); // Ensure position sending starts properly
-                    startHeartbeat(); //Ping to backend on open
+                    startHeartbeat();
                     WebsocketClientHandler.status_update.release();
                 });
             }
