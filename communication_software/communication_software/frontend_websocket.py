@@ -270,7 +270,7 @@ async def drone2_feed():
 @app.get("/api/v1/video_feed/drone1_annotated")
 async def drone1_feed_annotated():
     return StreamingResponse(
-        stream_drone_frames("1_annotated"),
+        stream_drone_frames("1", "_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -278,7 +278,7 @@ async def drone1_feed_annotated():
 @app.get("/api/v1/video_feed/drone2_annotated")
 async def drone2_feed_annotated():
     return StreamingResponse(
-        stream_drone_frames("2_annotated"),
+        stream_drone_frames("2", "_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -286,7 +286,7 @@ async def drone2_feed_annotated():
 @app.get("/api/v1/video_feed/merged")
 async def merged_feed():
     return StreamingResponse(
-        stream_drone_frames("_merged_annotated"),
+        stream_drone_frames("merged"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -308,9 +308,9 @@ def run_server(atos_communicator):
 
 
 # Video Frames Generation Based on Drone ID
-async def stream_drone_frames(drone_id: str):
+async def stream_drone_frames(drone_id: str, frame_type: str = ""):
 
-    redis_key = f"frame_drone{drone_id}"
+    redis_key = f"frame_drone{drone_id}${frame_type}"
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
