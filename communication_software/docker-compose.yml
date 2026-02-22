@@ -93,6 +93,7 @@ services:
     volumes:
       # bind-mount image_stitching source for live development
       - ../image_stitching/src:/root/image_stitching/src
+      - ./communication_software/common:/root/image_stitching/src/common
     depends_on:
       - redis
     command: ${image_stitching_command}

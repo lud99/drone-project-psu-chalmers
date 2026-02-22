@@ -1,0 +1,3 @@
+{
+  "recommendations": ["eamodio.gitlens", "ms-python.vscode-pylance", "charliermarsh.ruff", "ms-azuretools.vscode-docker"]
+}

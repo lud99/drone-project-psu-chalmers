@@ -82,7 +82,7 @@ public class WebsocketClientHandler {
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
                     startPositionSending(); // Ensure position sending starts properly
-                    startHeartbeat();
+                    startHeartbeat(); //Ping to backend on open
                     WebsocketClientHandler.status_update.release();
                 });
             }
@@ -144,7 +144,7 @@ public class WebsocketClientHandler {
             public void onException(Exception e) {
                 Log.e(TAG, e.toString());
                 connected = false;
-                stopHeartbeat();
+                stopHeartbeat(); //Stop ping to backend
                 stopPositionSending();
                 WebsocketClientHandler.status_update.release();
             }
@@ -154,7 +154,7 @@ public class WebsocketClientHandler {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
                 stopPositionSending();
-                stopHeartbeat();
+                stopHeartbeat(); //Stop ping to backend
                 if (webRTCClient != null) {
                     webRTCClient.dispose();
                     webRTCClient = null; // Nullify to prevent further usage
@@ -166,7 +166,6 @@ public class WebsocketClientHandler {
         };
         webSocketClient.setConnectTimeout(15000);
         webSocketClient.setReadTimeout(30000);
-        //webSocketClient.enableAutomaticReconnection(1000);
     }
 
     public URI getUri() {
@@ -290,12 +289,12 @@ public class WebsocketClientHandler {
     }
 
 
-private Handler heartbeatHandler = null;
+private Handler heartbeatHandler = null; //Sending pings to backend to check if it's still connected
 
-private synchronized void startHeartbeat() {
+private synchronized void startHeartbeat() { 
     stopHeartbeat();
     heartbeatHandler = new Handler(Looper.getMainLooper());
-    heartbeatHandler.postDelayed(heartbeatRunnable, 5000); 
+    heartbeatHandler.postDelayed(heartbeatRunnable, 7500); //Sending ping every 7.5 seconds
 }
 
 private synchronized void stopHeartbeat() {

@@ -7,7 +7,8 @@ PORT = 9992
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('', PORT))
+s.bind(("", PORT))
+
 
 def get_ipv4_interfaces():
     ips = []
@@ -18,14 +19,11 @@ def get_ipv4_interfaces():
                     ips.append(addr.address)
     return ips
 
+
 # Join multicast group on all interfaces
 for ip in get_ipv4_interfaces():
     try:
-        mreq = struct.pack(
-            "=4s4s",
-            socket.inet_aton(MCAST_GRP),
-            socket.inet_aton(ip)
-        )
+        mreq = struct.pack("=4s4s", socket.inet_aton(MCAST_GRP), socket.inet_aton(ip))
         s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         print("lsitening on " + ip)
     except Exception as _e:

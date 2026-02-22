@@ -2,6 +2,7 @@ import socket
 from dotenv import set_key
 from pathlib import Path
 
+
 def get_host_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -11,6 +12,7 @@ def get_host_ip():
     finally:
         s.close()
     return ip
+
 
 if __name__ == "__main__":
     env_file_path = Path("./host_ip.env")

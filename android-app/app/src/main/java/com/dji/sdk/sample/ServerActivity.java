@@ -29,25 +29,18 @@ public class ServerActivity extends AppCompatActivity {
     EditText portEdit;
 
 
-
-    //private AutoConnectManager autoConnectManager;
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_server);
         ipTextEdit = findViewById(R.id.ip_adress_edit);
         portEdit = findViewById(R.id.portEdit);
-        
-        //
-        //autoConnectManager = AutoConnectManager.getInstance(this);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        runOnUiThread(updateRunnable);
+        runOnUiThread(updateRunnable); //To update UI connection
         if (!isStatusUpdateRunning) {
             updateStatus();
         }
@@ -79,12 +72,6 @@ public class ServerActivity extends AppCompatActivity {
         try {
             String ip = ipTextEdit.getText().toString();
             int port = Integer.parseInt(portEdit.getText().toString());
-
-            /*if (AutoConnectManager.isReady())
-            {
-                AutoConnectManager autoConnectManager = AutoConnectManager.getInstance(this);
-                autoConnectManager.setManualConnection(ip, port);
-            }
             else {
                 toastOnUIThread("Cannot connect, product not registered yet!");
             }*/
@@ -104,8 +91,6 @@ public class ServerActivity extends AppCompatActivity {
      */
     public void sendClick(View v) {
         Log.e(TAG, "send clicked!");
-    
-    // LÄGG TILL DESSA RADER:
         WebsocketClientHandler handler = WebsocketClientHandler.getInstance();
         if (handler == null || !handler.isConnected()) {
             Toast.makeText(this, "Not connected", Toast.LENGTH_SHORT).show();
@@ -113,7 +98,7 @@ public class ServerActivity extends AppCompatActivity {
         }
     
         String message = "{\"msg_type\": \"Debug\",\"msg\": \"Hello, from Android!\"}";
-        handler.send(message);  // ÄNDRAT: använd handler istället för websocketClientHandler
+        handler.send(message); 
     }
 
     /**
@@ -134,7 +119,7 @@ public class ServerActivity extends AppCompatActivity {
             while (isStatusUpdateRunning) {
                 try {
                     WebsocketClientHandler.status_update.acquire();
-                    runOnUiThread(updateRunnable);
+                    runOnUiThread(updateRunnable); //Updates UI if something happens. 
                 } catch (InterruptedException e) {
                     Log.e(TAG, "interrupted!");
                     break;
@@ -147,11 +132,7 @@ public class ServerActivity extends AppCompatActivity {
     @Override
     public void run() {
         TextView connectionStatusView = findViewById(R.id.banankaka);
-        
-        // LÄGG TILL DENNA RAD:
         WebsocketClientHandler handler = WebsocketClientHandler.getInstance();
-        
-        // ÄNDRA FRÅN websocketClientHandler TILL handler:
         if (handler != null && handler.isConnected()) {
             connectionStatusView.setText(String.format("Connected to: %s", handler.getUri()));
         } else if (handler != null) {

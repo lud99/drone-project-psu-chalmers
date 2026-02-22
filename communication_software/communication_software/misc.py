@@ -1,9 +1,9 @@
 import asyncio
 import os
 import threading
-from communication_software.ConvexHullScalable import Coordinate, getDronesLoc
-from communication_software.frontendWebsocket import run_server
-from communication_software.Communication import Communication
+from communication_software.convex_hull_scalable import Coordinate, get_drones_location
+from communication_software.frontend_websocket import run_server
+from communication_software.communication import Communication
 import rclpy
 
 
@@ -11,22 +11,22 @@ def google_maps_coord_link(lat, lng):
     return f"https://www.google.com/maps/place/{lat},{lng}"
 
 
-def print_fly_to_list(flyToList, angle):
-    for i, flyTo in enumerate(flyToList):
-        lat, lng, alt = flyTo.lat, flyTo.lng, flyTo.alt
+def print_fly_to_list(fly_to_list, angle):
+    for i, fly_to in enumerate(fly_to_list):
+        lat, lng, alt = fly_to.lat, fly_to.lng, fly_to.alt
         google_maps_url = google_maps_coord_link(lat, lng)
         print(
             f"Drone {i} going to: (lat, lng, alt) {lat, lng, alt}, \n angle: {angle}, link: {google_maps_url}"
         )
 
 
-def get_trajectorylist(ATOScommunicator):
-    ids = ATOScommunicator.get_object_ids()
-    trajectoryList = {}
+def get_trajectory_list(atos_communicator):
+    ids = atos_communicator.get_object_ids()
+    trajectory_list = {}
     for id in ids:
-        coordlist = ATOScommunicator.get_object_traj(id)
-        trajectoryList[id] = coordlist
-    return trajectoryList
+        coordlist = atos_communicator.get_object_traj(id)
+        trajectory_list[id] = coordlist
+    return trajectory_list
 
 
 def is_debug_mode():
@@ -49,7 +49,7 @@ def is_debug_mode():
         return False
 
 
-def get_origo_coords(ATOScommunicator) -> Coordinate:
+def get_origo_coords(atos_communicator) -> Coordinate:
     altitude = os.getenv("ENV_ALTITUDE")
     latitude = os.getenv("ENV_LATITUDE")
     longitude = os.getenv("ENV_LONGITUDE")
@@ -58,7 +58,7 @@ def get_origo_coords(ATOScommunicator) -> Coordinate:
         return Coordinate(
             lat=float(latitude), lng=float(longitude), alt=float(altitude)
         )
-    return ATOScommunicator.get_origin_coordinates()
+    return atos_communicator.get_origin_coordinates()
 
 
 def start_frontend_websocket_server(atos_communicator):
@@ -69,23 +69,23 @@ def start_frontend_websocket_server(atos_communicator):
     print("FastAPI server started in a separate thread!")
 
 
-def get_drone_coordinates(ATOScommunicator):
-    origo = get_origo_coords(ATOScommunicator)
+def get_drone_coordinates(atos_communicator):
+    origo = get_origo_coords(atos_communicator)
 
-    trajectoryList = get_trajectorylist(ATOScommunicator)
+    trajectory_list = get_trajectory_list(atos_communicator)
 
     n_drones = int(os.environ.get("N_DRONES", 2))
     overlap = float(os.environ.get("OVERLAP", 0.5))
-    flyToList, angle = getDronesLoc(trajectoryList, origo, n_drones, overlap)
+    fly_to_list, angle = get_drones_location(trajectory_list, origo, n_drones, overlap)
 
-    print_fly_to_list(flyToList, angle)
+    print_fly_to_list(fly_to_list, angle)
 
-    droneOrigins = tuple([coord for coord in flyToList])
+    drone_origins = tuple([coord for coord in fly_to_list])
     angles = angle, angle
-    return (droneOrigins, angles)
+    return (drone_origins, angles)
 
 
-def start_communication_websocket_server(ip, droneOrigins, angles):
+def start_communication_websocket_server(ip, drone_origins, angles):
     communication = Communication()
     try:
         print("Communication server starting, press ctrl + c to exit")
@@ -94,7 +94,7 @@ def start_communication_websocket_server(ip, droneOrigins, angles):
             run_comm_server(
                 communication,
                 ip=ip,
-                droneOrigins=droneOrigins,
+                drone_origins=drone_origins,
                 angles=angles,
             )
         )
@@ -113,7 +113,7 @@ def start_communication_websocket_server(ip, droneOrigins, angles):
 
 
 async def run_comm_server(
-    communication: Communication, ip: str, droneOrigins: list, angles: list
+    communication: Communication, ip: str, drone_origins: list, angles: list
 ):
     loop = asyncio.get_running_loop()
     communication.loop = loop
@@ -121,15 +121,15 @@ async def run_comm_server(
     communication.start_redis_listener_thread()
 
     await communication.send_coordinates_websocket(
-        ip=ip, droneOrigins=droneOrigins, angles=angles
+        ip=ip, drone_origins=drone_origins, angles=angles
     )
 
 
-def main_loop_exit(ATOScommunicator):
+def main_loop_exit(atos_communicator):
     # Graceful shutdown
     print("Shutting down ROS node...")
-    if ATOScommunicator:
-        ATOScommunicator.destroy_node()
+    if atos_communicator:
+        atos_communicator.destroy_node()
     # if rclpy.is_initialized():
     rclpy.shutdown()
     print("Shutdown complete.")

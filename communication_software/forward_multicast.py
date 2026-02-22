@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 multicast_port = int(os.getenv("MULTICAST_PORT", 9992))
 
-LISTEN_PORT = 50000 # unicast port container sends to
+LISTEN_PORT = 50000  # unicast port container sends to
 
 # 239.0.0.0/8 is designated as Administratively Scoped Multicast
 # This means ips in that range are safe to use locally
@@ -18,7 +18,9 @@ MULTICAST_GROUP = "239.255.42.99"
 recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 recv_sock.bind(("0.0.0.0", LISTEN_PORT))
 
-print(f"Relay running: receiving on {LISTEN_PORT}, sending to {MULTICAST_GROUP}:{multicast_port}")
+print(
+    f"Relay running: receiving on {LISTEN_PORT}, sending to {MULTICAST_GROUP}:{multicast_port}"
+)
 
 
 def get_ipv4_interfaces():
@@ -30,7 +32,9 @@ def get_ipv4_interfaces():
                     ips.append(addr.address)
     return ips
 
+
 ips = get_ipv4_interfaces()
+
 
 def relay():
     while True:
@@ -45,14 +49,17 @@ def relay():
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
-                s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip))
+                s.setsockopt(
+                    socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(ip)
+                )
                 s.sendto(data, (MULTICAST_GROUP, multicast_port))
                 s.close()
                 # print(f"Forwarded packet on interface {ip}")
             # Ignore it, it's okay
             except Exception as _e:
                 pass
-            
+
+
 threading.Thread(target=relay, daemon=True).start()
 
 # Keep alive

@@ -176,8 +176,6 @@ public class AutoConnectManager {
                 Log.e(TAG, "Invalid URI", e);
             }
         } 
-
-
         //If backend list isn't empty we will take the first ip and port and make a URI
         ArrayList<MulticastReceiver.BackendInformation> backends = multicastReceiver.getAvailableBackends();
         if (!backends.isEmpty())    {
@@ -189,10 +187,9 @@ public class AutoConnectManager {
             return uri;
             } catch (URISyntaxException e) {
             Log.e(TAG, "Invalid discovered URI");
-        }
+            }
         } 
         
-
         //save URI from last use
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String lastIp = prefs.getString(PREF_LAST_IP, null);
@@ -245,13 +242,6 @@ public class AutoConnectManager {
         WebsocketClientHandler newHandler = WebsocketClientHandler.resetClientHandler(context, oldHandler.getUri());
 
         boolean connected = newHandler.connect();
-        /*handler.isConnected()
-
-        if (connected) {
-            Log.i(TAG, "Reconnection initiated successfully");
-        } else {
-            Log.i(TAG, "Failed to initiate reconnection");
-        }*/
         connecting = false;
     }
 

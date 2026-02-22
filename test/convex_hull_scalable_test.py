@@ -3,17 +3,19 @@ import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 from scipy import optimize
 
+
 class Coordinate:
     def __init__(self, lat, lng, alt=0):
         self.lat = lat
         self.lng = lng
         self.alt = alt
 
-def calculate_Height(area):
-    theta = (82.6/2)*(np.pi/180)
-    x = np.sqrt(area/(16*9))
-    y = (16*x)/4
-    radius = np.sqrt((2*y)**2+(1.5*y)**2)
+
+def calculate_height(area):
+    theta = (82.6 / 2) * (np.pi / 180)
+    x = np.sqrt(area / (16 * 9))
+    y = (16 * x) / 4
+    radius = np.sqrt((2 * y) ** 2 + (1.5 * y) ** 2)
     height = radius / np.tan(theta)
     height = round(height)
     if height < 99:
@@ -22,18 +24,22 @@ def calculate_Height(area):
         print("The height exceeds swedish regulations")
         return 99
 
+
 class ProximityError(Exception):
-    def __init__(self, message="Does not take more than one drone and overlap over 90 percent"):
+    def __init__(
+        self, message="Does not take more than one drone and overlap over 90 percent"
+    ):
         super().__init__(message)
 
-def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
+
+def get_drones_location(coordslist, drone_origin, n_drones=2, overlap=0.5):
     if not (0 <= overlap <= 1):
         raise ValueError("Overlap must be between 0 and 1 (inclusive).")
     if n_drones >= 2 and overlap >= 0.9:
         raise ProximityError("Overlap too high for multiple drones.")
     coords = []
-    for coordList in coordslist.values():
-        for coord in coordList:
+    for coord_list in coordslist.values():
+        for coord in coord_list:
             coords.append([coord.lng, coord.lat])
     coords = np.array(coords)
 
@@ -42,7 +48,7 @@ def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
             self.center = np.array([0.0, 0.0])
             self.axis = [np.array([0.0, 0.0]), np.array([0.0, 0.0])]
             self.extent = [0.0, 0.0]
-            self.area = float('inf')
+            self.area = float("inf")
 
     def normalize(v):
         return v / np.linalg.norm(v)
@@ -54,6 +60,7 @@ def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
         return np.dot(v1, v2)
 
     def min_area_rectangle_of_hull(polygon):
+        # ruff: disable[N806]
         min_rect = Rectangle()
         n = len(polygon)
         for i0 in range(n):
@@ -80,6 +87,8 @@ def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
                 min_rect.area = area
         return min_rect
 
+    # ruff: enable[N806]
+
     def compute_convex_hull(points):
         hull = ConvexHull(points)
         return [points[i] for i in hull.vertices]
@@ -99,11 +108,12 @@ def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
         rect = Rectangle()
         rect.center = np.mean(coords, axis=0)
         sorted_coords = sorted(coords, key=lambda p: p[0])
-        start_coord = sorted_coords[0]
         end_coord = sorted_coords[-1]
         direction = end_coord - rect.center
+        # ruff: disable[N806]
         U0 = normalize(direction)
         U1 = perp(U0)
+        # ruff: enable[N806]
         extent_long = np.linalg.norm(direction)
         rect.extent[1] = extent_long / 2
         rect.extent[0] = extent_long
@@ -124,80 +134,114 @@ def getDronesLoc(coordslist, droneOrigin, n_drones=2, overlap=0.5):
         split_axis = axis[1]
         angle_axis = axis[0]
 
-    step = 0.98
     diagonal = max(extent)
-    width = diagonal * (16 / 9) / np.sqrt((16 / 9)**2 + 1)  # Initialize width based on aspect ratio
+    width = (
+        diagonal * (16 / 9) / np.sqrt((16 / 9) ** 2 + 1)
+    )  # Initialize width based on aspect ratio
     aspect_ratio = 16 / 9
     norm_factor = np.sqrt(aspect_ratio**2 + 1)
     split_offset = width * (1 - overlap)
     height_r = diagonal * (1 / norm_factor)
     split_offset = width * (1 + (1 - 2 * overlap))
     print(n_drones)
-    drone_centers = [center + (i - (n_drones - 1) / 2) * split_offset * split_axis for i in range(int(n_drones))]
-    height = calculate_Height(width * height_r)
+    drone_centers = [
+        center + (i - (n_drones - 1) / 2) * split_offset * split_axis
+        for i in range(int(n_drones))
+    ]
+    height = calculate_height(width * height_r)
 
     if height < 30:
         height = 30
-        height_r = optimize.root_scalar(lambda x: calculate_Height(x) - height, x0=20, method="newton").root
+        height_r = optimize.root_scalar(
+            lambda x: calculate_height(x) - height, x0=20, method="newton"
+        ).root
     elif height == 99:
         height = 99
-        height_r = optimize.root_scalar(lambda x: calculate_Height(x) - height, x0=20, method="newton").root
+        height_r = optimize.root_scalar(
+            lambda x: calculate_height(x) - height, x0=20, method="newton"
+        ).root
         print("Cannot ensure full coverage with current drone amount")
 
     print(height)
 
-    flyTo_coords = []
+    fly_to_coords = []
     for drone_center in drone_centers:
         delta_lat = drone_center[0] / 6371000 * (180 / np.pi)
-        delta_long = (drone_center[1] / (6371000 * np.cos(droneOrigin.lat * np.pi / 180))) * (180 / np.pi)
-        lat = droneOrigin.lat + delta_lat
-        long = droneOrigin.lng + delta_long
-        flyTo_coords.append(Coordinate(lat, long, height))
+        delta_long = (
+            drone_center[1] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
+        ) * (180 / np.pi)
+        lat = drone_origin.lat + delta_lat
+        long = drone_origin.lng + delta_long
+        fly_to_coords.append(Coordinate(lat, long, height))
 
     plt.figure(figsize=(8, 8))
-    plt.scatter(coords[:, 0], coords[:, 1], color='blue', label='Data Points')
+    plt.scatter(coords[:, 0], coords[:, 1], color="blue", label="Data Points")
 
-    rect_corners = np.array([
-        center + extent[0] * axis[0] + extent[1] * axis[1],
-        center + extent[0] * axis[0] - extent[1] * axis[1],
-        center - extent[0] * axis[0] - extent[1] * axis[1],
-        center - extent[0] * axis[0] + extent[1] * axis[1],
-        center + extent[0] * axis[0] + extent[1] * axis[1]
-    ])
-    plt.plot(rect_corners[:, 0], rect_corners[:, 1], 'r-', label='Min Area Rectangle')
+    rect_corners = np.array(
+        [
+            center + extent[0] * axis[0] + extent[1] * axis[1],
+            center + extent[0] * axis[0] - extent[1] * axis[1],
+            center - extent[0] * axis[0] - extent[1] * axis[1],
+            center - extent[0] * axis[0] + extent[1] * axis[1],
+            center + extent[0] * axis[0] + extent[1] * axis[1],
+        ]
+    )
+    plt.plot(rect_corners[:, 0], rect_corners[:, 1], "r-", label="Min Area Rectangle")
 
     for drone_center in drone_centers:
-        rect_corners = np.array([
-            drone_center + width * axis[0] + height_r * axis[1],
-            drone_center + width * axis[0] - height_r * axis[1],
-            drone_center - width * axis[0] - height_r * axis[1],
-            drone_center - width * axis[0] + height_r * axis[1],
-            drone_center + width * axis[0] + height_r * axis[1]
-        ])
-        plt.plot(rect_corners[:, 0], rect_corners[:, 1], 'g-', label="Drone Coverage" if drone_center is drone_centers[0] else "")
+        rect_corners = np.array(
+            [
+                drone_center + width * axis[0] + height_r * axis[1],
+                drone_center + width * axis[0] - height_r * axis[1],
+                drone_center - width * axis[0] - height_r * axis[1],
+                drone_center - width * axis[0] + height_r * axis[1],
+                drone_center + width * axis[0] + height_r * axis[1],
+            ]
+        )
+        plt.plot(
+            rect_corners[:, 0],
+            rect_corners[:, 1],
+            "g-",
+            label="Drone Coverage" if drone_center is drone_centers[0] else "",
+        )
 
     plt.legend()
-    plt.quiver(center[0], center[1], axis[1][0], axis[1][1], angles='xy', scale_units='xy', scale=1, color='cyan', label='Axis 1')
+    plt.quiver(
+        center[0],
+        center[1],
+        axis[1][0],
+        axis[1][1],
+        angles="xy",
+        scale_units="xy",
+        scale=1,
+        color="cyan",
+        label="Axis 1",
+    )
     plt.xlabel("ATOS x-coordinate")
     plt.ylabel("ATOS y-coordinate")
     print(drone_centers)
     for drone_center in drone_centers:
-        plt.scatter(drone_center[0], drone_center[1], color='orange', label="Drone Center" if drone_center is drone_centers[0] else "")
+        plt.scatter(
+            drone_center[0],
+            drone_center[1],
+            color="orange",
+            label="Drone Center" if drone_center is drone_centers[0] else "",
+        )
     plt.title("Drone Coverage Area")
     plt.grid()
-    plt.axis('equal')
+    plt.axis("equal")
     plt.show()
 
     angle = np.arctan2(angle_axis[1], angle_axis[0])
-    return flyTo_coords, np.degrees(angle)
+    return fly_to_coords, np.degrees(angle)
 
 
 # Example usage
 vehicle_trajectories = {
-    'vehicle_1': [
+    "vehicle_1": [
         Coordinate(-30.4033, -21.2788, 0),
         Coordinate(-154.55, 14.9422, 0),
     ]
 }
-droneOrigin = Coordinate(0, 0, 0)
-flyto = getDronesLoc(vehicle_trajectories, droneOrigin, n_drones=2, overlap=0.5)
+drone_origin = Coordinate(0, 0, 0)
+flyto = get_drones_location(vehicle_trajectories, drone_origin, n_drones=2, overlap=0.5)

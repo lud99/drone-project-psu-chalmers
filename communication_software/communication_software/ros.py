@@ -4,8 +4,9 @@ from rclpy.node import Node
 import time
 from std_msgs.msg import Empty
 from sensor_msgs.msg import NavSatFix
-from communication_software.ConvexHullScalable import Coordinate
-import numpy as np
+from communication_software.convex_hull_scalable import (
+    Coordinate,
+)
 
 
 class AtosCommunication(Node):
@@ -300,13 +301,13 @@ def main():
 
     # Gets the trajectories for all of the objects
     ids = atos_communicator.get_object_ids()
-    trajectoryList = {}
+    trajectory_list = {}
     for id in ids:
         coordlist = atos_communicator.get_object_traj(id)
-        trajectoryList[id] = coordlist
+        trajectory_list[id] = coordlist
 
-    droneOrigin, angle = getNewDroneOrigin(trajectoryList, origo)
-    print(droneOrigin.lat, droneOrigin.lng, droneOrigin.alt)
+    drone_origin, angle = get_new_drone_origin(trajectory_list, origo)
+    print(drone_origin.lat, drone_origin.lng, drone_origin.alt)
     print(angle)
 
     # Updates the coordinates of all objects forever
