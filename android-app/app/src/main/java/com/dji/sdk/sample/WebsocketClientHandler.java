@@ -294,7 +294,7 @@ private Handler heartbeatHandler = null; //Sending pings to backend to check if 
 private synchronized void startHeartbeat() { 
     stopHeartbeat();
     heartbeatHandler = new Handler(Looper.getMainLooper());
-    heartbeatHandler.postDelayed(heartbeatRunnable, 7500); //Sending ping every 7.5 seconds
+    heartbeatHandler.postDelayed(heartbeatRunnable, 5000); //Sending ping every 5 seconds
 }
 
 private synchronized void stopHeartbeat() {
