@@ -31,8 +31,7 @@ public interface DroneAdapter {
         public Camera camera = null;
         public Led led = null;
         public boolean spotlight = false;
-        public boolean speaker = false;
-        public Integer maxSpeed = null;
+        public Speaker speaker = null;
 
         public static class Camera {
             public Float aspect_ratio = null;
@@ -42,7 +41,11 @@ public interface DroneAdapter {
         }
 
         public static class Led {
-            public String[] colors = {}; // Will likely have to changed
+            public String[] types = {}; // Will likely have to changed
+        }
+
+        public static class Speaker {
+            public String[] audio_files = {}; // Will likely have to changed
         }
     }
 
