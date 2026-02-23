@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Annotated, Union, Literal
+from typing import Annotated, Union, Literal, TypeVar, Generic, Optional
 from pydantic import BaseModel, RootModel, Field, TypeAdapter
 ### Capabilities and telemetry
 
@@ -33,6 +33,7 @@ class Telemetry(BaseModel):
 
 
 ### Drone message schemas
+
 
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed"]
@@ -90,18 +91,33 @@ class SpotlightTask(BaseModel):
 AnyTaskAction = Union[GoToTask, PlayAudioTask, LEDTask, SpotlightTask]
 
 
+MsgTypeT = TypeVar("MsgTypeT", bound=str)
+
+
+class DroneMessage(BaseModel, Generic[MsgTypeT]):
+    msg_type: MsgTypeT
+
+
+class BackendToDroneMessage(DroneMessage):
+    drone_id: str
+
+
 # Backend -> app
-class TaskMessage(BaseModel):
+class TaskMessage(BackendToDroneMessage):
     msg_type: Literal["task"]
     mission_id: str
-    drone_id: str
     index: int
     # This field now enforces strict structure based on the 'action' string
     task: AnyTaskAction = Field(..., discriminator="action")
 
 
+class DebugMessage(DroneMessage):
+    msg_type: Literal["debug"]
+    message: str
+
+
 # App -> backend. Upon registration
-class DroneRegistrationMessage(BaseModel):
+class DroneRegistrationMessage(DroneMessage):
     msg_type: Literal["drone_registration"]
     drone_type: str
     model: str
@@ -110,44 +126,57 @@ class DroneRegistrationMessage(BaseModel):
 
 
 # App -> backend. Sent continuously
-class TelemetryMessage(BaseModel):
+class TelemetryMessage(DroneMessage):
     msg_type: Literal["telemetry"]
     drone_id: str
-    lat: float
-    lon: float
-    alt: float
-    heading: int
-    speed: float
-    battery_percent: int
+    telemetry: Telemetry
 
 
 # Backend -> app
-class TaskEventMessage(BaseModel):
+class TaskEventMessage(BackendToDroneMessage):
     msg_type: Literal["task_event"]
     mission_id: str
     index: int
     event: TaskEvents
     message: str
-    drone_id: str
     timestamp: int
 
 
 # Backend -> app
-class AbortTaskMessage(BaseModel):
+class AbortTaskMessage(BackendToDroneMessage):
     msg_type: Literal["abort_task"]
     mission_id: str
     index: int
     next: Literal["go_home", "hover", "land"]
 
 
+# WebRTC messages
+
+
+class WebRTCCandidateMessage(DroneMessage):
+    msg_type: Literal["candidate"]
+    candidate: str
+    id: str = "0"
+    label: int = 0
+
+
+class WebRTCAnswerMessage(DroneMessage):
+    msg_type: Literal["answer"]
+    sdp: str
+    type: str
+
+
 # Create a Union of all possible messages
-AnyMessage = Annotated[
+AnyDroneMessage = Annotated[
     Union[
         TaskMessage,
         DroneRegistrationMessage,
         TelemetryMessage,
         TaskEventMessage,
         AbortTaskMessage,
+        DebugMessage,
+        WebRTCCandidateMessage,
+        WebRTCAnswerMessage,
     ],
     Field(discriminator="msg_type"),
 ]
@@ -164,11 +193,90 @@ class Detections(RootModel):
     root: list[SingleDetection]
 
 
-def parse_drone_message(message: str) -> AnyMessage:
+### Frontend schemas
+
+
+class LatLon(BaseModel):
+    lat: float
+    lon: float
+
+
+class WatchArea(BaseModel):
+    drone_id: str
+    points: list[LatLon]
+
+
+class FrontendMessages:
+    class FrontendMessage(BaseModel, Generic[MsgTypeT]):
+        msg_type: MsgTypeT
+
+    # --- (Frontend -> Backend) ---
+
+    class AcceptMission(FrontendMessage[Literal["accept_mission"]]):
+        mission_id: str
+
+    class RejectMissions(FrontendMessage[Literal["reject_missions"]]):
+        pass
+
+    class StartDrone(FrontendMessage[Literal["start_drone"]]):
+        drone_id: str
+
+    class SetWatchArea(FrontendMessage[Literal["set_watch_area"]]):
+        drone_id: str
+        points: list[LatLon]
+
+    # --- (Backend -> Frontend) ---
+
+    class ProposedMissions(FrontendMessage[Literal["proposed_missions"]]):
+        missions: list[dict]  # Refer to backend_mission_format.jsonc
+
+    class ActiveMissions(FrontendMessage[Literal["active_missions"]]):
+        missions: list[dict]
+
+    class TelemetryUpdate(FrontendMessage[Literal["telemetry"]]):
+        drone_id: str
+        telemetry: Telemetry
+
+    class DroneConnected(FrontendMessage[Literal["drone_connected"]]):
+        drone_id: str
+        capabilities: Capabilities
+        telemetry: Telemetry
+
+    class DroneDisconnected(FrontendMessage[Literal["drone_disconnected"]]):
+        drone_id: str
+
+    class GetWatchAreas(FrontendMessage[Literal["get_watch_areas"]]):
+        areas: list[WatchArea]
+
+    # --- Generic API Response ---
+
+    class ServerResponse(FrontendMessage[Literal["response"]]):
+        error: Optional[str] = None
+
+
+AnyFrontendMessage = Annotated[
+    Union[
+        FrontendMessages.AcceptMission,
+        FrontendMessages.RejectMissions,
+        FrontendMessages.ProposedMissions,
+        FrontendMessages.ActiveMissions,
+        FrontendMessages.TelemetryUpdate,
+        FrontendMessages.StartDrone,
+        FrontendMessages.DroneConnected,
+        FrontendMessages.DroneDisconnected,
+        FrontendMessages.SetWatchArea,
+        FrontendMessages.GetWatchAreas,
+        FrontendMessages.ServerResponse,
+    ],
+    Field(discriminator="msg_type"),
+]
+
+
+def parse_drone_message(message: str) -> AnyDroneMessage:
     # We use TypeAdapter or wrap the Union in a field to validate
     # The easiest way for a list of mixed types is TypeAdapter:
 
-    adapter = TypeAdapter(AnyMessage)
+    adapter = TypeAdapter(AnyDroneMessage)
     return adapter.validate_json(message)
 
     # Example of handling different types
@@ -188,3 +296,8 @@ def parse_telemetry(message: str) -> Telemetry:
 
 def parse_detections(message: str) -> Detections:
     return Detections.model_validate_json(message)
+
+
+def parse_frontend_message(message: str) -> AnyFrontendMessage:
+    adapter = TypeAdapter(AnyFrontendMessage)
+    return adapter.validate_json(message)

@@ -26,7 +26,9 @@ try:
 
             # Example of handling different types
             if isinstance(validated, json_schemas.TelemetryMessage):
-                print(f" -> Drone is at {validated.lat}, {validated.lon}")
+                print(
+                    f" -> Drone is at {validated.telemetry.lat}, {validated.telemetry.lon}"
+                )
             elif isinstance(validated, json_schemas.TaskMessage):
                 print(f" -> New task: {validated.task.action}")
 
@@ -61,6 +63,16 @@ try:
 
     except Exception as e:
         print(f"Validation failed for decection: {e}")
+
+    data_string = read_json_with_comments("./test_frontend_message_schema.jsonc")
+
+    for example in json.loads(data_string):
+        try:
+            json_schemas.parse_frontend_message(json.dumps(example))
+            print("Successfully parsed frontend message")
+
+        except Exception as e:
+            print(f"Validation failed for frontend message: {e}")
 
 except Exception as e:
     print(f"File loading error: {e}")

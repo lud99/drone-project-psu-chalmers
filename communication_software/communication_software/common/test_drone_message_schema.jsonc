@@ -25,7 +25,7 @@
             "max_speed": 15
         }
     },
-     // app --> backend, on connection
+    // app --> backend, on connection
     {
         "msg_type": "drone_registration",
         "drone_type": "MAVLink",
@@ -43,12 +43,14 @@
     {
         "msg_type": "telemetry", // called "Position" in prev. code, maybe keep that?
         "drone_id": "AZL-55555",
-        "lat": 57.7089,
-        "lon": 11.9746,
-        "alt": 30.5,
-        "heading": 180, // Not in current code, maybe add?
-        "speed": 5.20,
-        "battery_percent": 70
+        "telemetry": {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
+        }
     },
     // backend --> app, send task. Giving a few examples.
     {
@@ -121,6 +123,7 @@
     {
         "msg_type": "abort_task",
         "mission_id": "mission_101",
+        "drone_id": "0",
         "index": 0,
         "next": "go_home" // "hover", "land"
     }

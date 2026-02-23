@@ -1,6 +1,6 @@
 import asyncio
 import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
 import uvicorn
 import cv2
@@ -8,6 +8,8 @@ from datetime import datetime
 import redis
 import redis.exceptions
 import numpy as np
+
+import communication_software.common.json_schemas as json_schemas
 
 from communication_software.common.frame_utils import (
     create_not_connected_frame,
@@ -183,6 +185,93 @@ async def atos_websocket(websocket: WebSocket):
 
 
 COMMAND_CHANNEL = "drone_commands"
+
+### POST routes
+
+
+@app.post("/api/v1/accept_mission")
+async def accept_mission(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/reject_missions")
+async def reject_missions(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/start_drone")
+async def start_drone(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/set_watch_area")
+async def set_watch_area(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+### GET routes
+
+
+@app.get("/api/v1/proposed_missions")
+async def get_proposed_missions():
+    try:
+        # todo: get from redis
+        return json_schemas.FrontendMessages.ProposedMissions(
+            msg_type="proposed_missions", missions=[dict()]
+        )
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.get("/api/v1/active_missions")
+async def get_active_missions():
+    # Logic to fetch active missions
+    pass
+
+
+@app.get("/api/v1/get_watch_areas")
+async def get_watch_areas():
+    # Logic to fetch watch areas
+    pass
+
+
+@app.get("/api/v1/telemetry/{drone_id}")
+async def get_telemetry(drone_id: str):
+    try:
+        telemetry = r.get(f"telemetry_drone{drone_id}")
+        if telemetry is None:
+            raise Exception(
+                f"Telemetry for drone {drone_id} not found, is it connected?"
+            )
+
+        return json_schemas.FrontendMessages.TelemetryUpdate(
+            msg_type="telemetry",
+            drone_id=drone_id,
+            telemetry=json_schemas.parse_telemetry(r.get(f"telemetry_drone{drone_id}")),
+        ).model_dump_json()
+
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
 
 
 @app.websocket("/api/v1/ws/flightmanager")
