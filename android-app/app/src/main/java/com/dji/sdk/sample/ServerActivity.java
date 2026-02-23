@@ -74,7 +74,7 @@ public class ServerActivity extends AppCompatActivity {
             int port = Integer.parseInt(portEdit.getText().toString());
             else {
                 toastOnUIThread("Cannot connect, product not registered yet!");
-            }*/
+            }
 
            AutoConnectManager.getInstance(this).setManualConnection(ip, port);
 
