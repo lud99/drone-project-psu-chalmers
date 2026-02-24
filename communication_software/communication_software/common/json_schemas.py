@@ -206,51 +206,67 @@ class WatchArea(BaseModel):
     points: list[LatLon]
 
 
+class DroneInfo(BaseModel):
+    drone_id: str
+    capabilities: Capabilities
+    telemetry: Telemetry
+
+
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):
         msg_type: MsgTypeT
 
     # --- (Frontend -> Backend) ---
 
-    class AcceptMission(FrontendMessage[Literal["accept_mission"]]):
+    class AcceptMission(FrontendMessage):
+        msg_type: Literal["accept_mission"] = "accept_mission"
         mission_id: str
 
-    class RejectMissions(FrontendMessage[Literal["reject_missions"]]):
-        pass
+    class RejectMissions(FrontendMessage):
+        msg_type: Literal["reject_missions"] = "reject_missions"
 
-    class StartDrone(FrontendMessage[Literal["start_drone"]]):
+    class StartDrone(FrontendMessage):
+        msg_type: Literal["start_drone"] = "start_drone"
         drone_id: str
 
-    class SetWatchArea(FrontendMessage[Literal["set_watch_area"]]):
+    class SetWatchArea(FrontendMessage):
+        msg_type: Literal["set_watch_area"] = "set_watch_area"
         drone_id: str
         points: list[LatLon]
 
-    # --- (Backend -> Frontend) ---
-
-    class ProposedMissions(FrontendMessage[Literal["proposed_missions"]]):
-        missions: list[dict]  # Refer to backend_mission_format.jsonc
-
-    class ActiveMissions(FrontendMessage[Literal["active_missions"]]):
+    class ProposedMissions(FrontendMessage):
+        msg_type: Literal["proposed_missions"] = "proposed_missions"
         missions: list[dict]
 
-    class TelemetryUpdate(FrontendMessage[Literal["telemetry"]]):
+    class ActiveMissions(FrontendMessage):
+        msg_type: Literal["active_missions"] = "active_missions"
+        missions: list[dict]
+
+    class TelemetryUpdate(FrontendMessage):
+        msg_type: Literal["telemetry"] = "telemetry"
         drone_id: str
         telemetry: Telemetry
 
-    class DroneConnected(FrontendMessage[Literal["drone_connected"]]):
+    class DroneConnected(FrontendMessage):
+        msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
         capabilities: Capabilities
         telemetry: Telemetry
 
-    class DroneDisconnected(FrontendMessage[Literal["drone_disconnected"]]):
+    class DroneDisconnected(FrontendMessage):
+        msg_type: Literal["drone_disconnected"] = "drone_disconnected"
         drone_id: str
 
-    class GetWatchAreas(FrontendMessage[Literal["get_watch_areas"]]):
+    class GetWatchAreas(FrontendMessage):
+        msg_type: Literal["get_watch_areas"] = "get_watch_areas"
         areas: list[WatchArea]
 
-    # --- Generic API Response ---
+    class ConnectedDrones(FrontendMessage):
+        msg_type: Literal["connected_drones"] = "connected_drones"
+        drones: list[DroneInfo]
 
-    class ServerResponse(FrontendMessage[Literal["response"]]):
+    class ServerResponse(FrontendMessage):
+        msg_type: Literal["response"] = "response"
         error: Optional[str] = None
 
 
@@ -266,6 +282,7 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.DroneDisconnected,
         FrontendMessages.SetWatchArea,
         FrontendMessages.GetWatchAreas,
+        FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
     ],
     Field(discriminator="msg_type"),

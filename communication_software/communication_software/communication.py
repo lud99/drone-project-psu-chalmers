@@ -1,5 +1,6 @@
 import time
 import json
+from typing import Optional
 import redis.exceptions
 import websockets
 from websockets import WebSocketServerProtocol
@@ -284,9 +285,9 @@ class Communication:
 
     async def webs_server(self, ws: WebSocketServerProtocol) -> None:
         """Handles WebSocket connections."""
-        connection_id = str(self.connection_counter)
+        connection_id = "NON_droneid_" + str(self.connection_counter)
         self.connection_counter += 1
-        print(f"Client connected. Assigned ID {connection_id}")
+        print(f"Client connected. Assigned to temporary id {connection_id}")
 
         self.connections[connection_id] = ws
 
@@ -294,7 +295,9 @@ class Communication:
             while True:
                 data = await ws.recv()
                 print(f"Received from {connection_id}: {data}")
-                await self.on_message(data, connection_id)
+                new_connection_id = await self.on_message(data, connection_id, ws)
+                if new_connection_id is not None:
+                    connection_id = new_connection_id
         except websockets.exceptions.ConnectionClosedOK as e:
             print(f"Client {connection_id} closed (cleanly):", e.code)
         except websockets.exceptions.ConnectionClosedError as e:
@@ -303,7 +306,9 @@ class Communication:
         finally:
             self.cleanup_connection(connection_id)
 
-    async def on_message(self, frame: str, connection_id: str) -> None:
+    async def on_message(
+        self, frame: str, connection_id: str, ws: WebSocketServerProtocol
+    ) -> Optional[str]:
         """Processes incoming messages."""
         try:
             message = json_schemas.parse_drone_message(frame)
@@ -318,7 +323,9 @@ class Communication:
                 self.handle_telemetry_message(message, connection_id)
 
             elif isinstance(message, json_schemas.DroneRegistrationMessage):
-                await self.handle_registration_message(message, connection_id)
+                return await self.handle_registration_message(
+                    message, connection_id, ws
+                )
 
             elif isinstance(message, json_schemas.WebRTCCandidateMessage):
                 await self.handle_webrct_candidate_message(message, connection_id)
@@ -331,6 +338,8 @@ class Communication:
 
         except Exception as e:
             print(f"Error processing message from {connection_id}: {frame} {e}")
+
+        return None
 
     # async def send_coords(self, connection_id: str) -> None:
     #     """Sends assigned coordinates to the client."""
@@ -407,22 +416,39 @@ class Communication:
             )
 
     async def handle_registration_message(
-        self, message: json_schemas.DroneRegistrationMessage, connection_id
-    ):
+        self,
+        message: json_schemas.DroneRegistrationMessage,
+        connection_id: str,
+        ws: WebSocketServerProtocol,
+    ) -> Optional[str]:
         try:
+            if message.drone_id in self.connections:
+                print(f"Drone id {message.drone_id} is already connected or used!!")
+                return None
+
+            # Move to proper drone id
+            self.connections.pop(connection_id)
+            self.connections[message.drone_id] = ws
+
+            print(f"Moved websocket id from {connection_id} -> {message.drone_id}")
+
             r.set(
-                f"capabilities_drone{connection_id}",
+                f"capabilities_drone{message.drone_id}",
                 message.capabilities.model_dump_json(),
             )
 
             if message.capabilities.camera is not None:
-                self.create_peer_connection(connection_id)
-                await self.start_drone_stream(connection_id)
+                self.create_peer_connection(message.drone_id)
+                await self.start_drone_stream(message.drone_id)
+
+            return message.drone_id
 
         except (TypeError, redis.exceptions.RedisError) as e:
             print(
                 f"Error processing registration message {message.model_dump_json()}: {e}"
             )
+
+        return None
 
     async def handle_webrct_candidate_message(
         self, message: json_schemas.WebRTCCandidateMessage, connection_id
