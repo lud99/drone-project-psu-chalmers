@@ -1,5 +1,5 @@
 package com.dji.sdk.sample;
-
+import java.net.URI;
 import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -107,6 +107,26 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         AutoConnectManager.getInstance(getApplicationContext()).stop();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        AutoConnectManager.getInstance(this).setConnectionListener(new AutoConnectManager.ConnectionListener() {
+            @Override
+            public void onConnected(URI uri) {
+                showToast("Connected to: " + uri);
+            }
+            @Override
+            public void onDisconnected(URI uri) {
+                showToast("Disconnected from: " + uri);
+            }
+        });
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        AutoConnectManager.getInstance(this).setConnectionListener(null);
     }
 
     @Override

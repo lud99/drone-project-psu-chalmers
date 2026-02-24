@@ -25,6 +25,16 @@ import com.dji.sdk.sample.DJIVideoCapturer;  // Import DJIVideoCapturer (your cu
 
 
 public class WebsocketClientHandler {
+    
+    public interface ConnectionStateListener {
+        void onConnected();
+        void onDisconnected();
+    }
+
+    private ConnectionStateListener connectionStateListener;
+    public void setConnectionStateListener(ConnectionStateListener listener) {
+        this.connectionStateListener = listener;
+    }
     private static WebsocketClientHandler clientHandler = null;
     private URI uri = null;
     private final WebSocketClient webSocketClient;
@@ -78,6 +88,9 @@ public class WebsocketClientHandler {
             public void onOpen() {
                 Log.d(TAG, "New connection opened on URI " + getUri());
                 connected = true;
+                if (connectionStateListener != null) {
+                    connectionStateListener.onConnected();
+                }
 
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
@@ -153,6 +166,9 @@ public class WebsocketClientHandler {
             public void onCloseReceived(int reason, String description) {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
+                if (connectionStateListener != null) {
+                    connectionStateListener.onDisconnected();
+                }
                 stopPositionSending();
                 stopHeartbeat(); //Stop ping to backend
                 if (webRTCClient != null) {

@@ -44,12 +44,25 @@ public class ServerActivity extends AppCompatActivity {
         if (!isStatusUpdateRunning) {
             updateStatus();
         }
+        AutoConnectManager.getInstance(this).setConnectionListener(new AutoConnectManager.ConnectionListener() {
+            @Override
+            public void onConnected(URI uri) {
+                toastOnUIThread("Connected to: " + uri);
+            }
+            @Override
+            public void onDisconnected(URI uri) {
+                toastOnUIThread("Disconnected from: " + uri);
+            }
+        });
+
     }
+    
     @Override
     protected void onPause() {
         super.onPause();
         isStatusUpdateRunning = false;
         WebsocketClientHandler.status_update.release();
+        AutoConnectManager.getInstance(this).setConnectionListener(null);
     }
     /**
      * Handles the onclick event of the connect button. First, it creates a URI based on
@@ -72,17 +85,18 @@ public class ServerActivity extends AppCompatActivity {
         try {
             String ip = ipTextEdit.getText().toString();
             int port = Integer.parseInt(portEdit.getText().toString());
-            else {
-                toastOnUIThread("Cannot connect, product not registered yet!");
+
+            if (AutoConnectManager.isReady()) {
+                AutoConnectManager.getInstance(this).setManualConnection(ip, port);
+                Log.i(TAG, "Manual connection set: " + ip + ":" + port);
+                toastOnUIThread("Manual connection set. Connecting... ");
+            } else {
+                toastOnUIThread("App not fully initialized, try again");
             }
-
-           AutoConnectManager.getInstance(this).setManualConnection(ip, port);
-
-            Log.i(TAG, "Manual connection set: " + ip + ":" + port);
         } catch (NumberFormatException e) {
             Log.e(TAG, "Invalid port number", e);
         }
-        toastOnUIThread("Manual connection set. Connecting...");
+        
     }
 
 

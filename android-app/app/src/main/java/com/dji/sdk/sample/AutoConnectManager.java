@@ -11,6 +11,17 @@ import java.net.URISyntaxException;
 import java.util.ArrayList; 
 
 public class AutoConnectManager {
+
+    public interface ConnectionListener {
+        void onConnected(URI uri);
+        void onDisconnected(URI uri);
+    }
+    private ConnectionListener connectionListener;
+
+    public void setConnectionListener(ConnectionListener listener) {
+        this.connectionListener = listener;
+    }
+
     //TAG, INFORMATION
     private static final String TAG = AutoConnectManager.class.getName(); //TAG CLASS NAME
     private static final long CHECK_INTERVAL_MS = 15000; // 15 seconds 
@@ -124,7 +135,7 @@ public class AutoConnectManager {
 
     //Checks if connected depending on connection-state
     private void checkAndConnect() {
-        Log.i(TAG, "Running connection check");
+        Log.i(TAG, "Running connection check" + connecting + "isRunning=" + isRunning);
         URI targetUri = findTargetUri();
 
         if (targetUri == null) {
@@ -158,6 +169,7 @@ public class AutoConnectManager {
                 resetAndConnect(targetUri);
             }
         }
+        
     }
 
 
@@ -214,9 +226,25 @@ public class AutoConnectManager {
 
     //Creates handler if no handler has been created
     private void createAndConnect(URI uri) {
+        Log.i(TAG, "createAndConnect started, connecting=" + connecting);
         connecting = true;
         WebsocketClientHandler newHandler = WebsocketClientHandler.createInstance(context, uri);
 
+        newHandler.setConnectionStateListener(new WebsocketClientHandler.ConnectionStateListener() {
+        @Override
+        public void onConnected() {
+            connecting = false;
+            if (connectionListener != null) {
+                connectionListener.onConnected(uri);
+            }
+        }
+        @Override
+        public void onDisconnected() {
+            if (connectionListener != null) {
+                connectionListener.onDisconnected(uri);
+            }
+        }
+    });
 
         boolean connected = newHandler.connect();
 
@@ -225,12 +253,14 @@ public class AutoConnectManager {
             saveLastConnection(uri);
         } else {
             Log.e(TAG, "Failed to initiate connection");
+            connecting = false;
         }
-        connecting = false;
+        Log.i(TAG, "createAndConnect finished, connecting=" + connecting);
     }
 
     //if handler but not connected, try to reconnect
     private void attemptConnect(WebsocketClientHandler handler) {
+        Log.i(TAG, "attemptConnect started, connecting=" + connecting);
         connecting = true;
 
         WebsocketClientHandler oldHandler = WebsocketClientHandler.getInstance();
@@ -241,13 +271,33 @@ public class AutoConnectManager {
         // Resets and creates handler
         WebsocketClientHandler newHandler = WebsocketClientHandler.resetClientHandler(context, oldHandler.getUri());
 
+            newHandler.setConnectionStateListener(new WebsocketClientHandler.ConnectionStateListener() {
+        @Override
+        public void onConnected() {
+            connecting = false;
+            if (connectionListener != null) {
+                connectionListener.onConnected(oldHandler.getUri());
+            }
+        }
+        @Override
+        public void onDisconnected() {
+            if (connectionListener != null) {
+                connectionListener.onDisconnected(oldHandler.getUri());
+            }
+        }
+    });
+
         boolean connected = newHandler.connect();
+        if (!connected) {
         connecting = false;
+        }
+        Log.i(TAG, "attemptConnect finished, connecting=" + connecting);
     }
 
 
     //If new URI found, close-reset-creat-connect to new URI
     private void resetAndConnect(URI newUri) {
+        Log.i(TAG, "resetAndConnect started, connecting=" + connecting);
         connecting = true;
         
         // Close old connection
@@ -258,7 +308,21 @@ public class AutoConnectManager {
         
         // Resets and creates handler
         WebsocketClientHandler newHandler = WebsocketClientHandler.resetClientHandler(context, newUri);
-        
+        newHandler.setConnectionStateListener(new WebsocketClientHandler.ConnectionStateListener() {
+        @Override
+        public void onConnected() {
+            connecting = false;
+            if (connectionListener != null) {
+                connectionListener.onConnected(newUri);
+            }
+        }
+        @Override
+        public void onDisconnected() {
+            if (connectionListener != null) {
+                connectionListener.onDisconnected(newUri);
+            }
+        }
+    });
         boolean connected = newHandler.connect();
         
         if (connected) {
@@ -266,9 +330,9 @@ public class AutoConnectManager {
             saveLastConnection(newUri);
         } else {
             Log.e(TAG, "Failed to initiate new connection");
+            connecting = false;
         }
-        
-        connecting = false;
+        Log.i(TAG, "resetAndConnect finished, connecting=" + connecting);
     }
 
     private void saveLastConnection(String ip, int port) {
