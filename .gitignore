@@ -133,6 +133,7 @@ celerybeat.pid
 
 # Environments
 .env
+host_ip.env
 .venv
 env/
 venv/

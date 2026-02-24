@@ -79,6 +79,9 @@ public class MainActivity extends AppCompatActivity {
     private AtomicBoolean isRegistrationInProgress = new AtomicBoolean(false);
     private static final int REQUEST_PERMISSION_CODE = 12345;
 
+    MulticastReceiver multicastReceiver = null;
+    private int multicastPort = 9992;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -86,6 +89,9 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkAndRequestPermissions();
         }
+
+        multicastReceiver = new MulticastReceiver(multicastPort);
+        multicastReceiver.startListening(getApplicationContext());
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -98,6 +104,11 @@ public class MainActivity extends AppCompatActivity {
 
         mHandler = new Handler(Looper.getMainLooper());
 
+    }
+
+    @Override
+    protected void onDestroy() {
+        multicastReceiver.stopListening();
     }
 
     @Override

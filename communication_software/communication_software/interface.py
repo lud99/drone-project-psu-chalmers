@@ -1,6 +1,6 @@
 def print_welcome() -> None:
     """Prints a menu for the user interface for the communication software.
-    Askes the user if they want to continue or quit and returns a boolean.
+    Asks the user if they want to continue or quit and returns a boolean.
     """
     print("------------------------------------------")
     print("~~ Welcome to the communication software~~")

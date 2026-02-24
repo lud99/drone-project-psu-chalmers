@@ -14,7 +14,7 @@
         "index": 0
         },
         {
-        "action": "camera_angle",
+        "action": "angle_camera",
         "action_params": { "pitch": -45, "yaw": 0, "transition_time": 2.0 },
         "index": 1
         },

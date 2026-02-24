@@ -3,12 +3,16 @@ import json
 import redis.exceptions
 import websockets
 from websockets import WebSocketServerProtocol
-from communication_software.ConvexHullScalable import Coordinate
+from communication_software.convex_hull_scalable import (
+    Coordinate,
+)
 import threading
 import asyncio
 import redis
+import os
 import cv2
 import numpy as np
+from communication_software.multicast_sender import MulticastSender
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
@@ -25,11 +29,12 @@ except redis.exceptions.ConnectionError as e:
 COMMAND_CHANNEL = "drone_commands"
 
 
-from aiortc import RTCConfiguration, RTCIceServer
+from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
 
 ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
+
 
 class Communication:
     def __init__(self) -> None:
@@ -44,13 +49,13 @@ class Communication:
         self.peer_connections = {}
 
     async def send_coordinates_websocket(
-        self, ip: str, droneOrigins: list, angles: list
+        self, ip: str, drone_origins: list, angles: list
     ) -> None:
         """Starts WebSocket server and initializes drone coordinates."""
         print(f"Initializing WebSocket on IP: {ip}")
         self.drone_coordinates = [
             (self.transform_coordinates(coord, angle))
-            for coord, angle in zip(droneOrigins, angles)
+            for coord, angle in zip(drone_origins, angles)
         ]
         print(f"Prepared drone coordinates: {self.drone_coordinates}")
 
@@ -71,8 +76,16 @@ class Communication:
             )
             self.start_redis_listener_thread()  # Assumes self.loop is set
 
-        server = await websockets.serve(self.webs_server, ip, 14500)
-        print(f"WebSocket server started on ws://{ip}:14500")
+        websocket_port = int(os.environ.get("WEBSOCKET_PORT", 14500))
+        host_ip = str(os.environ.get("HOST_IP"))
+
+        server = await websockets.serve(self.webs_server, ip, websocket_port)
+        print(f"WebSocket server started on ws://{ip}:{websocket_port}")
+
+        # Start multicasting now after websocket server has started
+        sender = MulticastSender(host_ip, websocket_port)
+        multicast_thread = threading.Thread(target=sender.send_packets)
+        multicast_thread.start()
 
         try:
             await server.wait_closed()
@@ -85,6 +98,9 @@ class Communication:
                 if self.redis_listener_task.is_alive():
                     print("Warning: Redis listener thread did not stop gracefully.")
             print("WebSocket server stopped.")
+            sender.stop()
+            multicast_thread.join()
+            print("Stopped multicast sender thread")
 
     def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
         """Transforms coordinates into required format."""
@@ -138,7 +154,7 @@ class Communication:
                     if message and message.get("type") == "message":
                         print(f"[REDIS THREAD] Received message: {message['data']}")
                         coro = self.process_redis_command(message["data"])
-                        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+                        asyncio.run_coroutine_threadsafe(coro, self.loop)
 
                         try:
                             pass  # Fire-and-forget is usually fine here
@@ -194,16 +210,16 @@ class Communication:
                 if pubsub:
                     try:
                         pubsub.unsubscribe(channel)
-                    except:
+                    except Exception as _e:
                         pass  # Ignore errors during cleanup
                     try:
                         pubsub.close()
-                    except:
+                    except Exception as _e:
                         pass
                 if listener_redis_conn:
                     try:
                         listener_redis_conn.close()
-                    except:
+                    except Exception as _e:
                         pass
 
         print("[REDIS THREAD] Listener thread finished.")
@@ -333,8 +349,10 @@ class Communication:
                 data = await ws.recv()
                 print(f"Received from {connection_id}: {data}")
                 await self.on_message(data, connection_id)
-        except websockets.exceptions.ConnectionClosedError:
-            print(websockets.exceptions.ConnectionClosedError)
+        except websockets.exceptions.ConnectionClosedOK as e:
+            print(f"Client {connection_id} closed (cleanly):", e.code)
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"ConnectionClosedError: {e.code}, {e.reason}")
             print(f"Client {connection_id} disconnected.")
         finally:
             self.cleanup_connection(connection_id)
@@ -471,9 +489,10 @@ class Communication:
 
     def incoming_position_handler(self, data, connection_id):
         """Handles incoming position data."""
-        lat = data.get("latitude")
-        long = data.get("longitude")
-        altitude = data.get("altitude")
+        # For debugginig
+        # lat = data.get("latitude")
+        # long = data.get("longitude")
+        # altitude = data.get("altitude")
         # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
             json_data_string = json.dumps(data)
@@ -484,7 +503,7 @@ class Communication:
     ###WEBBRTC###
 
     async def send_message(self, connection_id, message):
-        """"Sends a message to the WebSocket connection."""
+        """ "Sends a message to the WebSocket connection."""
         print(
             f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"
         )
@@ -507,7 +526,6 @@ class Communication:
         except Exception as e:
             print(f"[DroneStream] Error in createOffer(): {e}")
 
-  
     def create_peer_connection(self, connection_id):
         """Create and configure the RTCPeerConnection."""
         try:
@@ -530,13 +548,13 @@ class Communication:
 
             @self.peer_connections[connection_id].on("track")
             def on_track(track):
-                
+
                 print(f"[DroneStream] Received track: {track.kind}")
 
                 async def process_video(track):
                     while True:
                         try:
-                            frame = await track.recv()  # recieves yuv420p frame
+                            frame = await track.recv()  # receives yuv420p frame
                             yuv_frame = frame.to_ndarray(
                                 format="yuv420p"
                             )  # Convert to YUV420p
