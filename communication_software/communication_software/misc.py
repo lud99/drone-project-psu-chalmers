@@ -85,7 +85,7 @@ def get_drone_coordinates(atos_communicator):
     return (drone_origins, angles)
 
 
-def start_communication_websocket_server(ip, drone_origins, angles):
+def start_communication_websocket_server(ip):
     communication = Communication()
     try:
         print("Communication server starting, press ctrl + c to exit")
@@ -94,8 +94,6 @@ def start_communication_websocket_server(ip, drone_origins, angles):
             run_comm_server(
                 communication,
                 ip=ip,
-                drone_origins=drone_origins,
-                angles=angles,
             )
         )
     except KeyboardInterrupt:
@@ -112,17 +110,13 @@ def start_communication_websocket_server(ip, drone_origins, angles):
         print(f"Unexpected error starting server: {e}")
 
 
-async def run_comm_server(
-    communication: Communication, ip: str, drone_origins: list, angles: list
-):
+async def run_comm_server(communication: Communication, ip: str):
     loop = asyncio.get_running_loop()
     communication.loop = loop
 
     communication.start_redis_listener_thread()
 
-    await communication.send_coordinates_websocket(
-        ip=ip, drone_origins=drone_origins, angles=angles
-    )
+    await communication.start_websocket_server(ip=ip)
 
 
 def main_loop_exit(atos_communicator):
