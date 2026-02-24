@@ -8,6 +8,9 @@ from datetime import datetime
 import redis
 import redis.exceptions
 import numpy as np
+from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.missions_planning.mission_status import MissionStatus
+
 
 from communication_software.common.frame_utils import (
     create_not_connected_frame,
@@ -289,6 +292,27 @@ async def merged_feed():
         stream_drone_frames("_merged_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+## Connect missions to the API/frontend
+mission_registry = MissionRegistry()
+
+
+@app.get("/api/v1/missions")
+def get_missions():
+    return mission_registry.get_all()
+
+
+@app.post("/api/v1/missions/dispatch/{mission_id}")
+def dispatch_mission(mission_id: str):
+    mission = mission_registry.get(mission_id)
+    if not mission:
+        return {"error": "Mission not found"}
+
+    mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
+    # TODO: Forward to translation layer here
+
+    return {"status": "dispatched", "mission": mission}
 
 
 @app.get("/api/v1/health")
