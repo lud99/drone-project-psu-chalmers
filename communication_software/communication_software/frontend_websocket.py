@@ -294,12 +294,7 @@ async def merged_feed():
     )
 
 
-## Conenct missions to the API/frontend
-@app.get("/api/v1/health")
-def health_check():
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
-
-
+## Connect missions to the API/frontend
 mission_registry = MissionRegistry()
 
 
@@ -318,11 +313,6 @@ def dispatch_mission(mission_id: str):
     # TODO: Forward to translation layer here
 
     return {"status": "dispatched", "mission": mission}
-
-
-def run_server(atos_communicator):
-    global ATOScommunicator
-    ATOScommunicator = atos_communicator
 
 
 @app.get("/api/v1/health")
