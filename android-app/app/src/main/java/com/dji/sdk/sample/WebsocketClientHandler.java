@@ -116,11 +116,16 @@ public class WebsocketClientHandler {
                     FlightManager flightManager = FlightManager.getFlightManager();
                         flightManager.onArm();
                     } else if (type.equals("offer") || type.equals("candidate") || type.equals("answer")) {
-                        if(webRTCClient == null)
-                        {
-                            Log.d(TAG, "RTC CLIENT IS NULL");
+                        if (webRTCClient == null) {
+                            Log.w(TAG, "RTC CLIENT IS NULL, initializing...");
+                            initializeWebRTCClient();
                         }
-                        webRTCClient.handleWebRTCMessage(jsonMessage);
+                        if (webRTCClient != null) {
+                            webRTCClient.handleWebRTCMessage(jsonMessage);
+                        } else {
+                            Log.e(TAG, "RTC CLIENT still null after initialization, dropping message");
+                            
+                        }
                     } else if (type.equals("flight_take_off")) {
                         Log.d(TAG, "Attempting to take off");
                     FlightManager flightManager = FlightManager.getFlightManager();
