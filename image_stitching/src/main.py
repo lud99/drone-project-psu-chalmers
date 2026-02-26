@@ -15,6 +15,7 @@ import io
 import json
 
 from common.frame_utils import create_not_connected_frame, create_error_frame
+import common.json_schemas as json_schemas
 
 if torch.cuda.is_available():
     print(
@@ -32,15 +33,6 @@ model = YOLO("models/best.pt")
 redis_url = os.environ.get("REDIS_URL", "localhost")
 # Redis connection (create a Redis client if it doesn't exist)
 r = redis.StrictRedis(host=redis_url, port=6379, db=0, decode_responses=True)
-
-
-class Detection:
-    def __init__(self, class_name: str, gps_position: tuple[float, float]):
-        self.class_name = class_name
-        self.gps_position = gps_position
-
-    def to_json(self):
-        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True)
 
 
 ## ---- HELPER FUNCTIONS ----
@@ -116,7 +108,7 @@ def get_weighted_gps(
 
 
 async def set_frame(
-    drone_id: str, img: np.ndarray, detections: list[Detection]
+    drone_id: str, img: np.ndarray, detections: json_schemas.Detections
 ) -> None:
     """
     Store a frame in Redis as JPEG.
@@ -141,9 +133,7 @@ async def set_frame(
                 pipe.expire(redis_key_frame, expiration)
 
                 # Save detections as a json string
-                pipe.set(
-                    redis_key_detections, json.dumps([d.to_json() for d in detections])
-                )
+                pipe.set(redis_key_detections, detections.model_dump_json())
                 pipe.expire(redis_key_detections, expiration)
                 pipe.execute()  # Execute both commands together
         else:
@@ -153,7 +143,7 @@ async def set_frame(
 
 
 ### MERGE STREAMS ###
-async def stream_drone_frames(drone_id: int):
+async def stream_drone_frames(drone_id: str):
     """
     Read frames from Redis, decode and yield raw JPEG bytes.
 
@@ -181,8 +171,10 @@ async def stream_drone_frames(drone_id: int):
         )
 
         try:
-            capabilities = json.loads(capabilities) if capabilities else {}
-            telemetry = json.loads(telemetry) if telemetry else {}
+            capabilities = (
+                json_schemas.parse_capabilities(capabilities) if capabilities else {}
+            )
+            telemetry = json_schemas.parse_telemetry(telemetry) if telemetry else {}
         except Exception as e:
             capabilities, telemetry = None, None
             print(
@@ -241,7 +233,7 @@ async def stream_drone_frames(drone_id: int):
         await asyncio.sleep(0.033)  # Approximately 30fps
 
 
-async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
+async def merge_and_annotate_stream(drone_ids: tuple[str, str]) -> None:
     """
     Merge video streams from two drones, detect objects, and save annotated output.
 
@@ -339,25 +331,25 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
             stitched_frame[:, frame_width:] = right_fixed
 
             # Get telemetry and specifications
-            if not left_capabilities["camera"]:
+            if not left_capabilities.camera:
                 print("[ERROR] No left camera specification present!")
                 continue
-            if not right_capabilities["camera"]:
+            if not right_capabilities.camera:
                 print("[ERROR] No right camera specification present!")
                 continue
 
             # TODO: How does horizontal and vertical fov differ? what fov should be used?
-            left_fov = left_capabilities["camera"]["horizontal_fov"]
-            left_altitude = left_telemetry["altitude"]
-            left_location = (left_telemetry["lat"], left_telemetry["lon"])
-            right_fov = right_capabilities["camera"]["horizontal_fov"]
-            right_altitude = right_telemetry["altitude"]
-            right_location = (right_telemetry["lat"], right_telemetry["lon"])
+            left_fov = left_capabilities.camera.horizontal_fov
+            left_alt = left_telemetry.alt
+            left_location = (left_telemetry.lat, left_telemetry.lon)
+            right_fov = right_capabilities.camera.horizontal_fov
+            right_alt = right_telemetry.alt
+            right_location = (right_telemetry.lat, right_telemetry.lon)
 
             if left_fov != right_fov:
                 print("[ERROR] Fov mismatch!")
                 continue
-            if left_altitude != right_altitude:
+            if left_alt != right_alt:
                 print("[ERROR] Altidude mismatch!")
                 continue
 
@@ -365,8 +357,9 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
                 stitched_frame,
                 [left_location, right_location],
                 left_fov,
-                left_altitude,
+                left_alt,
                 (frame_width, frame_height),
+                [id1, id2],
             )
 
             # Send the composite and annotated image to Redis
@@ -379,7 +372,7 @@ async def merge_and_annotate_stream(drone_ids: tuple[int, int]) -> None:
         cv2.destroyAllWindows()
 
 
-async def annotate_stream(drone_id: int) -> None:
+async def annotate_stream(drone_id: str) -> None:
     """
     Merge video streams from two drones, detect objects, and save annotated output.
 
@@ -422,21 +415,17 @@ async def annotate_stream(drone_id: int) -> None:
                 continue  # Skip if decoding fails
 
             # Get telemetry and specifications
-            if not capabilities["camera"]:
+            if not capabilities.camera:
                 print("[ERROR] No camera specification present!")
                 continue
 
             # TODO: How does horizontal and vertical fov differ? what fov should be used?
-            fov = capabilities["camera"]["horizontal_fov"]
-            altitude = telemetry["altitude"]
-            location = (telemetry["lat"], telemetry["lon"])
+            fov = capabilities.camera.horizontal_fov
+            alt = telemetry.alt
+            location = (telemetry.lat, telemetry.lon)
 
             (annotated_frame, detections) = detect_and_annotate_image(
-                pixel_array,
-                [location],
-                fov,
-                altitude,
-                (width, height),
+                pixel_array, [location], fov, alt, (width, height), [drone_id]
             )
 
             # Send the results to redis
@@ -452,10 +441,11 @@ def detect_and_annotate_image(
     fov: float,
     altitude: float,
     image_size: tuple[int, int],
-) -> tuple[np.ndarray, list[Detection]]:
+    drone_ids: list[str],
+) -> tuple[np.ndarray, json_schemas.Detections]:
     detections = detect_objects(pixel_array)
 
-    detections_complete = []
+    detections_complete = json_schemas.Detections(root=[])
 
     detection_gps_positions = []
     if detections.tracker_id is not None:  # Check if tracker_id exists
@@ -495,7 +485,13 @@ def detect_and_annotate_image(
         position_labels = [f"({int(d[0])}, {int(d[1])})" for d in detections.xyxy]
 
         for class_id, gps_position in zip(detections.class_id, detection_gps_positions):
-            detections_complete.append(Detection(model.names[class_id], gps_position))
+            detections_complete.root.append(
+                json_schemas.SingleDetection(
+                    class_name=model.names[class_id],
+                    gps_position=gps_position,
+                    drone_ids=drone_ids,
+                )
+            )
 
         annotator = Annotator()
         annotated_frame = annotator.annotate_frame(
@@ -510,7 +506,7 @@ def detect_and_annotate_image(
     return (annotated_frame, detections_complete)
 
 
-async def insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
+async def insert_dummy_telemetry_and_capabilities(drone_id: str) -> None:
     """
     Store a frame in Redis as JPEG.
 
@@ -528,10 +524,10 @@ async def insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
             [
                 ("lat", 57.6900),
                 ("lon", 11.9800),
-                ("altitude", 30),
+                ("alt", 30),
                 ("heading", 10),
-                ("speed", 5),
-                ("batterypercent", 50),
+                ("speed", 5.0),
+                ("battery_percent", 50),
             ]
         )
 
@@ -543,10 +539,15 @@ async def insert_dummy_telemetry_and_capabilities(drone_id: int) -> None:
                         [
                             ("aspect_ratio", 16.0 / 9.0),
                             ("horizontal_fov", 83.0),
-                            ("resolution", [1920, 1080]),
+                            ("resolution_width", 1920),
+                            ("resolution_height", 1080),
                         ]
                     ),
-                )
+                ),
+                ("led", None),
+                ("spotlight", False),
+                ("speaker", False),
+                ("max_speed", 15.0),
             ]
         )
 
@@ -600,11 +601,11 @@ async def test_detect_and_annotate_image():
     pixel_array = np.array(img, dtype=np.uint8)
 
     (annotated_frame, detections) = detect_and_annotate_image(
-        pixel_array, [(57.6900, 11.9800)], 83, 30, img.size
+        pixel_array, [(57.6900, 11.9800)], 83, 30, img.size, ["1"]
     )
 
     print(model.names)
-    print([d.to_json() for d in detections])
+    print(detections.model_dump_json())
 
     result = Image.fromarray((annotated_frame).astype(np.uint8))
     result.save("./out.jpeg")
@@ -616,11 +617,11 @@ async def test_stream_frame():
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
-    await insert_dummy_telemetry_and_capabilities(1)
+    await insert_dummy_telemetry_and_capabilities("1")
 
-    await adding_redis_frame(img, 1)
+    await adding_redis_frame(img, "1")
 
-    await annotate_stream(1)
+    await annotate_stream("1")
 
     # Don't know how to test reading the redis data here
     # But modifying the code to read detections, we can see that it works
@@ -632,13 +633,13 @@ async def test_stream_merge_frame():
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
-    await insert_dummy_telemetry_and_capabilities(1)
-    await insert_dummy_telemetry_and_capabilities(2)
+    await insert_dummy_telemetry_and_capabilities("1")
+    await insert_dummy_telemetry_and_capabilities("2")
 
-    await adding_redis_frame(img, 1)
-    await adding_redis_frame(img, 2)
+    await adding_redis_frame(img, "1")
+    await adding_redis_frame(img, "2")
 
-    await merge_and_annotate_stream((1, 2))
+    await merge_and_annotate_stream(("1", "2"))
 
     # Don't know how to test reading the redis data here
     # But modifying the code to read detections, it works
@@ -652,7 +653,7 @@ async def main() -> None:
 
     # await annotate_stream(1)
 
-    await asyncio.gather(annotate_stream(1), annotate_stream(2))
+    await asyncio.gather(annotate_stream("1"), annotate_stream("2"))
 
     # await merge_stream((1, 2))  # Call with drone ID 1 and 2
 
