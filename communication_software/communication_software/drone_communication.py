@@ -454,18 +454,6 @@ class Communication:
                 await self.start_drone_stream(message.drone_id)
 
             # Test sending a task
-            # task_message = json_schemas.TaskMessage(
-            #     drone_id=message.drone_id,
-            #     mission_id="0",
-            #     index=0,
-            #     task_action=json_schemas.LEDTask(
-            #         params=json_schemas.LEDParams(
-            #             color="red", pattern="blink", duration_seconds=4
-            #         )
-            #     ),
-            # )
-
-            # Testing
             print(f"Sending task {self.task_index}")
             await ws.send(json.dumps(self.task_list[self.task_index]))
             self.task_index += 1
