@@ -157,6 +157,188 @@
             2: L.marker([57.705941, 11.939096]).addTo(map)
         };
 
+        //  Map changes
+        // Skapa en custom control
+    // -------- POLYGON MODE --------
+
+let polygonMode = false;
+let polygonPoints = [];
+let activePolygon = null;
+let previewLine = null;
+
+
+// -------- CUSTOM CONTROL --------
+
+const customControl = L.Control.extend({
+    options: { position: 'topleft' },
+
+    onAdd: function (map) {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+
+        container.style.backgroundColor = 'white';
+        container.style.width = '34px';
+        container.style.height = '34px';
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+        container.style.cursor = 'pointer';
+        container.innerHTML = "⬛";
+
+        L.DomEvent.disableClickPropagation(container);
+
+        container.onclick = function () {
+
+            // Ta bort gammal polygon
+            if (activePolygon) {
+                map.removeLayer(activePolygon);
+                activePolygon = null;
+            }
+
+            if (previewLine) {
+                map.removeLayer(previewLine);
+                previewLine = null;
+            }
+
+            polygonMode = true;
+            polygonPoints = [];
+
+            console.log("Polygon drawing started");
+        };
+
+        return container;
+    }
+});
+
+map.addControl(new customControl());
+
+
+// -------- CLICK HANDLER --------
+
+map.on('click', function (e) {
+
+    if (!polygonMode) return;
+
+    polygonPoints.push(e.latlng);
+
+    // Skapa polygon när vi har minst 2 punkter
+    if (!activePolygon) {
+        activePolygon = L.polygon(polygonPoints, {
+            color: "#ff0000",
+            weight: 2,
+            fillColor: "#ff0000",
+            fillOpacity: 0.2
+        }).addTo(map);
+    } else {
+        activePolygon.setLatLngs(polygonPoints);
+    }
+});
+
+
+// -------- LIVE PREVIEW --------
+
+map.on('mousemove', function (e) {
+
+    if (!polygonMode || polygonPoints.length === 0) return;
+
+    const previewPoints = [...polygonPoints, e.latlng];
+
+    if (!previewLine) {
+        previewLine = L.polyline(previewPoints, {
+            color: "#ff0000",
+            dashArray: "5,5"
+        }).addTo(map);
+    } else {
+        previewLine.setLatLngs(previewPoints);
+    }
+});
+
+
+// -------- DOUBLE CLICK TO FINISH --------
+
+map.on('dblclick', function () {
+
+    if (!polygonMode) return;
+
+    polygonMode = false;
+
+    if (previewLine) {
+        map.removeLayer(previewLine);
+        previewLine = null;
+    }
+
+    if (activePolygon) {
+        activePolygon.setStyle({
+            color: "green",
+            fillColor: "green"
+        });
+    }
+
+    console.log("Polygon finalized");
+});
+
+//-------New button for sending area coordinates to backend--------
+
+
+const sendCoordinates = L.Control.extend({
+    options: { position: 'topleft' },
+
+    onAdd: function (map) {
+
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+
+        container.style.backgroundColor = '#28a745';
+        container.style.width = '34px';
+        container.style.height = '34px';
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+        container.style.cursor = 'pointer';
+        container.style.color = 'white';
+        container.title = "Send area to backend";
+        container.innerHTML = "GO";
+
+        L.DomEvent.disableClickPropagation(container);
+
+        container.onclick = function () {
+
+            if (!activePolygon) {
+                alert("No polygon created.");
+                return;
+            }
+
+            const latlngs = activePolygon.getLatLngs()[0];
+
+            const coordinates = latlngs.map(p => ({
+                lat: p.lat,
+                lon: p.lng
+            }));
+
+            if (flightmanagerWS.readyState !== WebSocket.OPEN) {
+                alert("FlightManager WebSocket not connected.");
+                return;
+            }
+
+            flightmanagerWS.send(JSON.stringify({
+                msg_type: "set_watch_area",
+                drone_id: "0",   // är noll en speciell drönare eller alla? fråga ludde
+                points: coordinates.map(p => ({
+                    lat: p.lat,
+                    lon: p.lng   
+                }))
+            }));
+
+            console.log("Polygon sent to backend:", coordinates);
+        };
+
+        return container;
+    }
+});
+
+map.addControl(new sendCoordinates());
+
+//slut      Slut
+
+
         // WebSocket Connections
         const droneWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/drone`);
         const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
