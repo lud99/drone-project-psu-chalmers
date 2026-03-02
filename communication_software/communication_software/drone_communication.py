@@ -327,6 +327,9 @@ class Communication:
                     message, connection_id, ws
                 )
 
+            # elif isinstance(message, json_schemas)
+
+            # WebRTC
             elif isinstance(message, json_schemas.WebRTCCandidateMessage):
                 await self.handle_webrct_candidate_message(message, connection_id)
 
@@ -440,6 +443,19 @@ class Communication:
             if message.capabilities.camera is not None:
                 self.create_peer_connection(message.drone_id)
                 await self.start_drone_stream(message.drone_id)
+
+            # Test sending a task
+            task_message = json_schemas.TaskMessage(
+                drone_id=message.drone_id,
+                mission_id="0",
+                index=0,
+                task_action=json_schemas.LEDTask(
+                    params=json_schemas.LEDParams(
+                        color="red", pattern="blink", duration_seconds=4
+                    )
+                ),
+            )
+            await ws.send(task_message.model_dump_json())
 
             return message.drone_id
 
@@ -597,15 +613,15 @@ class Communication:
         except Exception as e:
             print(f"[DroneStream] Failed to create PeerConnection: {e}")
 
-    async def handle_incoming_webrtc_msg(self, connection_id, message):
-        """Route incoming WebRTC messages to the appropriate DroneStream."""
-        try:
-            await self.on_message(message, connection_id)
-            print(
-                f"[Stream Manager] Message routed to DroneStream ({connection_id}) successfully."
-            )
-        except KeyError as e:
-            print(f"[Stream Manager] Error: {e}")
+    # async def handle_incoming_webrtc_msg(self, connection_id, message):
+    #     """Route incoming WebRTC messages to the appropriate DroneStream."""
+    #     try:
+    #         await self.on_message(message, connection_id)
+    #         print(
+    #             f"[Stream Manager] Message routed to DroneStream ({connection_id}) successfully."
+    #         )
+    #     except KeyError as e:
+    #         print(f"[Stream Manager] Error: {e}")
 
     ##THIS IS THE FUNCTION THAT HANDLES THE VIDEO STREAM##
     async def set_frame(self, connection_id: str, img: np.ndarray):

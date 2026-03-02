@@ -58,7 +58,7 @@
         "mission_id": "mission_101",
         "drone_id": "AZL-55555",
         "index": 0,
-        "task": {
+        "task_action": {
             "action": "go_to",
             "params": {
                 "lat": 57.7090,
@@ -73,7 +73,7 @@
         "mission_id": "mission_102",
         "drone_id": "AZL-55555",
         "index": 1,
-        "task": {
+        "task_action": {
             "action": "play_audio",
             "params": {
                 "file": "alarm.mp3",
@@ -87,7 +87,7 @@
         "mission_id": "mission_102",
         "index": 2,
         "drone_id": "AZL-55555",
-        "task": {
+        "task_action": {
             "action": "led",
             "params": {
                 "color": "red",
@@ -101,7 +101,7 @@
         "mission_id": "mission_102",
         "index": 3,
         "drone_id": "AZL-55555",
-        "task": {
+        "task_action": {
             "action": "spotlight",
             "params": {
                 "pattern": "steady",
@@ -124,7 +124,6 @@
         "msg_type": "abort_task",
         "mission_id": "mission_101",
         "drone_id": "0",
-        "index": 0,
-        "next": "go_home" // "hover", "land"
+        "task_action": "spotlight"
     }
 ]

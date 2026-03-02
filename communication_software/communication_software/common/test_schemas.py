@@ -30,7 +30,7 @@ try:
                     f" -> Drone is at {validated.telemetry.lat}, {validated.telemetry.lon}"
                 )
             elif isinstance(validated, json_schemas.TaskMessage):
-                print(f" -> New task: {validated.task.action}")
+                print(f" -> New task: {validated.task_action.action}")
 
         except Exception as e:
             print(f"Validation failed for a message: {e}")
