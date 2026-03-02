@@ -16,8 +16,8 @@ class LEDCapabilities(BaseModel):
 
 
 class Capabilities(BaseModel):
-    camera: Union[CameraCapabilities, None]
-    led: Union[LEDCapabilities, None]
+    camera: Optional[CameraCapabilities]
+    led: Optional[LEDCapabilities]
     spotlight: bool
     speaker: bool
     max_speed: float
@@ -38,6 +38,7 @@ class Telemetry(BaseModel):
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed"]
 TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
+AbortActionTypes = Literal["go_home", "hover", "land"]
 
 
 # Specific task definitions
@@ -51,18 +52,18 @@ class GoToParams(BaseModel):
 class PlayAudioParams(BaseModel):
     file: str
     volume: float = 1.0
-    duration_seconds: Optional[int]
+    duration_seconds: Optional[int] = None
 
 
 class LEDParams(BaseModel):
     color: str
     pattern: str
-    duration_seconds: Optional[float]
+    duration_seconds: Optional[float] = None
 
 
 class SpotlightParams(BaseModel):
     pattern: str
-    duration_seconds: Optional[float]
+    duration_seconds: Optional[float] = None
 
 
 # The specific Task types
@@ -129,6 +130,13 @@ class AbortTaskMessage(BackendToDroneMessage):
     task_action: TaskTypes
 
 
+# Backend -> app
+class AbortMissionMessage(BackendToDroneMessage):
+    msg_type: Literal["abort_mission"] = "abort_mission"
+    mission_id: str
+    next_action: AbortActionTypes
+
+
 class DebugMessage(DroneMessage):
     msg_type: Literal["debug"] = "debug"
     message: str
@@ -174,6 +182,7 @@ AnyDroneMessage = Annotated[
         TelemetryMessage,
         TaskEventMessage,
         AbortTaskMessage,
+        AbortMissionMessage,
         DebugMessage,
         WebRTCCandidateMessage,
         WebRTCAnswerMessage,

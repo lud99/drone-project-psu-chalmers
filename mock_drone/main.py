@@ -1,5 +1,6 @@
 import asyncio
 import random
+import sys
 import time
 from websockets import connect
 import websockets
@@ -12,7 +13,7 @@ DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
 
 
-async def send_telemetry(websocket):
+async def send_telemetry(websocket, drone_id: str):
     """Continuously sends telemetry using the TelemetryMessage class."""
     while True:
         # Create the Telemetry sub-model
@@ -27,7 +28,7 @@ async def send_telemetry(websocket):
 
         # Wrap in the TelemetryMessage envelope
         msg = json_schemas.TelemetryMessage(
-            msg_type="telemetry", drone_id=DRONE_ID, telemetry=current_telemetry
+            msg_type="telemetry", drone_id=drone_id, telemetry=current_telemetry
         )
 
         await websocket.send(msg.model_dump_json())
@@ -79,6 +80,7 @@ async def do_task(
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
+            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.LEDTask):
@@ -90,6 +92,7 @@ async def do_task(
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
+            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.SpotlightTask):
@@ -101,14 +104,15 @@ async def do_task(
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
+            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
 
-async def run_drone_client():
+async def run_drone_client(drone_id: str):
     try:
         wait_event: asyncio.Event = asyncio.Event()
         async with connect(SERVER_WS_URL) as websocket:
-            print(f"Connected to {SERVER_WS_URL}")
+            print(f"Connected to {SERVER_WS_URL} as drone {drone_id}")
 
             await asyncio.sleep(2)
 
@@ -127,7 +131,7 @@ async def run_drone_client():
                 msg_type="drone_registration",
                 drone_type="quadcopter",
                 model="DJI-Mavic-Mock",
-                drone_id=DRONE_ID,
+                drone_id=drone_id,
                 capabilities=json_schemas.Capabilities(
                     camera=None,
                     led=json_schemas.LEDCapabilities(colors=["red", "green", "blue"]),
@@ -138,33 +142,54 @@ async def run_drone_client():
             )
 
             await websocket.send(reg_msg.model_dump_json())
-            print(f"Sent registration for {DRONE_ID}")
+            print(f"Sent registration for {drone_id}")
 
             # 2. Start continuous telemetry task
-            asyncio.create_task(send_telemetry(websocket))
+            asyncio.create_task(send_telemetry(websocket, drone_id))
 
             # 3. Main loop to handle incoming server data
             while True:
                 raw_message = await websocket.recv()
-                print(f"Raw message from server: {raw_message}")
 
-                message = json_schemas.parse_drone_message(str(raw_message))
-                print(f"Received message: {message.msg_type}")
+                try:
+                    message = json_schemas.parse_drone_message(str(raw_message))
+                    print(f"Received message: {message.msg_type}")
 
-                # Route messages based on `msg_type`
+                    if isinstance(message, json_schemas.TaskMessage):
+                        wait_event = asyncio.Event()
+                        asyncio.create_task(
+                            do_task(websocket, message.drone_id, message, wait_event)
+                        )
+                    elif isinstance(message, json_schemas.AbortTaskMessage):
+                        print(f"Aborting task {message.task_action}")
 
-                if isinstance(message, json_schemas.TaskMessage):
-                    wait_event = asyncio.Event()
-                    asyncio.create_task(
-                        do_task(websocket, message.drone_id, message, wait_event)
-                    )
-                elif isinstance(message, json_schemas.AbortTaskMessage):
-                    print(f"Aborting task {message.task_action}")
-                    wait_event.set()
+                        # This should abort only the specified task_action and continue running others
+                        wait_event.set()
+                        event_message = json_schemas.TaskEventMessage(
+                            mission_id=message.mission_id,
+                            drone_id=message.drone_id,
+                            index=-1,
+                            event="task_complete",
+                            timestamp=int(time.time()),
+                        )
+
+                        await websocket.send(event_message.model_dump_json())
+
+                    elif isinstance(message, json_schemas.AbortMissionMessage):
+                        print(f"Aborting mission, doing {message.next_action}")
+
+                        # This should abort all active task (if any are active) and do the specified next action
+                        wait_event.set()
+
+                except Exception as e_inner:
+                    print(f"ERROR for {raw_message}, exception: {e_inner}")
 
     except Exception as e:
         print(f"Client error: {e}")
 
 
 if __name__ == "__main__":
-    asyncio.run(run_drone_client())
+    drone_id = DRONE_ID
+    if len(sys.argv) > 1:
+        drone_id += "_" + sys.argv[1]
+    asyncio.run(run_drone_client(drone_id))

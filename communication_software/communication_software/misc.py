@@ -3,9 +3,7 @@ import os
 import threading
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
 from communication_software.frontend_websocket import run_server
-from communication_software.communication_software.drone_communication import (
-    Communication,
-)
+from communication_software.drone_communication import Communication
 import rclpy
 
 

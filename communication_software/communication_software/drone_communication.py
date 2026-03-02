@@ -48,6 +48,14 @@ class Communication:
         self.redis_listener_task = None
         self.peer_connections = {}
 
+        # For testing
+        with open(
+            "./src/communication_software/communication_software/common/test_mock_mission.json",
+            "r",
+        ) as f:
+            self.task_list = json.loads(f.read())
+        self.task_index = 0
+
     async def start_websocket_server(self, ip: str) -> None:
         """Starts WebSocket server."""
         print(f"Initializing WebSocket on IP: {ip}")
@@ -327,7 +335,8 @@ class Communication:
                     message, connection_id, ws
                 )
 
-            # elif isinstance(message, json_schemas)
+            elif isinstance(message, json_schemas.TaskEventMessage):
+                await self.handle_task_event_message(message, connection_id)
 
             # WebRTC
             elif isinstance(message, json_schemas.WebRTCCandidateMessage):
@@ -445,17 +454,21 @@ class Communication:
                 await self.start_drone_stream(message.drone_id)
 
             # Test sending a task
-            task_message = json_schemas.TaskMessage(
-                drone_id=message.drone_id,
-                mission_id="0",
-                index=0,
-                task_action=json_schemas.LEDTask(
-                    params=json_schemas.LEDParams(
-                        color="red", pattern="blink", duration_seconds=4
-                    )
-                ),
-            )
-            await ws.send(task_message.model_dump_json())
+            # task_message = json_schemas.TaskMessage(
+            #     drone_id=message.drone_id,
+            #     mission_id="0",
+            #     index=0,
+            #     task_action=json_schemas.LEDTask(
+            #         params=json_schemas.LEDParams(
+            #             color="red", pattern="blink", duration_seconds=4
+            #         )
+            #     ),
+            # )
+
+            # Testing
+            print(f"Sending task {self.task_index}")
+            await ws.send(json.dumps(self.task_list[self.task_index]))
+            self.task_index += 1
 
             return message.drone_id
 
@@ -465,6 +478,16 @@ class Communication:
             )
 
         return None
+
+    async def handle_task_event_message(
+        self, message: json_schemas.TaskEventMessage, connection_id
+    ):
+        if self.task_index < len(self.task_list):
+            print(f"Sending task {self.task_index}")
+            await self.connections[connection_id].send(
+                json.dumps(self.task_list[self.task_index])
+            )
+            self.task_index += 1
 
     async def handle_webrct_candidate_message(
         self, message: json_schemas.WebRTCCandidateMessage, connection_id

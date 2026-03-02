@@ -125,5 +125,13 @@
         "mission_id": "mission_101",
         "drone_id": "0",
         "task_action": "spotlight"
+    },
+    // backend --> app, abort current mission
+    // tasks should already been aborted and mostly used for the ability to go home
+    {
+        "msg_type": "abort_mission",
+        "mission_id": "mission_101",
+        "drone_id": "0",
+        "next_action": "go_home" // "hover", "land"
     }
 ]
