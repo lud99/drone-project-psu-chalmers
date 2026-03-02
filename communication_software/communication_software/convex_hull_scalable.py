@@ -3,13 +3,18 @@ from scipy.spatial import ConvexHull
 
 # Exception classes
 
+
 class HeightError(Exception):
     def __init__(self, message="Height exceeds Swedish regulations"):
         super().__init__(message)
 
+
 class ProximityError(Exception):
-    def __init__(self, message="Does not take more than one drone and overlap over 90 percent"):
+    def __init__(
+        self, message="Does not take more than one drone and overlap over 90 percent"
+    ):
         super().__init__(message)
+
 
 class Coordinate:
     def __init__(self, lat, lng, alt=0):
@@ -17,20 +22,22 @@ class Coordinate:
         self.lng = lng
         self.alt = alt
 
-    def __str__(self): 
+    def __str__(self):
         return f"Coordinate(lat={self.lat}, lng={self.lng}, alt={self.alt})"
 
-    def __repr__(self): 
+    def __repr__(self):
         return f"Coordinate(lat={self.lat}, lng={self.lng}, alt={self.alt})"
+
 
 # Main function to calculate drone locations
 
-def calculate_Height(area: float) -> float:
+
+def calculate_height(area: float) -> float:
     """Calculates the height that the drone needs to fly at to cover a certain 16:9 area."""
-    theta = (82.6/2)*(np.pi/180)
-    x = np.sqrt(area/(16*9))
-    y = (16*x)/4
-    radius = np.sqrt((2*y)**2+(1.5*y)**2)
+    theta = (82.6 / 2) * (np.pi / 180)
+    x = np.sqrt(area / (16 * 9))
+    y = (16 * x) / 4
+    radius = np.sqrt((2 * y) ** 2 + (1.5 * y) ** 2)
     height = radius / np.tan(theta)
     height = round(height)
     if height < 99:
@@ -38,21 +45,22 @@ def calculate_Height(area: float) -> float:
     else:
         raise HeightError()
 
-def getDronesLoc(
-        coordslist: dict[str, list[Coordinate]], 
-        droneOrigin: Coordinate, 
-        n_drones: int=2, 
-        overlap: float=0.5
-        ) -> tuple[list[Coordinate], float]:
+
+def get_drones_location(
+    coordslist: dict[str, list[Coordinate]],
+    drone_origin: Coordinate,
+    n_drones: int = 2,
+    overlap: float = 0.5,
+) -> tuple[list[Coordinate], float]:
     """
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
-    
+
     Args:
         coordslist (dict): Dictionary of trajectory coordinates for each vehicle.
-        droneOrigin (Coordinate): The origin coordinate of the test.
+        drone_origin (Coordinate): The origin coordinate of the test.
         n_drones (int): Number of drones to be used in the test.
         overlap (float): The overlap percentage between the drones.
-        
+
     Returns:
         tuple: A tuple containing a list of coordinates for the drones to fly to and the angle of the rectangle.
     """
@@ -60,15 +68,15 @@ def getDronesLoc(
     # Overlap has to be between 0 and 1
     if not (0 <= overlap <= 1):
         raise ValueError("Overlap must be between 0 and 1 (inclusive).")
-    
+
     # Proximity error if more than 2 drones and overlap is greater than 0.9
     if n_drones >= 2 and overlap >= 0.9:
         raise ProximityError()
     coords = []
 
     # Flatten the list of coordinates into an array
-    for coordList in coordslist.values():
-        for coord in coordList:
+    for coord_list in coordslist.values():
+        for coord in coord_list:
             coords.append([coord.lng, coord.lat])
     coords = np.array(coords)
 
@@ -78,7 +86,7 @@ def getDronesLoc(
             self.center = np.array([0.0, 0.0])
             self.axis = [np.array([0.0, 0.0]), np.array([0.0, 0.0])]
             self.extent = [0.0, 0.0]
-            self.area = float('inf')
+            self.area = float("inf")
 
     # Helper functions
     def normalize(v: np.ndarray) -> np.ndarray:
@@ -101,13 +109,14 @@ def getDronesLoc(
 
     def min_area_rectangle_of_hull(polygon: list) -> Rectangle:
         """Computes the oriented bounding box that encloses the convex hull of the trajectory points."""
+        # ruff: disable[N806]
+
         # Initialize the minimum rectangle
         min_rect = Rectangle()
         n = len(polygon)
 
         # Iterate through each edge of the polygon
         for i0 in range(n):
-
             # Get the next vertex in the polygon
             i1 = (i0 + 1) % n
 
@@ -139,13 +148,14 @@ def getDronesLoc(
                 min_rect.extent[1] = max1 / 2
                 min_rect.area = area
         return min_rect
+        # ruff: enable[N806]
 
     def compute_convex_hull(points: np.ndarray) -> list:
         """Computes the convex hull of a set of points."""
         hull = ConvexHull(points)
         return [points[i] for i in hull.vertices]
 
-    def are_colinear(points: np.ndarray, tol: float=1e-9) -> bool:
+    def are_colinear(points: np.ndarray, tol: float = 1e-9) -> bool:
         """Checks if a set of points are collinear."""
         if len(points) < 3:
             return True
@@ -161,11 +171,12 @@ def getDronesLoc(
         rect = Rectangle()
         rect.center = np.mean(coords, axis=0)
         sorted_coords = sorted(coords, key=lambda p: p[0])
-        start_coord = sorted_coords[0]
         end_coord = sorted_coords[-1]
         direction = end_coord - rect.center
+        # ruff: disable[N806]
         U0 = normalize(direction)
         U1 = perp(U0)
+        # ruff: enable[N806]
         extent_long = np.linalg.norm(direction)
         rect.extent[1] = float(extent_long / 2)
         rect.extent[0] = float(extent_long)
@@ -197,33 +208,40 @@ def getDronesLoc(
     # Adjust the split offset to ensure the drone squares cover the entire rectangle
     split_offset = width * (1 + (1 - 2 * overlap))
 
-    drone_centers = [center + (i - (n_drones - 1) / 2) * split_offset * split_axis for i in range(int(n_drones))]
+    drone_centers = [
+        center + (i - (n_drones - 1) / 2) * split_offset * split_axis
+        for i in range(int(n_drones))
+    ]
 
-    height = calculate_Height(width * height_r)
+    height = calculate_height(width * height_r)
 
     if height < 30:
-
         height = 30
 
         theta = (82.6 / 2) * (np.pi / 180)
-        radius = (height * np.tan(theta))*1.4
+        radius = (height * np.tan(theta)) * 1.4
 
-        aspect_ratio = 16 / 9   
+        aspect_ratio = 16 / 9
         norm_factor = np.sqrt(aspect_ratio**2 + 1)
 
         width = radius * (aspect_ratio / norm_factor)
         height_r = radius * (1 / norm_factor)
 
         split_offset = 2 * width * (1 - overlap)
-        drone_centers = [center + (i - (n_drones - 1) / 2) * split_offset * split_axis for i in range(n_drones)]
+        drone_centers = [
+            center + (i - (n_drones - 1) / 2) * split_offset * split_axis
+            for i in range(n_drones)
+        ]
 
-    flyTo_coords = []
+    fly_to_coords = []
     for drone_center in drone_centers:
         delta_lat = drone_center[0] / 6371000 * (180 / np.pi)
-        delta_long = (drone_center[1] / (6371000 * np.cos(droneOrigin.lat * np.pi / 180))) * (180 / np.pi)
-        lat = droneOrigin.lat + delta_lat
-        long = droneOrigin.lng + delta_long
-        flyTo_coords.append(Coordinate(lat, long, int(height)))
+        delta_long = (
+            drone_center[1] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
+        ) * (180 / np.pi)
+        lat = drone_origin.lat + delta_lat
+        long = drone_origin.lng + delta_long
+        fly_to_coords.append(Coordinate(lat, long, int(height)))
 
     angle_radians = np.arctan2(angle_axis[1], angle_axis[0])
-    return flyTo_coords, round(np.degrees(angle_radians))
+    return fly_to_coords, round(np.degrees(angle_radians))

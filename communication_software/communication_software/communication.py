@@ -1,22 +1,27 @@
 import time
 import json
+from typing import Optional
 import redis.exceptions
 import websockets
 from websockets import WebSocketServerProtocol
-from communication_software.ConvexHullScalable import Coordinate
+
 import threading
 import asyncio
 import redis
+import os
 import cv2
 import numpy as np
+from communication_software.multicast_sender import MulticastSender
 
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
+import communication_software.common.json_schemas as json_schemas
 
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()
+    r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
     print("Successfully connected to Redis (Communication Server)!")
 except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis (Communication Server): {e}")
@@ -25,34 +30,27 @@ except redis.exceptions.ConnectionError as e:
 COMMAND_CHANNEL = "drone_commands"
 
 
-from aiortc import RTCConfiguration, RTCIceServer
+from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
 
 ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
 
+
 class Communication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
-        self.coordinates = {}  # Coordinates for each client
-        self.drone_coordinates = []  # List of drone coordinates
-        self.client_index = 0  # Tracks which coordinate to assign next
+        self.connection_counter = 0
+        # self.drone_coordinates = []  # List of drone coordinates
 
         self.loop = None
         self.redis_listener_stop_event = threading.Event()
         self.redis_listener_task = None
         self.peer_connections = {}
 
-    async def send_coordinates_websocket(
-        self, ip: str, droneOrigins: list, angles: list
-    ) -> None:
-        """Starts WebSocket server and initializes drone coordinates."""
+    async def start_websocket_server(self, ip: str) -> None:
+        """Starts WebSocket server."""
         print(f"Initializing WebSocket on IP: {ip}")
-        self.drone_coordinates = [
-            (self.transform_coordinates(coord, angle))
-            for coord, angle in zip(droneOrigins, angles)
-        ]
-        print(f"Prepared drone coordinates: {self.drone_coordinates}")
 
         if not self.loop:
             print("ERROR: Event loop not set before starting WebSocket server!")
@@ -71,8 +69,16 @@ class Communication:
             )
             self.start_redis_listener_thread()  # Assumes self.loop is set
 
-        server = await websockets.serve(self.webs_server, ip, 14500)
-        print(f"WebSocket server started on ws://{ip}:14500")
+        websocket_port = int(os.environ.get("WEBSOCKET_PORT", 14500))
+        host_ip = str(os.environ.get("HOST_IP"))
+
+        server = await websockets.serve(self.webs_server, ip, websocket_port)
+        print(f"WebSocket server started on ws://{ip}:{websocket_port}")
+
+        # Start multicasting now after websocket server has started
+        sender = MulticastSender(host_ip, websocket_port)
+        multicast_thread = threading.Thread(target=sender.send_packets)
+        multicast_thread.start()
 
         try:
             await server.wait_closed()
@@ -85,14 +91,17 @@ class Communication:
                 if self.redis_listener_task.is_alive():
                     print("Warning: Redis listener thread did not stop gracefully.")
             print("WebSocket server stopped.")
+            sender.stop()
+            multicast_thread.join()
+            print("Stopped multicast sender thread")
 
-    def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
-        """Transforms coordinates into required format."""
-        lat = str(coordinates.lat)[:9]
-        lng = str(coordinates.lng)[:9]
-        alt = str(coordinates.alt)[:3]
-        new_angle = str(angle)
-        return (lat, lng, alt, new_angle)
+    # def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
+    #     """Transforms coordinates into required format."""
+    #     lat = str(coordinates.lat)[:9]
+    #     lng = str(coordinates.lng)[:9]
+    #     alt = str(coordinates.alt)[:3]
+    #     new_angle = str(angle)
+    #     return (lat, lng, alt, new_angle)
 
     def redis_command_listener(self, redis_client, channel, stop_event):
         """Listens for messages on the specified Redis channel in a blocking loop."""
@@ -138,7 +147,7 @@ class Communication:
                     if message and message.get("type") == "message":
                         print(f"[REDIS THREAD] Received message: {message['data']}")
                         coro = self.process_redis_command(message["data"])
-                        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+                        asyncio.run_coroutine_threadsafe(coro, self.loop)
 
                         try:
                             pass  # Fire-and-forget is usually fine here
@@ -194,111 +203,79 @@ class Communication:
                 if pubsub:
                     try:
                         pubsub.unsubscribe(channel)
-                    except:
+                    except Exception as _e:
                         pass  # Ignore errors during cleanup
                     try:
                         pubsub.close()
-                    except:
+                    except Exception as _e:
                         pass
                 if listener_redis_conn:
                     try:
                         listener_redis_conn.close()
-                    except:
+                    except Exception as _e:
                         pass
 
         print("[REDIS THREAD] Listener thread finished.")
 
-    async def process_redis_command(self, message_data):
+    async def process_redis_command(self, redis_message_data):
         """Processes a command received from Redis (runs in the main event loop)."""
         print(
-            f"\n[PROCESS CMD] Processing command received from Redis. Data type: {type(message_data)}"
+            f"\n[PROCESS CMD] Processing command received from Redis. Data type: {type(redis_message_data)}"
         )
         try:
-            if isinstance(message_data, bytes):
-                message_data = message_data.decode("utf-8")
+            if isinstance(redis_message_data, bytes):
+                redis_message_data = redis_message_data.decode("utf-8")
 
-            print(f"[PROCESS CMD] Raw Command Data: {message_data}")
-            data = json.loads(message_data)
+            print(f"[PROCESS CMD] Raw Command Data: {redis_message_data}")
 
-            target_drone_id_str = data.get("target_drone_id")
-            command = data.get("command")
-            payload = data.get("payload", {})  # Default to empty dict if missing
-            timestamp = data.get("timestamp")
-
-            print(
-                f"[PROCESS CMD] Parsed: Drone='{target_drone_id_str}', Cmd='{command}', Payload={payload}, TS={timestamp}"
-            )
-
-            if target_drone_id_str is None or command is None:
+            message = json_schemas.parse_drone_message(redis_message_data)
+            if not isinstance(message, json_schemas.BackendToDroneMessage):
                 print(
-                    f"[PROCESS CMD] ERROR: Missing 'target_drone_id' or 'command' in message: {data}"
+                    "f[PROCESS CMD] Message f{message.msg_type} is not valid to send to drones"
                 )
                 return
+
+            connection_id = message.drone_id
+
+            print(
+                f"[PROCESS CMD] Parsed: Drone='{connection_id}', msg_type='{message.msg_type}'"
+            )
+
+            print(
+                f"[PROCESS CMD] Current active connections: {len(self.connections.items())}"
+            )
+
+            if connection_id not in self.connections:
+                print(f"[PROCESS CMD] {connection_id} is not connected!!")
+                return
+
+            connection_ws = self.connections[connection_id]
+
+            if not connection_ws:
+                print(
+                    f"[PROCESS CMD] ERROR: WebSocket connection {connection_id} not open or not found."
+                )
+                if (
+                    connection_id in self.connections
+                ):  # Check if it still exists in dict
+                    self.cleanup_connection(connection_id)
+                    return
 
             try:
-                target_drone_id = int(target_drone_id_str)
-            except ValueError:
                 print(
-                    f"[PROCESS CMD] ERROR: Invalid 'target_drone_id': {target_drone_id_str}. Must be an integer."
+                    f"Sending message to WebSocket {connection_id}: {redis_message_data}"
                 )
-                return
-
-            response = {
-                "msg_type": command,
-                **payload,  # Merge payload into the response if needed, or handle separately
-            }
-            response_json = json.dumps(response)
-
-            active_connections = list(
-                self.connections.items()
-            )  # Get list of (id, ws) pairs
-            print(
-                f"[PROCESS CMD] Current active connections: {len(active_connections)}"
-            )
-            connection_index = target_drone_id - 1
-
-            if 0 <= connection_index < len(active_connections):
-                connection_id, connection_ws = active_connections[connection_index]
+                await connection_ws.send(redis_message_data)
+            except websockets.exceptions.ConnectionClosed:
                 print(
-                    f"[PROCESS CMD] Target Index: {connection_index}, Connection ID: {connection_id}"
+                    f"[PROCESS CMD] ERROR: WebSocket connection {connection_id} closed before sending."
+                )
+                self.cleanup_connection(connection_id)  # Clean up if closed
+            except Exception as send_err:
+                print(
+                    f"[PROCESS CMD] ERROR: Failed to send message to WebSocket {connection_id}: {send_err}"
                 )
 
-                if connection_ws:
-                    try:
-                        print(
-                            f"Sending message to WebSocket {connection_id}: {response_json}"
-                        )
-                        await connection_ws.send(response_json)
-                        print(
-                            f"[PROCESS CMD] Successfully sent command '{command}' to drone {target_drone_id} (WS: {connection_id})."
-                        )
-                    except websockets.exceptions.ConnectionClosed:
-                        print(
-                            f"[PROCESS CMD] ERROR: WebSocket connection {connection_id} closed before sending."
-                        )
-                        self.cleanup_connection(connection_id)  # Clean up if closed
-                    except Exception as send_err:
-                        print(
-                            f"[PROCESS CMD] ERROR: Failed to send message to WebSocket {connection_id}: {send_err}"
-                        )
-                else:
-                    print(
-                        f"[PROCESS CMD] ERROR: WebSocket connection {connection_id} not open or not found."
-                    )
-                    if (
-                        connection_id in self.connections
-                    ):  # Check if it still exists in dict
-                        self.cleanup_connection(connection_id)
-
-            else:
-                print(
-                    f"[PROCESS CMD] ERROR: Target drone ID {target_drone_id} (index {connection_index}) is out of range for available connections ({len(active_connections)})."
-                )
-
-        except json.JSONDecodeError:
-            print(
-                f"[PROCESS CMD] ERROR: Failed to decode JSON from Redis message: {message_data}"
-            )
         except Exception as e:
             # Log unexpected errors more informatively
             import traceback
@@ -308,140 +285,89 @@ class Communication:
 
     async def webs_server(self, ws: WebSocketServerProtocol) -> None:
         """Handles WebSocket connections."""
-        print("Client connected.")
-        connection_id = str(id(ws))
-        self.connections[connection_id] = ws
-        self.create_peer_connection(connection_id)
-        await self.start_drone_stream(connection_id)
+        connection_id = "NON_droneid_" + str(self.connection_counter)
+        self.connection_counter += 1
+        print(f"Client connected. Assigned to temporary id {connection_id}")
 
-        available_coords = [
-            coord
-            for coord in self.drone_coordinates
-            if coord not in self.coordinates.values()
-        ]
-        assigned_coord = (
-            available_coords[0]
-            if available_coords
-            else self.drone_coordinates[self.client_index % len(self.drone_coordinates)]
-        )
-        self.coordinates[connection_id] = assigned_coord
-        self.client_index += 1
-        print(f"Assigned coordinate {assigned_coord} to client {connection_id}")
+        self.connections[connection_id] = ws
 
         try:
             while True:
                 data = await ws.recv()
                 print(f"Received from {connection_id}: {data}")
-                await self.on_message(data, connection_id)
-        except websockets.exceptions.ConnectionClosedError:
-            print(websockets.exceptions.ConnectionClosedError)
+                new_connection_id = await self.on_message(data, connection_id, ws)
+                if new_connection_id is not None:
+                    connection_id = new_connection_id
+        except websockets.exceptions.ConnectionClosedOK as e:
+            print(f"Client {connection_id} closed (cleanly):", e.code)
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(f"ConnectionClosedError: {e.code}, {e.reason}")
             print(f"Client {connection_id} disconnected.")
         finally:
             self.cleanup_connection(connection_id)
 
-    async def on_message(self, frame: str, connection_id: str) -> None:
+    async def on_message(
+        self, frame: str, connection_id: str, ws: WebSocketServerProtocol
+    ) -> Optional[str]:
         """Processes incoming messages."""
         try:
-            data = json.loads(frame)
+            message = json_schemas.parse_drone_message(frame)
             # print(f"Received message: {data}")
 
-            msg_type = data.get("msg_type")
-            if not msg_type:
-                raise ValueError(f"Missing `msg_type` in message: {data}")
-
             # Route messages based on `msg_type`
-            if msg_type == "Coordinate_request":
-                await self.send_coords(connection_id)
-            elif msg_type == "Position":
-                self.incoming_position_handler(data, connection_id)
-            elif msg_type == "Debug":
-                msg = data.get("msg", "")
-                print(f"Debug message: {msg}")
-            elif msg_type == "candidate":
-                candidate_sdp = data.get("candidate")
-                sdp_mid = data.get("sdpMid", data.get("id", "0"))
-                mline_index = int(data.get("sdpMLineIndex", data.get("label", 0)))
 
-                if not candidate_sdp:
-                    print(f"[RTC WARNING] Missing 'candidate' field: {data}")
-                    return
+            if isinstance(message, json_schemas.DebugMessage):
+                print(f"Debug message from {connection_id}: {message.message}")
 
-                # Parse the candidate line properly
-                rtc_candidate = candidate_from_sdp(candidate_sdp)
+            elif isinstance(message, json_schemas.TelemetryMessage):
+                self.handle_telemetry_message(message, connection_id)
 
-                rtc_candidate = RTCIceCandidate(
-                    foundation=rtc_candidate.foundation,
-                    component=rtc_candidate.component,
-                    priority=rtc_candidate.priority,
-                    ip=rtc_candidate.ip,
-                    port=rtc_candidate.port,
-                    protocol=rtc_candidate.protocol,
-                    type=rtc_candidate.type,
-                    sdpMid=sdp_mid,
-                    sdpMLineIndex=mline_index,
-                    relatedAddress=rtc_candidate.relatedAddress,
-                    relatedPort=rtc_candidate.relatedPort,
-                    tcpType=rtc_candidate.tcpType,
+            elif isinstance(message, json_schemas.DroneRegistrationMessage):
+                return await self.handle_registration_message(
+                    message, connection_id, ws
                 )
 
-                await self.peer_connections[connection_id].addIceCandidate(
-                    rtc_candidate
-                )
-                print(
-                    f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}"
-                )
+            elif isinstance(message, json_schemas.WebRTCCandidateMessage):
+                await self.handle_webrct_candidate_message(message, connection_id)
 
-            elif msg_type == "answer":
-                # Todo: Handle SDP answer
-                if connection_id in self.peer_connections:
-                    sdp = data.get("sdp")
-                    sdp_type = data.get("type") or data.get("msg_type")
+            elif isinstance(message, json_schemas.WebRTCAnswerMessage):
+                await self.handle_webrct_answer_message(message, connection_id)
 
-                    if sdp_type not in ("answer", "offer"):
-                        print(f"[RTC ERROR] Unexpected SDP type: {sdp_type}")
-                        return
-
-                    await self.peer_connections[connection_id].setRemoteDescription(
-                        RTCSessionDescription(sdp=sdp, type=sdp_type)
-                    )
-
-                else:
-                    print(
-                        f"[DroneStream] ERROR: Peer connection for {connection_id} not found."
-                    )
-                print(f"Received SDP answer from {connection_id}: {data}")
             else:
-                print(f"Unhandled `msg_type`: {msg_type}")
-        except json.JSONDecodeError:
-            print(f"Malformed JSON received from {connection_id}: {frame}")
-        except Exception as e:
-            print(f"Error processing message from {connection_id}: {e}")
+                print(f"Unhandled `msg_type`: {message.msg_type}")
 
-    async def send_coords(self, connection_id: str) -> None:
-        """Sends assigned coordinates to the client."""
-        if connection_id in self.coordinates:
-            lat, lng, alt, angle = self.coordinates[connection_id]
-            message = {
-                "msg_type": "Coordinate_request",
-                "lat": lat,
-                "lng": lng,
-                "alt": alt,
-                "angle": angle,
-            }
-            try:
-                await self.connections[connection_id].send(json.dumps(message))
-                print(f"Sent coordinates to client {connection_id}: {message}")
-            except websockets.exceptions.ConnectionClosed:
-                print(f"Connection {connection_id} closed, cleaning up.")
-                self.cleanup_connection(connection_id)
-        else:
-            print(f"No coordinates found for {connection_id}")
+        except Exception as e:
+            print(f"Error processing message from {connection_id}: {frame} {e}")
+
+        return None
+
+    # async def send_coords(self, connection_id: str) -> None:
+    #     """Sends assigned coordinates to the client."""
+    #     if connection_id in self.coordinates:
+    #         lat, lng, alt, angle = self.coordinates[connection_id]
+    #         message = {
+    #             "msg_type": "Coordinate_request",
+    #             "lat": lat,
+    #             "lng": lng,
+    #             "alt": alt,
+    #             "angle": angle,
+    #         }
+    #         try:
+    #             await self.connections[connection_id].send(json.dumps(message))
+    #             print(f"Sent coordinates to client {connection_id}: {message}")
+    #         except websockets.exceptions.ConnectionClosed:
+    #             print(f"Connection {connection_id} closed, cleaning up.")
+    #             self.cleanup_connection(connection_id)
+    #     else:
+    #         print(f"No coordinates found for {connection_id}")
 
     def cleanup_connection(self, connection_id: str) -> None:
         """Cleans up connections and PeerConnections when a client disconnects."""
         self.connections.pop(connection_id, None)
-        self.coordinates.pop(connection_id, None)
-        # self.peer_connections.pop(connection_id, None)
+
+        r.delete(f"telemetry_drone{connection_id}")
+        r.delete(f"capabilities_drone{connection_id}")
+
         print(f"Connection {connection_id} removed.")
 
     def start_redis_listener_thread(self):
@@ -469,22 +395,115 @@ class Communication:
         self.redis_listener_task.start()
         print("Started Redis listener thread.")
 
-    def incoming_position_handler(self, data, connection_id):
-        """Handles incoming position data."""
-        lat = data.get("latitude")
-        long = data.get("longitude")
-        altitude = data.get("altitude")
+    def handle_telemetry_message(
+        self, message: json_schemas.TelemetryMessage, connection_id
+    ):
+        # For debugginig
+        # lat = data.get("latitude")
+        # long = data.get("longitude")
+        # altitude = data.get("altitude")
         # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
-            json_data_string = json.dumps(data)
-            r.set(f"position_drone{connection_id}", json_data_string, ex=10)
+            r.set(
+                f"telemetry_drone{connection_id}",
+                message.telemetry.model_dump_json(),
+                ex=60,
+            )
+
         except (TypeError, redis.exceptions.RedisError) as e:
-            print(f"Error processing position data: {e}")
+            print(
+                f"Error processing telemetry message {message.model_dump_json()}: {e}"
+            )
+
+    async def handle_registration_message(
+        self,
+        message: json_schemas.DroneRegistrationMessage,
+        connection_id: str,
+        ws: WebSocketServerProtocol,
+    ) -> Optional[str]:
+        try:
+            if message.drone_id in self.connections:
+                print(f"Drone id {message.drone_id} is already connected or used!!")
+                return None
+
+            # Move to proper drone id
+            self.connections.pop(connection_id)
+            self.connections[message.drone_id] = ws
+
+            print(f"Moved websocket id from {connection_id} -> {message.drone_id}")
+
+            r.set(
+                f"capabilities_drone{message.drone_id}",
+                message.capabilities.model_dump_json(),
+            )
+
+            if message.capabilities.camera is not None:
+                self.create_peer_connection(message.drone_id)
+                await self.start_drone_stream(message.drone_id)
+
+            return message.drone_id
+
+        except (TypeError, redis.exceptions.RedisError) as e:
+            print(
+                f"Error processing registration message {message.model_dump_json()}: {e}"
+            )
+
+        return None
+
+    async def handle_webrct_candidate_message(
+        self, message: json_schemas.WebRTCCandidateMessage, connection_id
+    ):
+        candidate_sdp = message.candidate
+
+        sdp_mid = message.id
+        mline_index = message.label
+
+        # Parse the candidate line properly
+        rtc_candidate = candidate_from_sdp(candidate_sdp)
+
+        rtc_candidate = RTCIceCandidate(
+            foundation=rtc_candidate.foundation,
+            component=rtc_candidate.component,
+            priority=rtc_candidate.priority,
+            ip=rtc_candidate.ip,
+            port=rtc_candidate.port,
+            protocol=rtc_candidate.protocol,
+            type=rtc_candidate.type,
+            sdpMid=sdp_mid,
+            sdpMLineIndex=mline_index,
+            relatedAddress=rtc_candidate.relatedAddress,
+            relatedPort=rtc_candidate.relatedPort,
+            tcpType=rtc_candidate.tcpType,
+        )
+
+        await self.peer_connections[connection_id].addIceCandidate(rtc_candidate)
+        print(f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}")
+
+    async def handle_webrct_answer_message(
+        self, message: json_schemas.WebRTCAnswerMessage, connection_id
+    ):
+        if connection_id in self.peer_connections:
+            sdp = message.sdp
+            sdp_type = message.msg_type
+
+            if sdp_type not in ("answer", "offer"):
+                print(f"[RTC ERROR] Unexpected SDP type: {sdp_type}")
+                return
+
+            await self.peer_connections[connection_id].setRemoteDescription(
+                RTCSessionDescription(sdp=sdp, type=sdp_type)
+            )
+
+        else:
+            print(
+                f"[DroneStream] ERROR: Peer connection for {connection_id} not found."
+            )
+        print(f"Received SDP answer from {connection_id}: {message}")
 
     ###WEBBRTC###
 
     async def send_message(self, connection_id, message):
-        """"Sends a message to the WebSocket connection."""
+        """ "Sends a message to the WebSocket connection."""
         print(
             f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"
         )
@@ -507,7 +526,6 @@ class Communication:
         except Exception as e:
             print(f"[DroneStream] Error in createOffer(): {e}")
 
-  
     def create_peer_connection(self, connection_id):
         """Create and configure the RTCPeerConnection."""
         try:
@@ -530,13 +548,13 @@ class Communication:
 
             @self.peer_connections[connection_id].on("track")
             def on_track(track):
-                
+
                 print(f"[DroneStream] Received track: {track.kind}")
 
                 async def process_video(track):
                     while True:
                         try:
-                            frame = await track.recv()  # recieves yuv420p frame
+                            frame = await track.recv()  # receives yuv420p frame
                             yuv_frame = frame.to_ndarray(
                                 format="yuv420p"
                             )  # Convert to YUV420p

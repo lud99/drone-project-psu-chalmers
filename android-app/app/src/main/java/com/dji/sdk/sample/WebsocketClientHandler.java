@@ -25,6 +25,16 @@ import com.dji.sdk.sample.DJIVideoCapturer;  // Import DJIVideoCapturer (your cu
 
 
 public class WebsocketClientHandler {
+    
+    public interface ConnectionStateListener {
+        void onConnected();
+        void onDisconnected();
+    }
+
+    private ConnectionStateListener connectionStateListener;
+    public void setConnectionStateListener(ConnectionStateListener listener) {
+        this.connectionStateListener = listener;
+    }
     private static WebsocketClientHandler clientHandler = null;
     private URI uri = null;
     private final WebSocketClient webSocketClient;
@@ -68,7 +78,7 @@ public class WebsocketClientHandler {
         return webSocketClient;
     }
 
-    
+
 
     private WebsocketClientHandler(Context context, URI uri){
         this.uri = uri;
@@ -78,29 +88,17 @@ public class WebsocketClientHandler {
             public void onOpen() {
                 Log.d(TAG, "New connection opened on URI " + getUri());
                 connected = true;
+                if (connectionStateListener != null) {
+                    connectionStateListener.onConnected();
+                }
 
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    if (webRTCClient == null) {
-                        try {
-                            Log.d(TAG, "Initializing WebRTCClient...");
-                            VideoCapturer videoCapturer = new DJIVideoCapturer("DJI Mavic Enterprise 2");
-                            WebRTCMediaOptions mediaOptions = new WebRTCMediaOptions();
-                            webRTCClient = new WebRTCClient(context, videoCapturer, mediaOptions);
-                            Log.d(TAG, "WebRTCClient initialized successfully.");
-                        } catch (Exception e) {
-                            Log.e(TAG, "Error initializing WebRTCClient: " + e.getMessage(), e);
-                        }
-                    } else {
-                        Log.w(TAG, "WebRTCClient already initialized.");
-                    }
                     startPositionSending(); // Ensure position sending starts properly
+                    startHeartbeat();
                     WebsocketClientHandler.status_update.release();
                 });
             }
-
-
-
 
             @Override
             public void onTextReceived(String message) {
@@ -118,7 +116,16 @@ public class WebsocketClientHandler {
                     FlightManager flightManager = FlightManager.getFlightManager();
                         flightManager.onArm();
                     } else if (type.equals("offer") || type.equals("candidate") || type.equals("answer")) {
-                        webRTCClient.handleWebRTCMessage(jsonMessage);
+                        if (webRTCClient == null) {
+                            Log.w(TAG, "RTC CLIENT IS NULL, initializing...");
+                            initializeWebRTCClient();
+                        }
+                        if (webRTCClient != null) {
+                            webRTCClient.handleWebRTCMessage(jsonMessage);
+                        } else {
+                            Log.e(TAG, "RTC CLIENT still null after initialization, dropping message");
+                            
+                        }
                     } else if (type.equals("flight_take_off")) {
                         Log.d(TAG, "Attempting to take off");
                     FlightManager flightManager = FlightManager.getFlightManager();
@@ -154,16 +161,21 @@ public class WebsocketClientHandler {
             @Override
             public void onException(Exception e) {
                 Log.e(TAG, e.toString());
-                if (e instanceof IOException){
-                    closeConnection();
-                }
+                connected = false;
+                stopHeartbeat(); //Stop ping to backend
+                stopPositionSending();
+                WebsocketClientHandler.status_update.release();
             }
 
             @Override
             public void onCloseReceived(int reason, String description) {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
+                if (connectionStateListener != null) {
+                    connectionStateListener.onDisconnected();
+                }
                 stopPositionSending();
+                stopHeartbeat(); //Stop ping to backend
                 if (webRTCClient != null) {
                     webRTCClient.dispose();
                     webRTCClient = null; // Nullify to prevent further usage
@@ -175,7 +187,6 @@ public class WebsocketClientHandler {
         };
         webSocketClient.setConnectTimeout(15000);
         webSocketClient.setReadTimeout(30000);
-        webSocketClient.enableAutomaticReconnection(1000);
     }
 
     public URI getUri() {
@@ -221,9 +232,30 @@ public class WebsocketClientHandler {
     }
 
     public void closeConnection(){
-        if (isConnected()){
-            webSocketClient.close(1, 1001, "Connection closed by app");
-            connected = false;
+        connected = false;
+
+        try {
+            webSocketClient.close(0, 1001, "Connection closed by app");
+        } catch (Exception e) {
+            Log.d(TAG, "Failed to close connection!");
+            e.printStackTrace();
+        }
+    }
+
+    private void initializeWebRTCClient()
+    {
+        if (webRTCClient == null) {
+            try {
+                Log.d(TAG, "Initializing WebRTCClient...");
+                VideoCapturer videoCapturer = new DJIVideoCapturer("DJI Mavic Enterprise 2");
+                WebRTCMediaOptions mediaOptions = new WebRTCMediaOptions();
+                webRTCClient = new WebRTCClient(context, videoCapturer, mediaOptions);
+                Log.d(TAG, "WebRTCClient initialized successfully.");
+            } catch (Exception e) {
+                Log.e(TAG, "Error initializing WebRTCClient: " + e.getMessage(), e);
+            }
+        } else {
+            Log.w(TAG, "WebRTCClient already initialized!!.");
         }
     }
 
@@ -232,13 +264,14 @@ public class WebsocketClientHandler {
             return false;
         }
         if (webSocketClient != null){
+            initializeWebRTCClient();
             webSocketClient.connect();
-            WSPosition WSPosition = new WSPosition(webSocketClient);
-            Thread thread = new Thread(WSPosition);
-            thread.start();
+
             return true;
         }
         return false;
+
+
     }
 
     private HandlerThread wsPositionHandlerThread;
@@ -275,6 +308,45 @@ public class WebsocketClientHandler {
             wsPositionHandler = null;
         }
     }
+
+
+private Handler heartbeatHandler = null; //Sending pings to backend to check if it's still connected
+
+private synchronized void startHeartbeat() { 
+    stopHeartbeat();
+    heartbeatHandler = new Handler(Looper.getMainLooper());
+    heartbeatHandler.postDelayed(heartbeatRunnable, 5000); //Sending ping every 5 seconds
+}
+
+private synchronized void stopHeartbeat() {
+    if (heartbeatHandler != null) {
+        heartbeatHandler.removeCallbacks(heartbeatRunnable);
+        heartbeatHandler = null;
+    }
+}
+
+
+
+private final Runnable heartbeatRunnable = new Runnable() {
+    @Override
+    public void run() {
+        if (!connected) return;
+
+        try {
+            String ping = "{\"msg_type\": \"ping\"}";
+            webSocketClient.send(ping);
+            Log.d(TAG, "Heartbeat ping sent");
+            if (heartbeatHandler != null) {
+                heartbeatHandler.postDelayed(this, 5000);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Heartbeat failed: " + e.getMessage());
+            connected = false;
+            stopHeartbeat();
+            status_update.release();
+        }
+    }
+};
 
 }
 

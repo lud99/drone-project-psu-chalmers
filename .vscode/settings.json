@@ -1,4 +1,8 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "standard",
+    "[python]": {
+        "editor.formatOnSave": true
+    },
+    "files.eol": "\r\n"
 }

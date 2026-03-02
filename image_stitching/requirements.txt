@@ -3,6 +3,7 @@ opencv-python-headless
 
 # Image processing utilities
 imutils
+pillow
 
 # Object detection and tracking
 ultralytics
@@ -13,3 +14,5 @@ redis
 
 lap
 torch
+
+pydantic
