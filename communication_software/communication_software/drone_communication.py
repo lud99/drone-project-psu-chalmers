@@ -22,9 +22,9 @@ try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()
     r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
-    print("Successfully connected to Redis (Communication Server)!")
+    print("Successfully connected to Redis (Drone Communication Server)!")
 except redis.exceptions.ConnectionError as e:
-    print(f"Error connecting to Redis (Communication Server): {e}")
+    print(f"Error connecting to Redis (Drone Communication Server): {e}")
     exit()
 
 COMMAND_CHANNEL = "drone_commands"
@@ -37,7 +37,7 @@ ice_configuration = RTCConfiguration(
 )
 
 
-class Communication:
+class DroneCommunication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
         self.connection_counter = 0
