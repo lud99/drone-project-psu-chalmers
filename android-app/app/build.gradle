@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId "com.dji.sdk.sample"
         minSdk 24
-        targetSdk 33
+        targetSdk 30 // Tried changing from 33 to 30
         versionCode 1
         versionName "1.0"
 

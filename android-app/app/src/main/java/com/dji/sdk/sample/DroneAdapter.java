@@ -51,12 +51,19 @@ public interface DroneAdapter {
 
     void goTo(double lat, double lon, float alt, Integer heading, String missionID, int taskIndex);
     void angleCamera(float pitch, float yaw, Float transitionTime, String missionID, int taskIndex);
-    void playAudio(String file, float volume, Integer durationSeconds, String missionID, int taskIndex);
     void goHome(String missionID, int taskIndex);
-    void led(String color, String pattern, Integer durationSeconds, String missionID, int taskIndex);
-    void spotlight(float brightness, Integer durationSeconds, String missionID, int taskIndex);
 
-    void abortTask(String missionID, int taskIndex);
+    void playAudio(String file, float volume, Integer durationSeconds, String missionID, int taskIndex);
+    void stopAudio(String missionID, int taskIndex);
+
+    void led(String type, Integer durationSeconds, String missionID, int taskIndex);
+    void deactivateLed(String type, String missionID, int taskIndex);
+
+    void spotlight(float brightness, Integer durationSeconds, String missionID, int taskIndex);
+    void deactivateSpotlight(String missionID, int taskIndex);
+
+    void abortTask(String missionID, int taskIndex, String taskType);
+    void stopAllTasks(String missionID, int taskIndex);
     void land(String missionID, int taskIndex);
 
     Telemetry getTelemetry(); 

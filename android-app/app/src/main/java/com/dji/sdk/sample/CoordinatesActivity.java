@@ -37,7 +37,7 @@ public class CoordinatesActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         try {
-            FlightManager flightManager = FlightManager.getFlightManager();
+            DJIFlightManager flightManager = DJIFlightManager.getFlightManager();
 
             double stored_lat = flightManager.input_lat;
             double stored_lng = flightManager.input_lng;
@@ -108,10 +108,10 @@ public class CoordinatesActivity extends AppCompatActivity {
                 Toast.makeText(this, "Altitude must be higher than 5 meters, nothing loaded", Toast.LENGTH_LONG).show();
             } else {
                 try {
-                    FlightManager.getFlightManager().input_lat = lat;
-                    FlightManager.getFlightManager().input_lng = lng;
-                    FlightManager.getFlightManager().input_alt = alt;
-                    FlightManager.getFlightManager().input_yaw = jaw;
+                    DJIFlightManager.getFlightManager().input_lat = lat;
+                    DJIFlightManager.getFlightManager().input_lng = lng;
+                    DJIFlightManager.getFlightManager().input_alt = alt;
+                    DJIFlightManager.getFlightManager().input_yaw = jaw;
 
                     Toast.makeText(this, "Coordinates ready for the flight manager", Toast.LENGTH_SHORT).show();
                     Log.d("info", "coordinates hopefully loaded");

@@ -27,6 +27,7 @@
 
     <application
         android:name=".MApplication"
+        android:extractNativeLibs="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -54,7 +55,7 @@
             android:required="false" /> <!-- DJI stuff start -->
         <meta-data
             android:name="com.dji.sdk.API_KEY"
-            android:value="25adf2d95fba91e17d82c110" /> <!-- Insert API key here -->
+            android:value="83478849645daae998fcc2a0" /> <!-- Insert API key here -->
 
         <activity
             android:name="dji.sdk.sdkmanager.DJIAoaControllerActivity"

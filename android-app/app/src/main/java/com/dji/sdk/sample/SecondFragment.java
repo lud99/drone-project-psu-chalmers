@@ -47,7 +47,7 @@ public class SecondFragment extends Fragment{
     static final String TAG = MainActivity.class.getName();
     LiveStreamManager liveStreamManager;
 
-    FlightManager flightmanager;
+    DJIFlightManager flightmanager;
 
     FlightControllerState state;
 
@@ -63,7 +63,7 @@ public class SecondFragment extends Fragment{
         binding = FragmentSecondBinding.inflate(inflater, container, false);
         cameraController = CameraController.getInstance();
 
-        flightmanager = FlightManager.getFlightManager();
+        flightmanager = DJIFlightManager.getFlightManager();
 
         cameraTextureView = binding.cameraTextureView;
 
@@ -166,7 +166,7 @@ public class SecondFragment extends Fragment{
             public void onClick(View v) {
                 if(getStatus().equals(MissionState.READY_TO_UPLOAD) && !flightmanager.getState().isFlying()){
                     //startMonitoring();
-                    flightmanager.onArm();
+                    //flightmanager.onArm();
                     statusUpdate();
                 } else if(flightmanager.getState().isFlying()){
                     Toast.makeText(getContext(), "Cant upload in flight!", Toast.LENGTH_SHORT).show();
