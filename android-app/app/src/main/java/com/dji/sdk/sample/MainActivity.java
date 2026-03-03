@@ -175,11 +175,23 @@ public class MainActivity extends AppCompatActivity {
 
 
                         public void onProductChanged(BaseProduct baseProduct){
+                            DroneAdapterManager.selectAdapterForConnectedProduct(baseProduct);
+                            TaskTestRunner.getInstance().setAdapter(DroneAdapterManager.getCurrentAdapter());
+                            if (WebsocketClientHandler.isInstanceCreated() && WebsocketClientHandler.getInstance() != null) {
+                                WebsocketClientHandler.getInstance().refreshAdapterSelection();
+                                WebsocketClientHandler.getInstance().trySendRegistrationDataIfReady();
+                            }
                         }
 
                         @Override
                         public void onProductDisconnect() {
                             Log.d(TAG, "onProductDisconnect");
+                            DroneAdapterManager.selectAdapterForConnectedProduct(null);
+                            TaskTestRunner.getInstance().setAdapter(DroneAdapterManager.getCurrentAdapter());
+                            if (WebsocketClientHandler.isInstanceCreated() && WebsocketClientHandler.getInstance() != null) {
+                                WebsocketClientHandler.getInstance().refreshAdapterSelection();
+                                WebsocketClientHandler.getInstance().onDroneDisconnected();
+                            }
                             showToast("Product Disconnected");
                             notifyStatusChange();
 
@@ -187,6 +199,12 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onProductConnect(BaseProduct baseProduct) {
                             Log.d(TAG, String.format("onProductConnect newProduct:%s", baseProduct));
+                            DroneAdapterManager.selectAdapterForConnectedProduct(baseProduct);
+                            TaskTestRunner.getInstance().setAdapter(DroneAdapterManager.getCurrentAdapter());
+                            if (WebsocketClientHandler.isInstanceCreated() && WebsocketClientHandler.getInstance() != null) {
+                                WebsocketClientHandler.getInstance().refreshAdapterSelection();
+                                WebsocketClientHandler.getInstance().trySendRegistrationDataIfReady();
+                            }
                             showToast("Product Connected");
                             notifyStatusChange();
 
@@ -299,5 +317,16 @@ public class MainActivity extends AppCompatActivity {
                 || super.onSupportNavigateUp();
     }
 
-
+    @Override
+    protected void onDestroy() {
+        // Denna rad löser "SuperNotCalledException"
+        super.onDestroy();
+        
+        // Städa upp din handler så att inga väntande "updateRunnable" körs efter att appen stängts
+        if (mHandler != null) {
+            mHandler.removeCallbacks(updateRunnable);
+        }
+        
+        Log.d(TAG, "onDestroy: Activity destroyed safely.");
+    }
 }

@@ -21,6 +21,8 @@ import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoFrame;
 import com.dji.sdk.sample.DJIVideoCapturer;  // Import DJIVideoCapturer (your custom implementation)
+import dji.sdk.base.BaseProduct;
+import dji.sdk.sdkmanager.DJISDKManager;
 
 
 
@@ -50,6 +52,8 @@ public class WebsocketClientHandler {
     private WebRTCClient webRTCClient; 
     private DJIVideoCapturer DJIVideoCapturer; 
     private WebRTCMediaOptions webRTCMediaOptions;  
+    private DroneAdapter droneAdapter;
+    private boolean registrationDataSentForCurrentConnection = false;
    
     
 
@@ -78,65 +82,122 @@ public class WebsocketClientHandler {
         return webSocketClient;
     }
 
+    public synchronized void refreshAdapterSelection() {
+        this.droneAdapter = getSelectedAdapter();
+    }
+
+    public synchronized void onDroneDisconnected() {
+        registrationDataSentForCurrentConnection = false;
+    }
+
+    public synchronized void trySendRegistrationDataIfReady() {
+        if (!connected || registrationDataSentForCurrentConnection) {
+            return;
+        }
+
+        BaseProduct product = DJISDKManager.getInstance().getProduct();
+        if (product == null) {
+            return;
+        }
+
+        refreshAdapterSelection();
+        if (droneAdapter == null) {
+            return;
+        }
+
+        DroneAdapter.RegistrationData registrationData = droneAdapter.getRegistrationData();
+        if (registrationData == null) {
+            return;
+        }
+
+        MessageHandler messageHandler = MessageHandler.getInstance();
+        if (messageHandler != null) {
+            messageHandler.registrationData(registrationData);
+            registrationDataSentForCurrentConnection = true;
+            Log.i(TAG, "Registration data sent after backend + drone connection.");
+        }
+    }
+
+    public synchronized void refreshAdapterSelection() {
+        this.droneAdapter = getSelectedAdapter();
+    }
+
+    public synchronized void onDroneDisconnected() {
+        registrationDataSentForCurrentConnection = false;
+    }
+
+    public synchronized void trySendRegistrationDataIfReady() {
+        if (!connected || registrationDataSentForCurrentConnection) {
+            return;
+        }
+
+        BaseProduct product = DJISDKManager.getInstance().getProduct();
+        if (product == null) {
+            return;
+        }
+
+        refreshAdapterSelection();
+        if (droneAdapter == null) {
+            return;
+        }
+
+        DroneAdapter.RegistrationData registrationData = droneAdapter.getRegistrationData();
+        if (registrationData == null) {
+            return;
+        }
+
+        MessageHandler messageHandler = MessageHandler.getInstance();
+        if (messageHandler != null) {
+            messageHandler.registrationData(registrationData);
+            registrationDataSentForCurrentConnection = true;
+            Log.i(TAG, "Registration data sent after backend + drone connection.");
+        }
+    }
+
 
 
     private WebsocketClientHandler(Context context, URI uri){
         this.uri = uri;
         this.context = context;
+        this.droneAdapter = getSelectedAdapter();
         webSocketClient = new WebSocketClient(uri) {
             @Override
             public void onOpen() {
                 Log.d(TAG, "New connection opened on URI " + getUri());
                 connected = true;
+                registrationDataSentForCurrentConnection = false;
                 if (connectionStateListener != null) {
                     connectionStateListener.onConnected();
                 }
 
                 // Run UI-related logic on the main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
+                    if (webRTCClient == null) {
+                        try {
+                            Log.d(TAG, "Initializing WebRTCClient...");
+                            VideoCapturer videoCapturer = new DJIVideoCapturer("DJI Mavic Enterprise 2");
+                            WebRTCMediaOptions mediaOptions = new WebRTCMediaOptions();
+                            webRTCClient = new WebRTCClient(context, videoCapturer, mediaOptions);
+                            Log.d(TAG, "WebRTCClient initialized successfully.");
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error initializing WebRTCClient: " + e.getMessage(), e);
+                        }
+                    } else {
+                        Log.w(TAG, "WebRTCClient already initialized.");
+                    }
+                    trySendRegistrationDataIfReady();
                     startPositionSending(); // Ensure position sending starts properly
                     startHeartbeat();
                     WebsocketClientHandler.status_update.release();
                 });
             }
 
+
             @Override
             public void onTextReceived(String message) {
                 try {
                     JSONObject jsonMessage = new JSONObject(message);
-                    String type = jsonMessage.getString("msg_type");
-                    // FlightManager flightManager = FlightManager.getFlightManager();
-
-                    if (type.equals("Coordinate_request")) {
-                        Log.d(TAG, "Received: " + message);
-                        lastStringReceived = message;
-                        new_string.release();
-                    } else if (type.equals("flight_arm")) {
-                        Log.d(TAG, "Attempting to take off");
-                    FlightManager flightManager = FlightManager.getFlightManager();
-                        flightManager.onArm();
-                    } else if (type.equals("offer") || type.equals("candidate") || type.equals("answer")) {
-                        if (webRTCClient == null) {
-                            Log.w(TAG, "RTC CLIENT IS NULL, initializing...");
-                            initializeWebRTCClient();
-                        }
-                        if (webRTCClient != null) {
-                            webRTCClient.handleWebRTCMessage(jsonMessage);
-                        } else {
-                            Log.e(TAG, "RTC CLIENT still null after initialization, dropping message");
-                            
-                        }
-                    } else if (type.equals("flight_take_off")) {
-                        Log.d(TAG, "Attempting to take off");
-                    FlightManager flightManager = FlightManager.getFlightManager();
-                        flightManager.startWaypointMission();
-                    } else if (type.equals("flight_return_to_home")) {
-                        Log.d(TAG, "Attempting to return to home");
-                    FlightManager flightManager = FlightManager.getFlightManager();
-                        flightManager.goingHome();
-                    } else {
-                        Log.w(TAG, "Unhandled message type: " + type);
-                    }
+                    handleIncomingMessage(jsonMessage, message);
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse message: " + e.getMessage());
                 }
@@ -171,6 +232,7 @@ public class WebsocketClientHandler {
             public void onCloseReceived(int reason, String description) {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
+                registrationDataSentForCurrentConnection = false;
                 if (connectionStateListener != null) {
                     connectionStateListener.onDisconnected();
                 }
@@ -264,6 +326,7 @@ public class WebsocketClientHandler {
             return false;
         }
         if (webSocketClient != null){
+            refreshAdapterSelection();
             initializeWebRTCClient();
             webSocketClient.connect();
 
@@ -283,13 +346,210 @@ public class WebsocketClientHandler {
             wsPositionHandlerThread = new HandlerThread("WebSocketPositionSender");
             wsPositionHandlerThread.start();
             wsPositionHandler = new Handler(wsPositionHandlerThread.getLooper());
-            wsPositionRunnable = new WSPosition(this.webSocketClient);
+            wsPositionRunnable = new WSPosition(this.webSocketClient, droneAdapter);
     
             // Run WSPosition logic in the HandlerThread
             wsPositionHandler.post(wsPositionRunnable);
         } else {
             Log.w(TAG, "Position sending HandlerThread already running.");
         }
+    }
+
+    private DroneAdapter getSelectedAdapter() {
+        return DroneAdapterManager.getCurrentAdapter();
+    }
+
+    private void handleIncomingMessage(JSONObject jsonMessage, String rawMessage) {
+        String type = jsonMessage.optString("msg_type", "");
+
+        if ("Coordinate_request".equals(type)) {
+            Log.d(TAG, "Received: " + rawMessage);
+            lastStringReceived = rawMessage;
+            new_string.release();
+            return;
+        }
+
+        if ("offer".equals(type) || "candidate".equals(type) || "answer".equals(type)) {
+            if (webRTCClient == null) {
+                Log.w(TAG, "RTC CLIENT IS NULL, initializing...");
+                initializeWebRTCClient();
+            }
+            if (webRTCClient != null) {
+                webRTCClient.handleWebRTCMessage(jsonMessage);
+            } else {
+                Log.e(TAG, "RTC CLIENT still null after initialization, dropping message");
+                
+            }
+            return;
+        }
+
+        if ("task".equals(type)) {
+            handleTaskMessage(jsonMessage);
+            return;
+        }
+
+        if ("abort_task".equals(type)) {
+            refreshAdapterSelection();
+            String missionId = readMissionId(jsonMessage);
+            int taskIndex = readTaskIndex(jsonMessage);
+            String taskType = jsonMessage.optString("task_action", "");
+            if (taskType.isEmpty()) {
+                droneAdapter.stopAllTasks(missionId, taskIndex);
+            } else {
+                droneAdapter.abortTask(missionId, taskIndex, taskType);
+            }
+            return;
+        }
+
+        if ("go_home".equals(type)) {
+            refreshAdapterSelection();
+            droneAdapter.goHome("manual", 0);
+            return;
+        }
+
+        if ("land".equals(type)) {
+            refreshAdapterSelection();
+            droneAdapter.land("manual", 0);
+            return;
+        }
+
+        Log.w(TAG, "Unhandled message type: " + type);
+    }
+
+    private void handleTaskMessage(JSONObject jsonMessage) {
+        refreshAdapterSelection();
+        if (droneAdapter == null) {
+            Log.e(TAG, "No DroneAdapter selected when task message was received.");
+            return;
+        }
+
+        String missionId = readMissionId(jsonMessage);
+        int taskIndex = readTaskIndex(jsonMessage);
+
+        JSONObject taskObject = jsonMessage.optJSONObject("task");
+        String action;
+        JSONObject params;
+
+        if (taskObject != null) {
+            action = taskObject.optString("action", "");
+            params = taskObject.optJSONObject("params");
+            if (params == null) {
+                params = taskObject.optJSONObject("action_params");
+            }
+        } else {
+            action = jsonMessage.optString("action", "");
+            params = jsonMessage.optJSONObject("params");
+            if (params == null) {
+                params = jsonMessage.optJSONObject("action_params");
+            }
+        }
+
+        if (params == null) {
+            params = new JSONObject();
+        }
+
+        switch (action) {
+            case "go_to":
+                droneAdapter.goTo(
+                        params.optDouble("lat", 0.0),
+                        params.optDouble("lon", 0.0),
+                        (float) params.optDouble("alt", 0.0),
+                        params.has("heading") ? params.optInt("heading") : null,
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "angle_camera":
+                droneAdapter.angleCamera(
+                        (float) params.optDouble("pitch", 0.0),
+                        (float) params.optDouble("yaw", 0.0),
+                        (float) params.optDouble("transition_time", 0.0),
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "play_audio":
+                droneAdapter.playAudio(
+                        params.optString("file", ""),
+                        (float) params.optDouble("volume", 1.0),
+                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "stop_audio":
+                droneAdapter.stopAudio(missionId, taskIndex);
+                break;
+            case "led":
+                droneAdapter.led(
+                        params.optString("type", params.optString("color", "beacon")),
+                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "deactivate_led":
+                droneAdapter.deactivateLed(
+                        params.optString("type", params.optString("color", "beacon")),
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "spotlight":
+                droneAdapter.spotlight(
+                        (float) params.optDouble("brightness", 1.0),
+                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        missionId,
+                        taskIndex
+                );
+                break;
+            case "deactivate_spotlight":
+                droneAdapter.deactivateSpotlight(missionId, taskIndex);
+                break;
+            case "go_home":
+                droneAdapter.goHome(missionId, taskIndex);
+                break;
+            case "land":
+                droneAdapter.land(missionId, taskIndex);
+                break;
+            case "abort_all_tasks":
+                droneAdapter.stopAllTasks(missionId, taskIndex);
+                break;
+            case "abort_task":
+                droneAdapter.abortTask(
+                        missionId,
+                        taskIndex,
+                        params.optString("task_type", params.optString("taskType", ""))
+                );
+                break;
+            default:
+                Log.w(TAG, "Unsupported task action: " + action);
+                break;
+        }
+    }
+
+    private String readMissionId(JSONObject jsonMessage) {
+        String missionId = jsonMessage.optString("mission_id", "");
+        if (missionId.isEmpty()) {
+            missionId = jsonMessage.optString("missionID", "");
+        }
+        if (missionId.isEmpty()) {
+            missionId = "unknown";
+        }
+        return missionId;
+    }
+
+    private int readTaskIndex(JSONObject jsonMessage) {
+        if (jsonMessage.has("index")) {
+            return jsonMessage.optInt("index", 0);
+        }
+        if (jsonMessage.has("task_index")) {
+            return jsonMessage.optInt("task_index", 0);
+        }
+        if (jsonMessage.has("taskIndex")) {
+            return jsonMessage.optInt("taskIndex", 0);
+        }
+        return 0;
     }
     
     private synchronized void stopPositionSending() {

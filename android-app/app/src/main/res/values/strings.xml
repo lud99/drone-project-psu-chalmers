@@ -7,6 +7,7 @@
     <string name="next">Next</string>
     <string name="previous">Previous</string>
     <string name="button_enabled">Show feed</string>
+    <string name="run_test">Run Test</string>
     <string name="button_disabled">Feed unavailable…</string>
     <string name="await_registration">Awaiting app registration. Please wait…</string>
     <string name="lorem_ipsum">Lorem ipsum dolor sit amet.</string>

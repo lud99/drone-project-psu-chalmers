@@ -4,5 +4,6 @@
     "[python]": {
         "editor.formatOnSave": true
     },
-    "files.eol": "\r\n"
+    "files.eol": "\r\n",
+    "liveServer.settings.port": 5501
 }
