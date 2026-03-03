@@ -22,9 +22,9 @@ try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()
     r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
-    print("Successfully connected to Redis (Communication Server)!")
+    print("Successfully connected to Redis (Drone Communication Server)!")
 except redis.exceptions.ConnectionError as e:
-    print(f"Error connecting to Redis (Communication Server): {e}")
+    print(f"Error connecting to Redis (Drone Communication Server): {e}")
     exit()
 
 COMMAND_CHANNEL = "drone_commands"
@@ -37,7 +37,7 @@ ice_configuration = RTCConfiguration(
 )
 
 
-class Communication:
+class DroneCommunication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
         self.connection_counter = 0
@@ -47,6 +47,14 @@ class Communication:
         self.redis_listener_stop_event = threading.Event()
         self.redis_listener_task = None
         self.peer_connections = {}
+
+        # For testing
+        with open(
+            "./src/communication_software/communication_software/common/test_mock_mission.json",
+            "r",
+        ) as f:
+            self.task_list = json.loads(f.read())
+        self.task_index = 0
 
     async def start_websocket_server(self, ip: str) -> None:
         """Starts WebSocket server."""
@@ -327,6 +335,10 @@ class Communication:
                     message, connection_id, ws
                 )
 
+            elif isinstance(message, json_schemas.TaskEventMessage):
+                await self.handle_task_event_message(message, connection_id)
+
+            # WebRTC
             elif isinstance(message, json_schemas.WebRTCCandidateMessage):
                 await self.handle_webrct_candidate_message(message, connection_id)
 
@@ -441,6 +453,11 @@ class Communication:
                 self.create_peer_connection(message.drone_id)
                 await self.start_drone_stream(message.drone_id)
 
+            # Test sending a task
+            print(f"Sending task {self.task_index}")
+            await ws.send(json.dumps(self.task_list[self.task_index]))
+            self.task_index += 1
+
             return message.drone_id
 
         except (TypeError, redis.exceptions.RedisError) as e:
@@ -449,6 +466,16 @@ class Communication:
             )
 
         return None
+
+    async def handle_task_event_message(
+        self, message: json_schemas.TaskEventMessage, connection_id
+    ):
+        if self.task_index < len(self.task_list):
+            print(f"Sending task {self.task_index}")
+            await self.connections[connection_id].send(
+                json.dumps(self.task_list[self.task_index])
+            )
+            self.task_index += 1
 
     async def handle_webrct_candidate_message(
         self, message: json_schemas.WebRTCCandidateMessage, connection_id
@@ -597,15 +624,15 @@ class Communication:
         except Exception as e:
             print(f"[DroneStream] Failed to create PeerConnection: {e}")
 
-    async def handle_incoming_webrtc_msg(self, connection_id, message):
-        """Route incoming WebRTC messages to the appropriate DroneStream."""
-        try:
-            await self.on_message(message, connection_id)
-            print(
-                f"[Stream Manager] Message routed to DroneStream ({connection_id}) successfully."
-            )
-        except KeyError as e:
-            print(f"[Stream Manager] Error: {e}")
+    # async def handle_incoming_webrtc_msg(self, connection_id, message):
+    #     """Route incoming WebRTC messages to the appropriate DroneStream."""
+    #     try:
+    #         await self.on_message(message, connection_id)
+    #         print(
+    #             f"[Stream Manager] Message routed to DroneStream ({connection_id}) successfully."
+    #         )
+    #     except KeyError as e:
+    #         print(f"[Stream Manager] Error: {e}")
 
     ##THIS IS THE FUNCTION THAT HANDLES THE VIDEO STREAM##
     async def set_frame(self, connection_id: str, img: np.ndarray):

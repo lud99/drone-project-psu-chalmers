@@ -1,0 +1,69 @@
+[
+    {
+        "msg_type": "task",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555",
+        "index": 0,
+        "task_action": {
+            "action": "go_to",
+            "params": {
+                "lat": 57.7090,
+                "lon": 11.9750,
+                "alt": 25.0,
+                "heading": 180
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "drone_id": "AZL-55555",
+        "index": 1,
+        "task_action": {
+            "action": "play_audio",
+            "params": {
+                "file": "alarm.mp3",
+                "volume": 1.0,
+                "duration_seconds": 5
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "color": "red",
+                "pattern": "pulse"
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 3,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "spotlight",
+            "params": {
+                "pattern": "steady",
+                "duration_seconds": 5
+            }
+        }
+    },
+    {
+        "msg_type": "abort_task",
+        "mission_id": "mission_102",
+        "drone_id": "AZL-55555",
+        "task_action": "led"
+    },
+    {
+        "msg_type": "abort_mission",
+        "mission_id": "mission_101",
+        "drone_id": "0",
+        "next_action": "go_home"
+    }
+]
