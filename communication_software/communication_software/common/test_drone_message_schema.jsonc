@@ -21,7 +21,7 @@
                 ]
             }, // Depends on what info we can get from the drone
             "spotlight": false,
-            "speaker": {"audio_files": ["alarm", "voice"]},
+            "speaker": {"audio_files": ["alarm", "voice"]}
         }
     },
     // app --> backend, on connection
