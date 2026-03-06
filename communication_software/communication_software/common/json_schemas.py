@@ -12,16 +12,17 @@ class CameraCapabilities(BaseModel):
 
 
 class LEDCapabilities(BaseModel):
-    colors: list[str]  # will likely have to change
+    types: list[str]  # will likely have to change
+
+class SpeakerCapabilities(BaseModel):
+    audio_files: list[str]
 
 
 class Capabilities(BaseModel):
     camera: Optional[CameraCapabilities]
     led: Optional[LEDCapabilities]
     spotlight: bool
-    speaker: bool
-    max_speed: float
-
+    speaker: Optional[SpeakerCapabilities]
 
 class Telemetry(BaseModel):
     lat: float
