@@ -2,6 +2,7 @@ package com.dji.sdk.sample;
 
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 
@@ -23,7 +24,7 @@ class MessageHandler {
     public void taskComplete(String currentMissionID, int currentTaskIndex) {
         JSONObject message = new JSONObject();
         try {
-            message.put("type", "taskComplete");
+            message.put("msg_type", "taskComplete");
             message.put("missionID", currentMissionID);
             message.put("taskIndex", currentTaskIndex);
         } catch(Exception e) {
@@ -38,7 +39,7 @@ class MessageHandler {
     public void taskAborted(String currentMissionID, int taskIndex, String taskType) {
         JSONObject message = new JSONObject();
         try {
-            message.put("type", "taskAborted");
+            message.put("msg_type", "taskAborted");
             message.put("missionID", currentMissionID);
             message.put("taskIndex", taskIndex);
             message.put("taskType", taskType);
@@ -54,7 +55,7 @@ class MessageHandler {
     public void allTasksAborted(String currentMissionID) {
         JSONObject message = new JSONObject();
         try {
-            message.put("type", "allTasksAborted");
+            message.put("msg_type", "allTasksAborted");
             message.put("missionID", currentMissionID);
         } catch(Exception e) {
             Log.e("MessageHandler", "Error creating JSON message:", e);
@@ -68,7 +69,7 @@ class MessageHandler {
     public void taskFailed(String currentMissionID, int currentTaskIndex) {
         JSONObject message = new JSONObject();
         try {
-            message.put("type", "taskFailed");
+            message.put("msg_type", "taskFailed");
             message.put("missionID", currentMissionID);
             message.put("taskIndex", currentTaskIndex);
         } catch(Exception e) {
@@ -81,30 +82,140 @@ class MessageHandler {
     }
 
     public void telemetryUpdate(DroneAdapter.Telemetry telemetry) {
-        JSONObject message = new JSONObject();
-        try {
-            message.put("type", "telemetryUpdate");
-            message.put("telemetry", telemetry);
-        } catch(Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message:", e);
-        }
         WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
         if (websocketClientHandler != null) {
-            websocketClientHandler.send(message.toString());
+            websocketClientHandler.send(telemetryToJson(telemetry).toString());
         }
     }
 
     public void registrationData(DroneAdapter.RegistrationData registrationData) {
-        JSONObject message = new JSONObject();
-        try {
-            message.put("type", "registrationData");
-            message.put("registrationData", registrationData);
-        } catch(Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message:", e);
-        }
         WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
         if (websocketClientHandler != null) {
-            websocketClientHandler.send(message.toString());
+            websocketClientHandler.send(registrationDataToJson(registrationData).toString());
         }
+    }
+
+    private JSONObject telemetryToJson(DroneAdapter.Telemetry telemetry) {
+        JSONObject telemetryJson = new JSONObject();
+        if (telemetry == null) {
+            return telemetryJson;
+        }
+
+        try {
+            telemetryJson.put("msg_type", "telemetry");
+            telemetryJson.put("droneID", telemetry.droneID);
+            telemetryJson.put("lat", telemetry.lat);
+            telemetryJson.put("lon", telemetry.lon);
+            telemetryJson.put("alt", telemetry.alt);
+            telemetryJson.put("heading", telemetry.heading);
+            telemetryJson.put("speed", telemetry.speed);
+            telemetryJson.put("batteryPercent", telemetry.batteryPercent);
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing telemetry:", e);
+        }
+
+        return telemetryJson;
+    }
+
+    private JSONObject registrationDataToJson(DroneAdapter.RegistrationData registrationData) {
+        JSONObject registrationDataJson = new JSONObject();
+        if (registrationData == null) {
+            return registrationDataJson;
+        }
+
+        try {
+            registrationDataJson.put("msg_type", "drone_registration");
+            registrationDataJson.put("drone_type", registrationData.droneType);
+            registrationDataJson.put("model", registrationData.model);
+            registrationDataJson.put("drone_id", registrationData.droneID);
+            registrationDataJson.put("capabilities", capabilitiesToJson(registrationData.capabilities));
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing registration data:", e);
+        }
+
+        return registrationDataJson;
+    }
+
+    private JSONObject capabilitiesToJson(DroneAdapter.Capabilities capabilities) {
+        JSONObject capabilitiesJson = new JSONObject();
+        if (capabilities == null) {
+            return capabilitiesJson;
+        }
+
+        try {
+            capabilitiesJson.put("camera", cameraToJson(capabilities.camera));
+            capabilitiesJson.put("led", ledToJson(capabilities.led));
+            capabilitiesJson.put("spotlight", capabilities.spotlight);
+            if (capabilities.speaker == null) {
+                capabilitiesJson.put("speaker", false);
+            } else {
+                capabilitiesJson.put("speaker", speakerToJson(capabilities.speaker));
+            }
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing capabilities:", e);
+        }
+
+        return capabilitiesJson;
+    }
+
+    private JSONObject cameraToJson(DroneAdapter.Capabilities.Camera camera) {
+        JSONObject cameraJson = new JSONObject();
+        if (camera == null) {
+            return cameraJson;
+        }
+
+        try {
+            cameraJson.put("aspect_ratio", camera.aspect_ratio);
+            cameraJson.put("horizontal_fov", camera.horizontal_fov);
+            cameraJson.put("resolution_height", camera.resolution_height);
+            cameraJson.put("resolution_width", camera.resolution_width);
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing camera capabilities:", e);
+        }
+
+        return cameraJson;
+    }
+
+    private JSONObject ledToJson(DroneAdapter.Capabilities.Led led) {
+        JSONObject ledJson = new JSONObject();
+        if (led == null) {
+            return ledJson;
+        }
+
+        try {
+            ledJson.put("types", stringArrayToJsonArray(led.types));
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing LED capabilities:", e);
+        }
+
+        return ledJson;
+    }
+
+    private JSONObject speakerToJson(DroneAdapter.Capabilities.Speaker speaker) {
+        JSONObject speakerJson = new JSONObject();
+        if (speaker == null) {
+            return speakerJson;
+        }
+
+        try {
+            speakerJson.put("audio_files", stringArrayToJsonArray(speaker.audio_files));
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing speaker capabilities:", e);
+        }
+
+        return speakerJson;
+    }
+
+    private JSONArray stringArrayToJsonArray(String[] values) {
+        JSONArray jsonArray = new JSONArray();
+        if (values == null) {
+            return jsonArray;
+        }
+
+        for (String value : values) {
+            jsonArray.put(value);
+        }
+
+        return jsonArray;
     }
 }

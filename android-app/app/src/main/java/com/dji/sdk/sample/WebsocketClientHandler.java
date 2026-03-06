@@ -105,56 +105,36 @@ public class WebsocketClientHandler {
             return;
         }
 
-        DroneAdapter.RegistrationData registrationData = droneAdapter.getRegistrationData();
-        if (registrationData == null) {
-            return;
-        }
+        droneAdapter.getRegistrationDataAsync(new DroneAdapter.RegistrationDataCallback() {
+            @Override
+            public void onSuccess(DroneAdapter.RegistrationData registrationData) {
+                if (registrationData == null) {
+                    Log.w(TAG, "Registration data callback returned null; skipping send.");
+                    return;
+                }
 
-        MessageHandler messageHandler = MessageHandler.getInstance();
-        if (messageHandler != null) {
-            messageHandler.registrationData(registrationData);
-            registrationDataSentForCurrentConnection = true;
-            Log.i(TAG, "Registration data sent after backend + drone connection.");
-        }
+                synchronized (WebsocketClientHandler.this) {
+                    if (!connected || registrationDataSentForCurrentConnection) {
+                        return;
+                    }
+
+                    MessageHandler messageHandler = MessageHandler.getInstance();
+                    if (messageHandler == null) {
+                        return;
+                    }
+
+                    messageHandler.registrationData(registrationData);
+                    registrationDataSentForCurrentConnection = true;
+                    Log.i(TAG, "Registration data sent after async capabilities fetch completed.");
+                }
+            }
+
+            @Override
+            public void onFailure(String reason) {
+                Log.w(TAG, "Registration data async fetch failed; skipping send. reason=" + reason);
+            }
+        });
     }
-
-    public synchronized void refreshAdapterSelection() {
-        this.droneAdapter = getSelectedAdapter();
-    }
-
-    public synchronized void onDroneDisconnected() {
-        registrationDataSentForCurrentConnection = false;
-    }
-
-    public synchronized void trySendRegistrationDataIfReady() {
-        if (!connected || registrationDataSentForCurrentConnection) {
-            return;
-        }
-
-        BaseProduct product = DJISDKManager.getInstance().getProduct();
-        if (product == null) {
-            return;
-        }
-
-        refreshAdapterSelection();
-        if (droneAdapter == null) {
-            return;
-        }
-
-        DroneAdapter.RegistrationData registrationData = droneAdapter.getRegistrationData();
-        if (registrationData == null) {
-            return;
-        }
-
-        MessageHandler messageHandler = MessageHandler.getInstance();
-        if (messageHandler != null) {
-            messageHandler.registrationData(registrationData);
-            registrationDataSentForCurrentConnection = true;
-            Log.i(TAG, "Registration data sent after backend + drone connection.");
-        }
-    }
-
-
 
     private WebsocketClientHandler(Context context, URI uri){
         this.uri = uri;

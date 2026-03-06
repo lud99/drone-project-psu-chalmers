@@ -2,6 +2,9 @@ package com.dji.sdk.sample;
 
 import android.util.Log;
 
+import dji.common.error.DJIError;
+import dji.common.util.CommonCallbacks;
+
 public class DJIAdapter implements DroneAdapter {
     private static final String TAG = DJIAdapter.class.getSimpleName();
     private static final DJIAdapter INSTANCE = new DJIAdapter();
@@ -87,6 +90,26 @@ public class DJIAdapter implements DroneAdapter {
     @Override
     public RegistrationData getRegistrationData() {
         return flightManager().getRegistrationData();
+    }
+
+    @Override
+    public void getRegistrationDataAsync(RegistrationDataCallback callback) {
+        flightManager().getRegistrationDataAsync(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
+            @Override
+            public void onSuccess(DroneAdapter.RegistrationData registrationData) {
+                if (callback != null) {
+                    callback.onSuccess(registrationData);
+                }
+            }
+
+            @Override
+            public void onFailure(DJIError djiError) {
+                if (callback != null) {
+                    String reason = djiError == null ? "unknown" : djiError.getDescription();
+                    callback.onFailure(reason);
+                }
+            }
+        });
     }
 
     @Override

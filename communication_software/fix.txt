@@ -1,0 +1,35 @@
+Error processing message from NON_droneid_3: 
+{
+    "msg_type":"drone_registration",
+    "droneType":"DJI",
+    "model":"Mavic 2 Enterprise",
+    "droneID":"2763KAH0H1X35H",
+    "capabilities":{
+        "camera":{"aspect_ratio":1.7777778, "horizontal_fov":72.4, "resolution_height":1512, "resolution_width":2688},
+        "led":{"types":["beacon", "rear", "front"]},
+        "spotlight":false,
+        "speaker":{"audio_files":[ "alarm" ]}
+        }
+} 
+
+    5 validation errors for tagged-union[
+    TaskMessage,
+    DroneRegistrationMessage,
+    TelemetryMessage,
+    TaskEventMessage,
+    AbortTaskMessage,
+    AbortMissionMessage,
+    DebugMessage,
+    WebRTCCandidateMessage,
+    WebRTCAnswerMessage
+    ]
+
+    To fix: 
+        droneType -> drone_type 
+        droneID -> drone_id
+        remove max_speed from schema?
+        led: colors -> types in schema
+        speaker: add audio_files to schema
+
+    Fixed: 
+        Speaker -> False, led -> front

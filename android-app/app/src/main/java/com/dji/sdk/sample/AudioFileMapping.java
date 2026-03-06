@@ -22,16 +22,15 @@ public final class AudioFileMapping {
             Aircraft aircraft,
             Map<String, Integer> audioIndexCache
     ) {
-        DroneAdapter.Capabilities.Speaker speakerCapabilities = new DroneAdapter.Capabilities.Speaker();
-
         if (audioIndexCache != null) {
             audioIndexCache.clear();
         }
 
         if (!hasSpeaker(aircraft)) {
-            speakerCapabilities.audio_files = new String[0];
-            return speakerCapabilities;
+            return null;
         }
+
+        DroneAdapter.Capabilities.Speaker speakerCapabilities = new DroneAdapter.Capabilities.Speaker();
 
         List<AudioMediaFile> audioFiles = aircraft.getAccessoryAggregation().getSpeaker().getFileListSnapshot();
         List<String> audioFileNames = new ArrayList<>();
