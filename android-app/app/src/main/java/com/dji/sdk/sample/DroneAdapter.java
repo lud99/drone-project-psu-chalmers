@@ -10,6 +10,11 @@ package com.dji.sdk.sample;
 
 public interface DroneAdapter {
 
+    interface RegistrationDataCallback {
+        void onSuccess(RegistrationData registrationData);
+        void onFailure(String reason);
+    }
+
     class Telemetry {
         String droneID;
         double lat;
@@ -68,6 +73,7 @@ public interface DroneAdapter {
 
     Telemetry getTelemetry(); 
     RegistrationData getRegistrationData();
+    void getRegistrationDataAsync(RegistrationDataCallback callback);
     
     void pushTaskComplete(String missionID, int taskIndex);
     void pushTaskFailed(String missionID, int taskIndex);

@@ -103,11 +103,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        AutoConnectManager.getInstance(getApplicationContext()).stop();
-    }
+    // @Override
+    // protected void onDestroy() {
+    //     super.onDestroy();
+    //     AutoConnectManager.getInstance(getApplicationContext()).stop();
+    // }
 
     @Override
     protected void onResume() {
@@ -165,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onRegister(DJIError djiError) {
                             if (djiError == DJISDKError.REGISTRATION_SUCCESS) {
-                                DJISDKManager.getInstance().startConnectionToProduct();
+                                DJISDKManager.ggetInstance().startConnectionToProduct();
                                 notifyStatusChange();
                             } else {
                                 showToast("Register sdk fails, please check the bundle id and network connection!");

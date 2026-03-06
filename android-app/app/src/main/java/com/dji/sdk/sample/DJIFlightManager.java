@@ -392,13 +392,13 @@ class DJIFlightManager {
             @Override
             public void onSuccess(LEDsSettings ledsSettings) {
                 if (ledsSettings != null) {
-                    if (ledsSettings.areFrontLEDsOn()) {
-                        ledTypes.add("front");
-                    }
-                    if (ledsSettings.areRearLEDsOn()) {
-                        ledTypes.add("rear");
-                    }
-                    Log.d("DJI", "LED-status fetched: " + ledTypes.toString());
+                    // If settings object exists, front/rear LEDs are supported even if currently off.
+                    ledTypes.add("front");
+                    ledTypes.add("rear");
+
+                    boolean frontOn = ledsSettings.areFrontLEDsOn();
+                    boolean rearOn = ledsSettings.areRearLEDsOn();
+                    Log.d("DJI", "LED capabilities fetched: " + ledTypes + " (current state front=" + frontOn + ", rear=" + rearOn + ")");
                 }
 
                 DroneAdapter.Capabilities.Led ledCapabilities = new DroneAdapter.Capabilities.Led();
@@ -544,14 +544,14 @@ class DJIFlightManager {
 
         /**
      * This function rotates the Gimbal
-     * If sucessfull it sends "task complete" to the backend, else it sends "task failed".
-     * It awaits the specified duration before it send "task complate" or "task failed"
+     * If successful it sends "task complete" to the backend, else it sends "task failed".
+     * It awaits the specified duration before it send "task complete" or "task failed"
      */
     public void angleCamera(float pitch, float yaw, float transitionTime, String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
 
-        // Create the rotation-object, didnt include .roll() since its prob. not needed
+        // Create the rotation-object, didn't include .roll() since its prob. not needed
         Rotation rotation = new Rotation.Builder()
                 // All below are methods of Builder(), chained for readability
                 .pitch(pitch)
@@ -562,12 +562,12 @@ class DJIFlightManager {
 
         aircraft.getGimbal().rotate(rotation, djiError -> {
             if (djiError == null) {
-                // Wait for the duration, then send task-complete if succesfull
+                // Wait for the duration, then send task-complete if successful
                 new android.os.Handler().postDelayed(() -> {
                     if (MessageHandler.getInstance() != null) {
                         MessageHandler.getInstance().taskComplete(currentMissionID, currentTaskIndex);
                     }
-                    Log.d("DJI", "Succefully rotated camera | Task index: " + currentTaskIndex);
+                    Log.d("DJI", "Successfully rotated camera | Task index: " + currentTaskIndex);
                 }, (long) (transitionTime * 1000)); // convert s -> ms
             } else {
                 if (MessageHandler.getInstance() != null) {
@@ -604,7 +604,7 @@ class DJIFlightManager {
     /**
      * This function starts the specified soundtrack playing on the speaker
      * If duration is specified it will automatically shut of after that time
-     * If duration is NOT specified it will keep playing untill "stop_task" is recieved
+     * If duration is NOT specified it will keep playing until "stop_task" is received
      */
 
     public void playAudio(String fileName, float volume, Integer durationSeconds, String missionID, int taskIndex) {
@@ -645,7 +645,7 @@ class DJIFlightManager {
         speaker.setVolume((int) (volume * 100), djiError -> {
             // Continue ever if error with setting volume
 
-            // The file will repeat till duration is reached or recieving "end_task"
+            // The file will repeat till duration is reached or receiving "end_task"
             speaker.setPlayMode(PlayMode.REPEAT_SINGLE, error -> {
                 if (error == null) {
 

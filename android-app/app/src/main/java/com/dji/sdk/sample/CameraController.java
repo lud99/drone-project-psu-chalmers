@@ -26,7 +26,7 @@ import java.lang.Math;
 public class CameraController {
     private static CameraController instance = null;
     private DJICodecManager codecManager;
-    private VideoFeeder.VideoDataListener recievedVideoDataListener;
+    private VideoFeeder.VideoDataListener receivedVideoDataListener;
     private BaseProduct drone;
     private boolean isGimbalOverloaded = true;
     public static final String CAM_LOADED_FLAG = "camera_loaded";
@@ -35,7 +35,7 @@ public class CameraController {
 
     private CameraController(){
         //Set up a VideoDataListener
-        recievedVideoDataListener = new VideoFeeder.VideoDataListener() {
+        receivedVideoDataListener = new VideoFeeder.VideoDataListener() {
             @Override
             public void onReceive(byte[] videoBuffer, int size) {
                 if (codecManager != null){
@@ -100,7 +100,7 @@ public class CameraController {
                 cameraTextureView.setSurfaceTextureListener(surfaceTextureListener);
             }
             if (!drone.getModel().equals(Model.UNKNOWN_AIRCRAFT)){
-                VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(recievedVideoDataListener);
+                VideoFeeder.getInstance().getPrimaryVideoFeed().addVideoDataListener(receivedVideoDataListener);
             } else{
                 Toast.makeText(callingContext, "Unknown device connected. Check SDK compatibility.", Toast.LENGTH_SHORT).show();
             }
@@ -109,7 +109,7 @@ public class CameraController {
 
 
     /**
-     * Rotates the gimbal to an absoulte, i.e. fixed, rotation.
+     * Rotates the gimbal to an absolute, i.e. fixed, rotation.
      * @param callingContext The context which calls this method.
      * @param roll Roll ration in degrees - positive is to the right
      * @param yaw Yaw rotation in degrees - positive is to the right
