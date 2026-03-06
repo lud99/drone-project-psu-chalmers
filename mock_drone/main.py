@@ -134,10 +134,9 @@ async def run_drone_client(drone_id: str):
                 drone_id=drone_id,
                 capabilities=json_schemas.Capabilities(
                     camera=None,
-                    led=json_schemas.LEDCapabilities(colors=["red", "green", "blue"]),
+                    led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
                     spotlight=True,
-                    speaker=True,
-                    max_speed=15.0,
+                    speaker=json_schemas.SpeakerCapabilities(audio_files=["beep.mp3", "alert.mp3"])
                 ),
             )
 

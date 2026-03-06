@@ -36,8 +36,7 @@
         "task_action": {
             "action": "led",
             "params": {
-                "color": "red",
-                "pattern": "pulse"
+                "type": "beacon"
             }
         }
     },
