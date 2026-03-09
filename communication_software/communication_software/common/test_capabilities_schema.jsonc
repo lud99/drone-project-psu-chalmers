@@ -7,20 +7,18 @@
             "resolution_height": 1080
         }, // This is possible to retrieve (at least from DJI SDK)
         "led": {
-            "colors": [
-                "white",
-                "red"
+            "types": [
+                "rear",
+                "beacon"
             ]
         }, // Depends on what info we can get from the drone
         "spotlight": false,
-        "speaker": true,
-        "max_speed": 15
+        "speaker": {"audio_files": ["alarm"]}
     },
     {
         "camera": null, // This is possible to retrieve (at least from DJI SDK)
         "led": null, // Depends on what info we can get from the drone
         "spotlight": false,
-        "speaker": true,
-        "max_speed": 15
+        "speaker": null
     }
 ]
