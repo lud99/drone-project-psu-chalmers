@@ -139,6 +139,14 @@ async def run_drone_client(drone_id: str):
                     speaker=True,
                     max_speed=15.0,
                 ),
+                telemetry=json_schemas.Telemetry(
+                    lat=57.705 + (random.uniform(-0.001, 0.001)),
+                    lon=11.938 + (random.uniform(-0.001, 0.001)),
+                    alt=random.uniform(110, 120),
+                    heading=random.randint(0, 359),
+                    speed=random.uniform(0.0, 5.5),
+                    battery_percent=88,
+                ),
             )
 
             await websocket.send(reg_msg.model_dump_json())

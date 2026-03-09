@@ -149,6 +149,7 @@ class DroneRegistrationMessage(DroneMessage):
     model: str
     drone_id: str
     capabilities: Capabilities
+    telemetry: Telemetry
 
 
 # App -> backend. Sent continuously
