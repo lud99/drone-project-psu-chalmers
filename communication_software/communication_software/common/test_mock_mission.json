@@ -37,7 +37,8 @@
             "action": "led",
             "params": {
                 "color": "red",
-                "pattern": "pulse"
+                "pattern": "pulse",
+                "duration_seconds": null
             }
         }
     },

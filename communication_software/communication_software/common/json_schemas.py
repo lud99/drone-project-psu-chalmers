@@ -52,18 +52,18 @@ class GoToParams(BaseModel):
 class PlayAudioParams(BaseModel):
     file: str
     volume: float = 1.0
-    duration_seconds: Optional[int] = None
+    duration_seconds: Optional[int]
 
 
 class LEDParams(BaseModel):
     color: str
     pattern: str
-    duration_seconds: Optional[float] = None
+    duration_seconds: Optional[float]
 
 
 class SpotlightParams(BaseModel):
     pattern: str
-    duration_seconds: Optional[float] = None
+    duration_seconds: Optional[float]
 
 
 # The specific Task types
