@@ -1,5 +1,6 @@
 services:
   backend:
+    platform: linux/amd64 # Added this for Apple Silicon Chips
     container_name: backend
     stdin_open: true
     tty: true
@@ -15,7 +16,7 @@ services:
     ports:
       - 8765:8765
       - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
-      - 5000:5000
+      - 5001:5000
       - 8000:8000
       - 3478:3478/udp  # STUN server port
       - 8765:8765/udp  # WebRTC signaling port
@@ -29,13 +30,14 @@ services:
       - N_DRONES=2
       - OVERLAP=0.5
       - WEBSOCKET_PORT=${WEBSOCKET_PORT}
-    volumes:
-      - .:/root/atos_ws/src/communication_software
+    # volumes:
+    #   - .:/root/atos_ws/src/communication_software   // removed for macbook
     depends_on:
       - atos
       - redis
 
   atos:
+    platform: linux/amd64 # Added this for Apple Silicon Chips
     image: astazero/atos_docker_env:latest
     container_name: atos
     networks:
@@ -47,7 +49,7 @@ services:
       - "8082:8082"
       - "3000:3000" 
       - "3443:3443"
-      - "55555:55555"
+      - "55556:55555"
       - "443:443"
       - "9090:9090" 
     command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
@@ -55,6 +57,7 @@ services:
       - isoObject
 
   isoObject:
+    platform: linux/amd64 # Added this for Apple Silicon Chips
     image: astazero/iso_object_demo:latest
     container_name: isoObject
     networks:
@@ -69,6 +72,7 @@ services:
           memory: 128M
 
   frontend:
+    platform: linux/amd64 # Added this for Apple Silicon Chips
     container_name: frontend
     build: 
       context: ../frontend
@@ -83,6 +87,7 @@ services:
       - 8001:80
 
   image_stitching:
+    platform: linux/amd64 # Added this for Apple Silicon Chips
     container_name: image_stitching
     environment:
       - REDIS_URL=redis #192.168.1.41 # use redis or localhost for Docker

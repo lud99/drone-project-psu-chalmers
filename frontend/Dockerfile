@@ -1,4 +1,6 @@
-FROM nginx:latest
+# FROM nginx:latest
+
+FROM --platform=linux/amd64 nginx:latest
 
 ENV BACKEND_URL="ws://localhost:8000"
 
