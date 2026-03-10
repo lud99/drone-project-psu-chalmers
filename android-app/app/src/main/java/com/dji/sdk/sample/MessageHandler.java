@@ -88,10 +88,10 @@ class MessageHandler {
         }
     }
 
-    public void registrationData(DroneAdapter.RegistrationData registrationData) {
+    public void registrationData(DroneAdapter.RegistrationData registrationData, DroneAdapter.Telemetry telemetry) {
         WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
         if (websocketClientHandler != null) {
-            websocketClientHandler.send(registrationDataToJson(registrationData).toString());
+            websocketClientHandler.send(registrationDataToJson(registrationData, telemetry).toString());
         }
     }
 
@@ -117,7 +117,7 @@ class MessageHandler {
         return telemetryJson;
     }
 
-    private JSONObject registrationDataToJson(DroneAdapter.RegistrationData registrationData) {
+    private JSONObject registrationDataToJson(DroneAdapter.RegistrationData registrationData, DroneAdapter.Telemetry telemetry) {
         JSONObject registrationDataJson = new JSONObject();
         if (registrationData == null) {
             return registrationDataJson;
@@ -129,11 +129,37 @@ class MessageHandler {
             registrationDataJson.put("model", registrationData.model);
             registrationDataJson.put("drone_id", registrationData.droneID);
             registrationDataJson.put("capabilities", capabilitiesToJson(registrationData.capabilities));
+            registrationDataJson.put("telemetry", telemetryDataToJson(telemetry));
         } catch (Exception e) {
             Log.e("MessageHandler", "Error serializing registration data:", e);
         }
 
         return registrationDataJson;
+    }
+
+    private JSONObject telemetryDataToJson(DroneAdapter.Telemetry telemetry) {
+        JSONObject telemetryJson = new JSONObject();
+        try {
+            if (telemetry == null) {
+                telemetryJson.put("lat", 0.0);
+                telemetryJson.put("lon", 0.0);
+                telemetryJson.put("alt", 0.0);
+                telemetryJson.put("heading", 0);
+                telemetryJson.put("speed", 0.0);
+                telemetryJson.put("battery_percent", -1);
+            } else {
+                telemetryJson.put("lat", telemetry.lat);
+                telemetryJson.put("lon", telemetry.lon);
+                telemetryJson.put("alt", telemetry.alt);
+                telemetryJson.put("heading", telemetry.heading);
+                telemetryJson.put("speed", telemetry.speed);
+                telemetryJson.put("battery_percent", telemetry.batteryPercent);
+            }
+        } catch (Exception e) {
+            Log.e("MessageHandler", "Error serializing registration telemetry:", e);
+        }
+
+        return telemetryJson;
     }
 
     private JSONObject capabilitiesToJson(DroneAdapter.Capabilities capabilities) {

@@ -9,7 +9,6 @@ import dji.common.product.Model;
 
 public class DJIDroneSpecs {
 
-    // En enkel behållare för att returnera två värden samtidigt
     public static class Resolution {
         public int width;
         public int height;

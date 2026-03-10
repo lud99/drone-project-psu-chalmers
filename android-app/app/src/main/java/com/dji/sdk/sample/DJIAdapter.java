@@ -5,6 +5,11 @@ import android.util.Log;
 import dji.common.error.DJIError;
 import dji.common.util.CommonCallbacks;
 
+
+/**
+ * DJIAdapter is a singleton class that implements the DroneAdapter interface.
+ * It serves as an adapter between the DJI SDK and the rest of the application.
+ */
 public class DJIAdapter implements DroneAdapter {
     private static final String TAG = DJIAdapter.class.getSimpleName();
     private static final DJIAdapter INSTANCE = new DJIAdapter();
@@ -16,6 +21,7 @@ public class DJIAdapter implements DroneAdapter {
         return INSTANCE;
     }
 
+    // Set the flight manager to DJIFlightManager singleton instance
     private DJIFlightManager flightManager() {
         return DJIFlightManager.getFlightManager();
     }

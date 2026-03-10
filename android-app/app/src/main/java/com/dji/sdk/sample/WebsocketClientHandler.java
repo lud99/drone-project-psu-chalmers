@@ -88,6 +88,10 @@ public class WebsocketClientHandler {
 
     public synchronized void onDroneDisconnected() {
         registrationDataSentForCurrentConnection = false;
+        if (connected) {
+            Log.i(TAG, "Drone disconnected; closing backend websocket connection.");
+            closeConnection();
+        }
     }
 
     public synchronized void trySendRegistrationDataIfReady() {
@@ -124,7 +128,7 @@ public class WebsocketClientHandler {
                         return;
                     }
 
-                    messageHandler.registrationData(registrationData);
+                    messageHandler.registrationData(registrationData, droneAdapter.getTelemetry());
                     registrationDataSentForCurrentConnection = true;
                     Log.i(TAG, "Registration data sent after async capabilities fetch completed.");
                 }
