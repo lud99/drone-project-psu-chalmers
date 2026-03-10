@@ -165,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onRegister(DJIError djiError) {
                             if (djiError == DJISDKError.REGISTRATION_SUCCESS) {
-                                DJISDKManager.ggetInstance().startConnectionToProduct();
+                                DJISDKManager.getInstance().startConnectionToProduct();
                                 notifyStatusChange();
                             } else {
                                 showToast("Register sdk fails, please check the bundle id and network connection!");

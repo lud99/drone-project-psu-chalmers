@@ -103,13 +103,13 @@ class MessageHandler {
 
         try {
             telemetryJson.put("msg_type", "telemetry");
-            telemetryJson.put("droneID", telemetry.droneID);
+            telemetryJson.put("drone_id", telemetry.droneID);
             telemetryJson.put("lat", telemetry.lat);
             telemetryJson.put("lon", telemetry.lon);
             telemetryJson.put("alt", telemetry.alt);
             telemetryJson.put("heading", telemetry.heading);
             telemetryJson.put("speed", telemetry.speed);
-            telemetryJson.put("batteryPercent", telemetry.batteryPercent);
+            telemetryJson.put("battery_percent", telemetry.batteryPercent);
         } catch (Exception e) {
             Log.e("MessageHandler", "Error serializing telemetry:", e);
         }
@@ -147,7 +147,7 @@ class MessageHandler {
             capabilitiesJson.put("led", ledToJson(capabilities.led));
             capabilitiesJson.put("spotlight", capabilities.spotlight);
             if (capabilities.speaker == null) {
-                capabilitiesJson.put("speaker", false);
+                capabilitiesJson.put("speaker", JSONObject.NULL);
             } else {
                 capabilitiesJson.put("speaker", speakerToJson(capabilities.speaker));
             }

@@ -91,6 +91,7 @@ public class WebsocketClientHandler {
     }
 
     public synchronized void trySendRegistrationDataIfReady() {
+        Log.d(TAG, "xxxxx Attempting to send registration data if ready...");
         if (!connected || registrationDataSentForCurrentConnection) {
             return;
         }
@@ -104,7 +105,7 @@ public class WebsocketClientHandler {
         if (droneAdapter == null) {
             return;
         }
-
+        Log.d(TAG, "xxxxx Drone adapter found, requesting registration data asynchronously...");
         droneAdapter.getRegistrationDataAsync(new DroneAdapter.RegistrationDataCallback() {
             @Override
             public void onSuccess(DroneAdapter.RegistrationData registrationData) {
