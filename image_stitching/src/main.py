@@ -546,8 +546,7 @@ async def insert_dummy_telemetry_and_capabilities(drone_id: str) -> None:
                 ),
                 ("led", None),
                 ("spotlight", False),
-                ("speaker", False),
-                ("max_speed", 15.0),
+                ("speaker", None),
             ]
         )
 

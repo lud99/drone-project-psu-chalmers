@@ -436,6 +436,7 @@ class DroneCommunication:
         try:
             if message.drone_id in self.connections:
                 print(f"Drone id {message.drone_id} is already connected or used!!")
+                await ws.close()
                 return None
 
             # Move to proper drone id
@@ -447,6 +448,11 @@ class DroneCommunication:
             r.set(
                 f"capabilities_drone{message.drone_id}",
                 message.capabilities.model_dump_json(),
+            )
+            r.set(
+                f"telemetry_drone{message.drone_id}",
+                message.telemetry.model_dump_json(),
+                ex=60,
             )
 
             if message.capabilities.camera is not None:

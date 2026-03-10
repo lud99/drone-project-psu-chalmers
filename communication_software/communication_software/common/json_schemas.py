@@ -14,6 +14,7 @@ class CameraCapabilities(BaseModel):
 class LEDCapabilities(BaseModel):
     types: list[str]  # will likely have to change
 
+
 class SpeakerCapabilities(BaseModel):
     audio_files: list[str]
 
@@ -23,6 +24,7 @@ class Capabilities(BaseModel):
     led: Optional[LEDCapabilities]
     spotlight: bool
     speaker: Optional[SpeakerCapabilities]
+
 
 class Telemetry(BaseModel):
     lat: float
@@ -53,18 +55,18 @@ class GoToParams(BaseModel):
 class PlayAudioParams(BaseModel):
     file: str
     volume: float = 1.0
-    duration_seconds: Optional[int] = None
+    duration_seconds: Optional[float]
 
 
 class LEDParams(BaseModel):
     color: str
     pattern: str
-    duration_seconds: Optional[float] = None
+    duration_seconds: Optional[float]
 
 
 class SpotlightParams(BaseModel):
     pattern: str
-    duration_seconds: Optional[float] = None
+    duration_seconds: Optional[float]
 
 
 # The specific Task types
@@ -150,6 +152,7 @@ class DroneRegistrationMessage(DroneMessage):
     model: str
     drone_id: str
     capabilities: Capabilities
+    telemetry: Telemetry
 
 
 # App -> backend. Sent continuously
