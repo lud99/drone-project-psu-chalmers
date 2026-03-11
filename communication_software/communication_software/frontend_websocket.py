@@ -18,6 +18,7 @@ import communication_software.common.json_schemas as json_schemas
 
 from communication_software.common.frame_utils import (
     create_not_connected_frame,
+    create_no_camera_frame,
     create_error_frame,
 )
 
@@ -328,32 +329,18 @@ async def flightmanager_websocket(websocket: WebSocket):
         print("Closing flightmanager websocket")
 
 
-@app.get("/api/v1/video_feed/drone1")
-async def drone1_feed():
+@app.get("/api/v1/video_feed/drone{drone_id}")
+async def drone2_feed(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("1"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone2")
-async def drone2_feed():
-    return StreamingResponse(
-        stream_drone_frames("2"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone1_annotated")
-async def drone1_feed_annotated():
-    return StreamingResponse(
-        stream_drone_frames("1", "_annotated"),
+        stream_drone_frames(drone_id),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
-@app.get("/api/v1/video_feed/drone2_annotated")
-async def drone2_feed_annotated():
+@app.get("/api/v1/video_feed/drone{drone_id}_annotated")
+async def drone1_feed_annotated(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("2", "_annotated"),
+        stream_drone_frames(drone_id, "_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -406,7 +393,7 @@ def run_server(atos_communicator):
 # Video Frames Generation Based on Drone ID
 async def stream_drone_frames(drone_id: str, frame_type: str = ""):
 
-    redis_key = f"frame_drone{drone_id}${frame_type}"
+    redis_key = f"frame_drone{drone_id}{frame_type}"
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
@@ -421,10 +408,19 @@ async def stream_drone_frames(drone_id: str, frame_type: str = ""):
                 )
 
         else:
-            # No frame found in Redis, so generate a dummy frame.
-            frame = create_not_connected_frame(
-                np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+            telemetry, capabilities = await asyncio.to_thread(
+                r.mget, f"telemetry_drone{drone_id}", f"capabilities_drone{drone_id}"
             )
+            if telemetry is None:
+                frame = create_not_connected_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
+            elif (capabilities is not None) and (
+                json_schemas.parse_capabilities(capabilities).camera is None
+            ):
+                frame = create_no_camera_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
 
         # Encode frame as JPEG
         ret, buffer = cv2.imencode(".jpg", frame)
