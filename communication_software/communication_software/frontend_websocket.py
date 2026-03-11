@@ -175,14 +175,15 @@ async def start_drone(payload: str = Body(...)):
 
 
 @app.post("/api/v1/set_watch_area")
-async def set_watch_area(payload: dict = Body(...)):
+async def set_watch_area(payload: str = Body(...)):
     try:
-        message = json_schemas.parse_frontend_message(json.dumps(payload))
+        message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
-            r.set("watch_area", json.dumps(message.points))
+            r.set("watch_area", message.area.model_dump_json())
             return {"msg_type": "response", "error": None}
 
     except Exception as e:
+        print(e)
         return {"msg_type": "response", "error": str(e)}
 
     return {"msg_type": "response", "error": None}

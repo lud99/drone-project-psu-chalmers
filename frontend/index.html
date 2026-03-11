@@ -344,10 +344,13 @@ const sendCoordinates = L.Control.extend({
                 const response = await fetch("/api/v1/set_watch_area", {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/text"
                     },
                     body: JSON.stringify({
-                        points: coordinates
+                        msg_type: "set_watch_area",
+                        area: {
+                            points: coordinates
+                        }
                     })
                 });
 
@@ -356,7 +359,16 @@ const sendCoordinates = L.Control.extend({
                 }
 
                 const result = await response.json();
-                console.log("Coverage result:", result);
+                console.log(result)
+
+                if (!result.error)
+                {
+                    alert("Coordinates sent ok");
+                }
+                else 
+                {
+                    alert("Error: " + result.error);
+                }
 
             } catch (error) {
                 console.error("Error sending watch area", error);
