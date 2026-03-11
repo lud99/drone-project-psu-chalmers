@@ -18,6 +18,7 @@ import communication_software.common.json_schemas as json_schemas
 
 from communication_software.common.frame_utils import (
     create_not_connected_frame,
+    create_no_camera_frame,
     create_error_frame,
 )
 
@@ -407,10 +408,19 @@ async def stream_drone_frames(drone_id: str, frame_type: str = ""):
                 )
 
         else:
-            # No frame found in Redis, so generate a dummy frame.
-            frame = create_not_connected_frame(
-                np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+            telemetry, capabilities = await asyncio.to_thread(
+                r.mget, f"telemetry_drone{drone_id}", f"capabilities_drone{drone_id}"
             )
+            if telemetry is None:
+                frame = create_not_connected_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
+            elif (capabilities is not None) and (
+                json_schemas.parse_capabilities(capabilities).camera is None
+            ):
+                frame = create_no_camera_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
 
         # Encode frame as JPEG
         ret, buffer = cv2.imencode(".jpg", frame)

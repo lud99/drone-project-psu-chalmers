@@ -3,7 +3,6 @@ import cv2
 import imutils
 import threading
 from queue import Queue
-
 from ultralytics import YOLO
 import supervision.detection.core as sv
 from annotator import Annotator
@@ -11,13 +10,12 @@ import coordinate_mapping
 import redis
 import asyncio
 import os
-
 import torch
 import io
 import json
 from typing import Optional
 
-from common.frame_utils import create_not_connected_frame, create_error_frame
+from common.frame_utils import create_error_frame
 import common.json_schemas as json_schemas
 
 if torch.cuda.is_available():
@@ -218,8 +216,11 @@ async def stream_drone_frames(drone_id: str):
                 )
 
         else:
+            await asyncio.sleep(0.033)  # wait a bit before the next attempt
+            continue  # Skip this iteration
+
             # If no frame exists in Redis, prepare a dummy image for encoding
-            frame_to_encode = create_not_connected_frame(dummy_frame.copy(), drone_id)
+            # frame_to_encode = create_not_connected_frame(dummy_frame.copy(), drone_id)
 
         # Convert selected frame (real or dummy) to JPEG bytes
         ret, buffer = cv2.imencode(".jpg", frame_to_encode)
@@ -397,8 +398,6 @@ async def annotate_stream(drone_id: str) -> None:
 
     try:
         while True:
-            await insert_dummy_telemetry_and_capabilities(drone_id)
-
             frame_data, capabilities, telemetry = await asyncio.to_thread(queue.get)
 
             if frame_data is None:
@@ -689,7 +688,6 @@ async def main() -> None:
 
     while True:
         current_ids = get_connected_drone_ids()
-        print(current_ids)
 
         # 1. Start tasks for NEW drones
         for d_id in current_ids:
