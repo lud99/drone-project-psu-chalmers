@@ -140,12 +140,15 @@
         "drone_id": "0",
         "task_action": "spotlight"
     },
-    // backend --> app, abort current mission
-    // tasks should already been aborted and mostly used for the ability to go home
+    // backend --> app, mission-level next actions are now top-level commands
     {
-        "msg_type": "abort_mission",
+        "msg_type": "go_home",
         "mission_id": "mission_101",
-        "drone_id": "0",
-        "next_action": "go_home" // "hover", "land"
+        "drone_id": "AZL-55555"
+    },
+    {
+        "msg_type": "land",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555"
     }
 ]

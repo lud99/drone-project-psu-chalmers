@@ -2,7 +2,7 @@ package com.dji.sdk.sample;
 
 import android.util.Log;
 
-import java.util.Locale;
+import org.json.JSONObject;
 
 import dev.gustavoavila.websocketclient.WebSocketClient;
 
@@ -33,9 +33,20 @@ class WSPosition implements Runnable {
                 DroneAdapter.Telemetry telemetry = droneAdapter.getTelemetry();
 
                 if (telemetry != null) {
-                    String message = String.format(Locale.US,
-                            "{\"msg_type\": \"Telemetry\",\"droneID\": \"%s\", \"lat\": %.8f, \"lon\": %.8f, \"alt\": %.2f, \"heading\": %.2f, \"speed\": %.2f, \"batteryPercent\": %d}",
-                            telemetry.droneID, telemetry.lat, telemetry.lon, telemetry.alt, telemetry.heading, telemetry.speed, telemetry.batteryPercent);
+                    JSONObject telemetryJson = new JSONObject();
+                    telemetryJson.put("lat", telemetry.lat);
+                    telemetryJson.put("lon", telemetry.lon);
+                    telemetryJson.put("alt", telemetry.alt);
+                    telemetryJson.put("heading", telemetry.heading);
+                    telemetryJson.put("speed", telemetry.speed);
+                    telemetryJson.put("battery_percent", telemetry.batteryPercent);
+
+                    JSONObject messageJson = new JSONObject();
+                    messageJson.put("msg_type", "telemetry");
+                    messageJson.put("drone_id", telemetry.droneID);
+                    messageJson.put("telemetry", telemetryJson);
+
+                    String message = messageJson.toString();
 
                     Log.d(TAG, "Sending telemetry: " + message);
                     webSocketClient.send(message);

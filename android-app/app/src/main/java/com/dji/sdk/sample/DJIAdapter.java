@@ -7,7 +7,7 @@ import dji.common.util.CommonCallbacks;
 
 
 /**
- * DJIAdapter is a singleton class that implements the DroneAdapter interface.
+ * DJIAdapter is a class that implements the DroneAdapter interface.
  * It serves as an adapter between the DJI SDK and the rest of the application.
  */
 public class DJIAdapter implements DroneAdapter {
@@ -94,13 +94,8 @@ public class DJIAdapter implements DroneAdapter {
     }
 
     @Override
-    public RegistrationData getRegistrationData() {
-        return flightManager().getRegistrationData();
-    }
-
-    @Override
-    public void getRegistrationDataAsync(RegistrationDataCallback callback) {
-        flightManager().getRegistrationDataAsync(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
+    public void getRegistrationData(RegistrationDataCallback callback) {
+        flightManager().getRegistrationData(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
             @Override
             public void onSuccess(DroneAdapter.RegistrationData registrationData) {
                 if (callback != null) {

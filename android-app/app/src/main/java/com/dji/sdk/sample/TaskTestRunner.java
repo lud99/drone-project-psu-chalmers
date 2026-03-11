@@ -6,9 +6,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import dji.common.error.DJIError;
-import dji.common.util.CommonCallbacks;
 
+/*
+* Responsible for running test tasks on the drone.
+* It provides methods to execute various tasks such as moving to a location, angling the camera, playing audio, and more.
+* To add a new test task, simply add a new enum value to TestTask and implement the corresponding method to execute the desired drone action.
+*/
 public class TaskTestRunner {
     private static final String TAG = TaskTestRunner.class.getSimpleName();
 
@@ -161,7 +164,7 @@ public class TaskTestRunner {
 
         try {
             JSONObject message = new JSONObject();
-            message.put("msg_type", "Telemetry");
+            message.put("msg_type", "telemetry");
             message.put("mission_id", missionId);
             message.put("task_index", taskIndex);
             message.put("droneID", telemetry.droneID == null ? "unknown" : telemetry.droneID);
@@ -179,24 +182,17 @@ public class TaskTestRunner {
     }
 
     public void runSendRegistrationData(String missionId, int taskIndex) {
-        if (adapter instanceof DJIAdapter) {
-            DJIFlightManager.getFlightManager().getRegistrationDataAsync(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
-                @Override
-                public void onSuccess(DroneAdapter.RegistrationData registrationData) {
-                    logRegistrationDataPayload(missionId, taskIndex, registrationData);
-                }
+        adapter.getRegistrationData(new DroneAdapter.RegistrationDataCallback() {
+            @Override
+            public void onSuccess(DroneAdapter.RegistrationData registrationData) {
+                logRegistrationDataPayload(missionId, taskIndex, registrationData);
+            }
 
-                @Override
-                public void onFailure(DJIError djiError) {
-                    String reason = djiError == null ? "unknown" : djiError.getDescription();
-                    Log.w(TAG, "Registration data unavailable (async); SEND_REGISTRATION_DATA skipped. Reason: " + reason);
-                }
-            });
-            return;
-        }
-
-        DroneAdapter.RegistrationData registrationData = adapter.getRegistrationData();
-        logRegistrationDataPayload(missionId, taskIndex, registrationData);
+            @Override
+            public void onFailure(String reason) {
+                Log.w(TAG, "Registration data unavailable; SEND_REGISTRATION_DATA skipped. Reason: " + reason);
+            }
+        });
     }
 
     private void logRegistrationDataPayload(String missionId, int taskIndex, DroneAdapter.RegistrationData registrationData) {
@@ -207,7 +203,7 @@ public class TaskTestRunner {
 
         try {
             JSONObject message = new JSONObject();
-            message.put("msg_type", "RegistrationData");
+            message.put("msg_type", "registration_data");
             message.put("mission_id", missionId);
             message.put("task_index", taskIndex);
             message.put("droneType", registrationData.droneType == null ? "unknown" : registrationData.droneType);

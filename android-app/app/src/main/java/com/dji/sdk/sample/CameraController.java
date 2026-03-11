@@ -19,7 +19,7 @@ import dji.sdk.sdkmanager.DJISDKManager;
 import java.lang.Math;
 
 /**
- * This is a singleton class responsible for setting up a VideoDataListener which
+ * This class is responsible for setting up a VideoDataListener which
  * is what the drone forwards the camera feed to and configuring the video feed.
  * It is also responsible for managing the gimbal.
  */
@@ -61,9 +61,9 @@ public class CameraController {
     }
 
     /**
-     * Used to access the singleton instance of the CameraController. If there is no instance,
+     * Used to access an instance of the CameraController. If there is no instance,
      * one is created.
-     * @return The singleton CameraController instance.
+     * @return The CameraController instance.
      */
     public static synchronized CameraController getInstance(){
         if (instance == null){

@@ -7,6 +7,11 @@ import dji.common.camera.SettingsDefinitions.VideoFov;
 import dji.common.camera.SettingsDefinitions.VideoResolution;
 import dji.common.product.Model;
 
+
+/**
+ * DJIDroneSpecs is a utility class that provides methods to retrieve specifications of DJI drones,
+ * such as camera resolution and field of view, based on the drone model and camera settings.
+ */
 public class DJIDroneSpecs {
 
     public static class Resolution {

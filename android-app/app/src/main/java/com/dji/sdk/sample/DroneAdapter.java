@@ -7,7 +7,6 @@ package com.dji.sdk.sample;
      * The methods that executes tasks should also include the functionality that sends "task_complete"-messages to backend
 */
 
-
 public interface DroneAdapter {
 
     interface RegistrationDataCallback {
@@ -71,9 +70,8 @@ public interface DroneAdapter {
     void stopAllTasks(String missionID, int taskIndex);
     void land(String missionID, int taskIndex);
 
-    Telemetry getTelemetry(); 
-    RegistrationData getRegistrationData();
-    void getRegistrationDataAsync(RegistrationDataCallback callback);
+    Telemetry getTelemetry();
+    void getRegistrationData(RegistrationDataCallback callback);
     
     void pushTaskComplete(String missionID, int taskIndex);
     void pushTaskFailed(String missionID, int taskIndex);

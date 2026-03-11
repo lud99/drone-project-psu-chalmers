@@ -141,9 +141,9 @@ class DJIFlightManager {
     }
 
     /**
-     * Returns the singleton instance of the FlightManager class. If the FlightManger is not
+     * Returns the instance of the FlightManager class. If the FlightManger is not
      * instantiated, it is.
-     * @return The singleton instance of FlightManager
+     * @return The instance of FlightManager
      */
     public static synchronized DJIFlightManager getFlightManager(){
         if (flightManager == null){
@@ -180,6 +180,10 @@ class DJIFlightManager {
         return batteryState;
     }
 
+    /**
+     * Fetches the current telemetry data from the drone and returns it as a DroneAdapter.Telemetry object.
+     * If any critical piece of telemetry data is unavailable (e.g. GPS location), this method returns null to indicate that telemetry cannot be provided at this time.
+    */
     public DroneAdapter.Telemetry getTelemetry() {
         if (state == null) {
             return null;
@@ -199,7 +203,16 @@ class DJIFlightManager {
 
         DroneAdapter.Telemetry telemetry = new DroneAdapter.Telemetry();
         if (cachedSerialNumber == null) {
-            getRegistrationData(); // Attempt to fetch and cache the serial number if not already done
+            getRegistrationData(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
+                @Override
+                public void onSuccess(DroneAdapter.RegistrationData registrationData) {
+                }
+
+                @Override
+                public void onFailure(DJIError djiError) {
+                    Log.e("DJI", "Failed to fetch registration data for telemetry: " + (djiError != null ? djiError.getDescription() : "unknown error"));
+                }
+            });
         }
         telemetry.droneID = cachedSerialNumber == null ? "unknown" : cachedSerialNumber;
         telemetry.lat = lat;
@@ -215,7 +228,10 @@ class DJIFlightManager {
             telemetry.speed = Float.NaN;
         }
 
-        telemetry.batteryPercent = batteryState == null ? -1 : batteryState.getChargeRemainingInPercent();
+        telemetry.batteryPercent = batteryState == null ? 0 : batteryState.getChargeRemainingInPercent();
+        if (telemetry.batteryPercent < 0) {
+            telemetry.batteryPercent = 0;
+        }
 
         return telemetry;
     }
@@ -228,38 +244,15 @@ class DJIFlightManager {
         void done();
     }
 
-    public DroneAdapter.RegistrationData getRegistrationData() {
+    /**
+     * Fetches the registration data for the connected drone, including its type, model, unique ID, and capabilities.
+     * The data is returned asynchronously via the provided callback.
+     * If fetching the registration data fails for any reason, the callback's onFailure method is called with a reason string.
+     */
+    public void getRegistrationData(CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData> callback) {
         BaseProduct product = DJISDKManager.getInstance().getProduct();
         if (!(product instanceof Aircraft)) {
             Log.e("DJI", "getRegistrationData misslyckades: Ingen drönare ansluten.");
-            return null;
-        }
-
-        this.aircraft = (Aircraft) product;
-        DroneAdapter.RegistrationData registrationData = createRegistrationDataSnapshot(this.aircraft);
-
-        getRegistrationDataAsync(new CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData>() {
-            @Override
-            public void onSuccess(DroneAdapter.RegistrationData result) {
-                if (result != null) {
-                    Log.d("DJI", "Registration data async refresh completed.");
-                }
-            }
-
-            @Override
-            public void onFailure(DJIError djiError) {
-                String reason = djiError == null ? "unknown" : djiError.getDescription();
-                Log.w("DJI", "Registration data async refresh failed: " + reason);
-            }
-        });
-
-        return registrationData;
-    }
-
-    public void getRegistrationDataAsync(CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData> callback) {
-        BaseProduct product = DJISDKManager.getInstance().getProduct();
-        if (!(product instanceof Aircraft)) {
-            Log.e("DJI", "getRegistrationDataAsync misslyckades: Ingen drönare ansluten.");
             if (callback != null) {
                 callback.onFailure(DJIError.COMMON_DISCONNECTED);
             }
@@ -299,6 +292,10 @@ class DJIFlightManager {
         return registrationData;
     }
 
+    /**
+     * Fetches the drone model and updates the registration data object.
+     * Uses cached model if available to avoid unnecessary SDK calls.
+     */
     private void fetchModel(Aircraft aircraft, DroneAdapter.RegistrationData registrationData) {
         registrationData.droneType = "DJI";
         registrationData.model = aircraft.getModel() != null ? aircraft.getModel().getDisplayName() : (cachedModel == null ? "Unknown" : cachedModel);
@@ -335,12 +332,16 @@ class DJIFlightManager {
 
     private void fetchCameraCapabilitiesAsync(Aircraft aircraft, DroneAdapter.RegistrationData registrationData, RegistrationStepDone done) {
         if (aircraft.getCamera() == null) {
+            registrationData.capabilities.camera = null;
+            Log.d("DJI", "No camera detected on aircraft; camera capabilities set to null.");
             done.done();
             return;
         }
 
         dji.sdk.camera.Camera camera = aircraft.getCamera();
         if (camera == null) {
+            registrationData.capabilities.camera = null;
+            Log.d("DJI", "Camera instance unavailable; camera capabilities set to null.");
             done.done();
             return;
         }
@@ -362,6 +363,9 @@ class DJIFlightManager {
 
                     registrationData.capabilities.camera = cameraCapabilities;
                     Log.d("DJI", "Camera capabilities updated: " + djiRes.name());
+                } else {
+                    applyFallbackCameraCapabilities(aircraft, registrationData);
+                    Log.w("DJI", "Camera settings callback returned null; using fallback camera capabilities.");
                 }
                 done.done();
             }
@@ -369,9 +373,22 @@ class DJIFlightManager {
             @Override
             public void onFailure(DJIError djiError) {
                 Log.e("DJI", "Failed to get resolution/FOV: " + djiError.getDescription());
+                applyFallbackCameraCapabilities(aircraft, registrationData);
                 done.done();
             }
         });
+    }
+
+    private void applyFallbackCameraCapabilities(Aircraft aircraft, DroneAdapter.RegistrationData registrationData) {
+        DroneAdapter.Capabilities.Camera fallback = new DroneAdapter.Capabilities.Camera();
+        DJIDroneSpecs.Resolution defaultRes = DJIDroneSpecs.getDimensions(SettingsDefinitions.VideoResolution.UNKNOWN);
+        fallback.resolution_width = defaultRes.width;
+        fallback.resolution_height = defaultRes.height;
+        fallback.horizontal_fov = (float) DJIDroneSpecs.getHorizontalFov(aircraft.getModel(), null);
+        fallback.aspect_ratio = defaultRes.height > 0
+                ? (float) defaultRes.width / defaultRes.height
+                : 16.0f / 9.0f;
+        registrationData.capabilities.camera = fallback;
     }
 
     private void fetchLedCapabilitiesAsync(Aircraft aircraft, DroneAdapter.RegistrationData registrationData, RegistrationStepDone done) {
@@ -511,23 +528,20 @@ class DJIFlightManager {
         }
 
         waypointList.add(mission_waypoint);
-        // ... (behåll din waypoint-logik ovanför) ...
         waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
 
-        // Flytta stopp-logiken hit ner och använd dess callback
         WaypointMissionOperator operator = getWaypointMissionOperator();
         
+        /**
+         * Before configuring and uploading the new mission, we stop any active mission to ensure a clean state.
+         */
         operator.stopMission(djiError -> {
-            // struntar i att kontrollera if (djiError == null)
             
             if (djiError != null) {
                 Log.d("DJI", "StopMission returnerade: " + djiError.getDescription() + " (Detta är normalt om inget kördes)");
             } else {
                 Log.d("DJI", "Aktivt uppdrag stoppades framgångsrikt.");
             }
-
-            // HÄR går vi vidare oavsett resultat!
-            // Genom att ligga kvar inuti denna callback garanterar vi att vi väntat ut operatören.
             
             configWayPointMission();   
             addListener();         
@@ -766,6 +780,10 @@ class DJIFlightManager {
         }
     }
 
+    /*
+    * This function activates the specified LED type (front, rear, or beacon) for the given duration.
+     * If durationSeconds <= 0, the LED stays on indefinitely until "stop_task" is received.
+    */
     public void activateLED(String ledType, Integer durationSeconds, String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
@@ -905,6 +923,7 @@ class DJIFlightManager {
         });
     }
 
+    // Stop all tasks and go home
     public void goHome(String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
@@ -949,13 +968,13 @@ class DJIFlightManager {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
         switch (taskType) {
-            case "goTo":
+            case "go_to":
                 abortWaypointMission();
                 break;
-            case "playAudio":
+            case "play_audio":
                 stopAudio(missionID, taskIndex);
                 break;
-            case "angleCamera":
+            case "angle_camera":
                 stopCameraRotation(missionID, taskIndex);
                 break;
             case "spotlight":

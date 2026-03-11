@@ -6,6 +6,11 @@ import androidx.annotation.Nullable;
 
 import dji.sdk.base.BaseProduct;
 
+
+/*
+* Manages the selection of the version of DroneAdapter to use based on the connected product or specified drone type.
+* Currently, it defaults to DJIAdapter for all cases, but it is designed to be easily extendable to support multiple drone types in the future.
+*/
 public final class DroneAdapterManager {
     private static final String TAG = DroneAdapterManager.class.getSimpleName();
     private static DroneAdapter currentAdapter = DJIAdapter.getInstance();

@@ -7,9 +7,14 @@ import org.json.JSONObject;
 
 
 
-
+/*
+* MessageHandler is a class responsible for creating and sending JSON messages to the WebSocket server.
+* It provides methods to send different types of messages, such as task completion, task abortion, telemetry updates, and registration data.
+* Each method constructs a JSON object with the appropriate structure and sends it through the WebsocketClientHandler.
+*/
 class MessageHandler {
     private static MessageHandler instance;
+    private static final String TAG = "MessageHandler";
 
     private MessageHandler() {
     }
@@ -22,43 +27,36 @@ class MessageHandler {
     }
 
     public void taskComplete(String currentMissionID, int currentTaskIndex) {
-        JSONObject message = new JSONObject();
-        try {
-            message.put("msg_type", "taskComplete");
-            message.put("missionID", currentMissionID);
-            message.put("taskIndex", currentTaskIndex);
-        } catch(Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message:", e);
-        }
-        WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
-        if (websocketClientHandler != null) {
-            websocketClientHandler.send(message.toString());
-        }
+        sendTaskEvent(currentMissionID, currentTaskIndex, "task_complete", null);
     }
 
     public void taskAborted(String currentMissionID, int taskIndex, String taskType) {
-        JSONObject message = new JSONObject();
-        try {
-            message.put("msg_type", "taskAborted");
-            message.put("missionID", currentMissionID);
-            message.put("taskIndex", taskIndex);
-            message.put("taskType", taskType);
-        } catch (Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message", e);
-        }
-        WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
-        if (websocketClientHandler != null) {
-            websocketClientHandler.send(message.toString());
-        }
+        String reason = taskType == null || taskType.isEmpty() ? null : "task_type=" + taskType;
+        sendTaskEvent(currentMissionID, taskIndex, "task_aborted", reason);
     }
 
     public void allTasksAborted(String currentMissionID) {
+        sendTaskEvent(currentMissionID, -1, "task_aborted", "all_tasks_aborted");
+    }
+
+    public void taskFailed(String currentMissionID, int currentTaskIndex) {
+        sendTaskEvent(currentMissionID, currentTaskIndex, "task_failed", null);
+    }
+
+    private void sendTaskEvent(String missionId, int index, String event, String eventMessage) {
         JSONObject message = new JSONObject();
         try {
-            message.put("msg_type", "allTasksAborted");
-            message.put("missionID", currentMissionID);
+            message.put("msg_type", "task_event");
+            message.put("drone_id", getCurrentDroneId());
+            message.put("mission_id", missionId == null ? "unknown" : missionId);
+            message.put("index", index);
+            message.put("event", event);
+            if (eventMessage != null && !eventMessage.isEmpty()) {
+                message.put("message", eventMessage);
+            }
+            message.put("timestamp", System.currentTimeMillis() / 1000L);
         } catch(Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message:", e);
+            Log.e(TAG, "Error creating task event message:", e);
         }
         WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
         if (websocketClientHandler != null) {
@@ -66,19 +64,19 @@ class MessageHandler {
         }
     }
 
-    public void taskFailed(String currentMissionID, int currentTaskIndex) {
-        JSONObject message = new JSONObject();
+    private String getCurrentDroneId() {
         try {
-            message.put("msg_type", "taskFailed");
-            message.put("missionID", currentMissionID);
-            message.put("taskIndex", currentTaskIndex);
-        } catch(Exception e) {
-            Log.e("MessageHandler", "Error creating JSON message:", e);
+            DroneAdapter adapter = DroneAdapterManager.getCurrentAdapter();
+            if (adapter != null) {
+                DroneAdapter.Telemetry telemetry = adapter.getTelemetry();
+                if (telemetry != null && telemetry.droneID != null && !telemetry.droneID.isEmpty()) {
+                    return telemetry.droneID;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to resolve drone_id for task event", e);
         }
-        WebsocketClientHandler websocketClientHandler = WebsocketClientHandler.getInstance();
-        if (websocketClientHandler != null) {
-            websocketClientHandler.send(message.toString());
-        }
+        return "unknown";
     }
 
     public void telemetryUpdate(DroneAdapter.Telemetry telemetry) {
@@ -146,7 +144,7 @@ class MessageHandler {
                 telemetryJson.put("alt", 0.0);
                 telemetryJson.put("heading", 0);
                 telemetryJson.put("speed", 0.0);
-                telemetryJson.put("battery_percent", -1);
+                telemetryJson.put("battery_percent", 0);
             } else {
                 telemetryJson.put("lat", telemetry.lat);
                 telemetryJson.put("lon", telemetry.lon);
@@ -169,7 +167,11 @@ class MessageHandler {
         }
 
         try {
-            capabilitiesJson.put("camera", cameraToJson(capabilities.camera));
+            if (capabilities.camera == null) {
+                capabilitiesJson.put("camera", JSONObject.NULL);
+            } else {
+                capabilitiesJson.put("camera", cameraToJson(capabilities.camera));
+            }
             capabilitiesJson.put("led", ledToJson(capabilities.led));
             capabilitiesJson.put("spotlight", capabilities.spotlight);
             if (capabilities.speaker == null) {

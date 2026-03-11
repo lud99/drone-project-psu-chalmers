@@ -27,6 +27,10 @@ import dji.sdk.sdkmanager.DJISDKManager;
 
 
 public class WebsocketClientHandler {
+    // Delay between registration retries when telemetry is not ready, in milliseconds.
+    private static final long REGISTRATION_RETRY_DELAY_MS = 500L;
+    // Max number of retries for sending registration data when telemetry is not ready before giving up and sending with fallback data.
+    private static final int MAX_REGISTRATION_RETRIES = 20;
     
     public interface ConnectionStateListener {
         void onConnected();
@@ -54,6 +58,21 @@ public class WebsocketClientHandler {
     private WebRTCMediaOptions webRTCMediaOptions;  
     private DroneAdapter droneAdapter;
     private boolean registrationDataSentForCurrentConnection = false;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private int registrationRetryCount = 0;
+    private boolean registrationRetryScheduled = false;
+
+    // Re-attempts registration from the main thread after a delayed retry window.
+    private final Runnable registrationRetryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            synchronized (WebsocketClientHandler.this) {
+                // Allow scheduleRegistrationRetryLocked to queue the next retry if needed.
+                registrationRetryScheduled = false;
+            }
+            trySendRegistrationDataIfReady();
+        }
+    };
    
     
 
@@ -87,6 +106,7 @@ public class WebsocketClientHandler {
     }
 
     public synchronized void onDroneDisconnected() {
+        resetRegistrationRetryStateLocked();
         registrationDataSentForCurrentConnection = false;
         if (connected) {
             Log.i(TAG, "Drone disconnected; closing backend websocket connection.");
@@ -110,7 +130,7 @@ public class WebsocketClientHandler {
             return;
         }
         Log.d(TAG, "xxxxx Drone adapter found, requesting registration data asynchronously...");
-        droneAdapter.getRegistrationDataAsync(new DroneAdapter.RegistrationDataCallback() {
+        droneAdapter.getRegistrationData(new DroneAdapter.RegistrationDataCallback() {
             @Override
             public void onSuccess(DroneAdapter.RegistrationData registrationData) {
                 if (registrationData == null) {
@@ -123,13 +143,23 @@ public class WebsocketClientHandler {
                         return;
                     }
 
+                    DroneAdapter.Telemetry telemetry = droneAdapter.getTelemetry();
+                    // Hold registration until telemetry looks initialized (not null/default values).
+                    if (!isTelemetryReadyForRegistration(telemetry)) {
+                        if (scheduleRegistrationRetryLocked("Telemetry not ready")) {
+                            return;
+                        }
+                        Log.w(TAG, "Registration telemetry still unavailable after retries; sending registration with fallback telemetry payload.");
+                    }
+
                     MessageHandler messageHandler = MessageHandler.getInstance();
                     if (messageHandler == null) {
                         return;
                     }
 
-                    messageHandler.registrationData(registrationData, droneAdapter.getTelemetry());
+                    messageHandler.registrationData(registrationData, telemetry);
                     registrationDataSentForCurrentConnection = true;
+                    resetRegistrationRetryStateLocked();
                     Log.i(TAG, "Registration data sent after async capabilities fetch completed.");
                 }
             }
@@ -151,6 +181,7 @@ public class WebsocketClientHandler {
                 Log.d(TAG, "New connection opened on URI " + getUri());
                 connected = true;
                 registrationDataSentForCurrentConnection = false;
+                resetRegistrationRetryStateLocked();
                 if (connectionStateListener != null) {
                     connectionStateListener.onConnected();
                 }
@@ -217,6 +248,7 @@ public class WebsocketClientHandler {
             public void onCloseReceived(int reason, String description) {
                 Log.d(TAG, String.format("Closed with code %d, %s", reason, description));
                 connected = false;
+                resetRegistrationRetryStateLocked();
                 registrationDataSentForCurrentConnection = false;
                 if (connectionStateListener != null) {
                     connectionStateListener.onDisconnected();
@@ -344,6 +376,48 @@ public class WebsocketClientHandler {
         return DroneAdapterManager.getCurrentAdapter();
     }
 
+    private synchronized void resetRegistrationRetryStateLocked() {
+        // Called when connection state changes or registration succeeds.
+        registrationRetryCount = 0;
+        registrationRetryScheduled = false;
+        mainHandler.removeCallbacks(registrationRetryRunnable);
+    }
+
+    private synchronized boolean scheduleRegistrationRetryLocked(String reason) {
+        if (registrationDataSentForCurrentConnection || !connected) {
+            return false;
+        }
+
+        if (registrationRetryScheduled) {
+            return true;
+        }
+
+        if (registrationRetryCount >= MAX_REGISTRATION_RETRIES) {
+            Log.w(TAG, "Registration retry limit reached (" + MAX_REGISTRATION_RETRIES + "). reason=" + reason);
+            return false;
+        }
+
+        registrationRetryCount++;
+        registrationRetryScheduled = true;
+        Log.i(TAG, "Delaying registration send; telemetry not ready. Retry " + registrationRetryCount + "/" + MAX_REGISTRATION_RETRIES + " in " + REGISTRATION_RETRY_DELAY_MS + " ms");
+        mainHandler.postDelayed(registrationRetryRunnable, REGISTRATION_RETRY_DELAY_MS);
+        return true;
+    }
+
+    private boolean isTelemetryReadyForRegistration(DroneAdapter.Telemetry telemetry) {
+        if (telemetry == null) {
+            return false;
+        }
+
+        // Treat default/uninitialized telemetry as not ready.
+        // DJI often reports these values briefly right after connect before the first real fix.
+        if (Double.isNaN(telemetry.lat) || Double.isNaN(telemetry.lon)) {
+            return false;
+        }
+
+        return !(telemetry.lat == 0.0 && telemetry.lon == 0.0 && telemetry.batteryPercent == 0);
+    }
+
     private void handleIncomingMessage(JSONObject jsonMessage, String rawMessage) {
         String type = jsonMessage.optString("msg_type", "");
 
@@ -378,7 +452,7 @@ public class WebsocketClientHandler {
             String missionId = readMissionId(jsonMessage);
             int taskIndex = readTaskIndex(jsonMessage);
             String taskType = jsonMessage.optString("task_action", "");
-            if (taskType.isEmpty()) {
+            if ("all".equals(taskType)) {
                 droneAdapter.stopAllTasks(missionId, taskIndex);
             } else {
                 droneAdapter.abortTask(missionId, taskIndex, taskType);
@@ -411,7 +485,10 @@ public class WebsocketClientHandler {
         String missionId = readMissionId(jsonMessage);
         int taskIndex = readTaskIndex(jsonMessage);
 
-        JSONObject taskObject = jsonMessage.optJSONObject("task");
+        JSONObject taskObject = jsonMessage.optJSONObject("task_action");
+        if (taskObject == null) {
+            taskObject = jsonMessage.optJSONObject("task");
+        }
         String action;
         JSONObject params;
 
