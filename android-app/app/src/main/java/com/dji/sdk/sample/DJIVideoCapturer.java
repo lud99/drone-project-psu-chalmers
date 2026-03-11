@@ -43,30 +43,23 @@ public class DJIVideoCapturer implements VideoCapturer {
         codecManager.enabledYuvData(true);
         codecManager.setYuvDataCallback(new DJICodecManager.YuvDataCallback() {
             @Override
-            public void onYuvDataReceived(MediaFormat mediaFormat, ByteBuffer videoBuffer, int dataSize, int width, int height) {
-                if (videoBuffer != null) {
-                    try {
-                        //Convert to NV12Buffer and create a VideoFrame
-                        long timestampNS = TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime());
-                        NV12Buffer buffer = new NV12Buffer(
-                                width,
-                                height,
-                                mediaFormat.getInteger(MediaFormat.KEY_STRIDE),
-                                mediaFormat.getInteger(MediaFormat.KEY_SLICE_HEIGHT),
-                                videoBuffer,
-                                null
-                        );
-                        VideoFrame videoFrame = new VideoFrame(buffer, 0, timestampNS);
-    
-                        // Feed the video frame to all observers
-                        for (CapturerObserver obs : observers) {
-                            obs.onFrameCaptured(videoFrame);
-                        }
-                        videoFrame.release();
-                    } catch (Exception e) {
-                        e.printStackTrace(); // Improved error logging can be added here
-                    }
-                }
+           public void onYuvDataReceived(MediaFormat mediaFormat, ByteBuffer videoBuffer, int dataSize, int width, int height) {
+                // 1. Calculate the size for Y and UV
+                int ySize = width * height;
+                int uvSize = ySize / 2; // For NV12/NV21
+
+                // 2. Wrap the existing buffer or copy it
+                // Ensure the videoBuffer position is at 0
+                videoBuffer.position(0);
+                
+                // 3. Create the WebRTC NV12Buffer correctly
+                // The second 'width' is the stride for the UV plane
+                NV12Buffer buffer = new JavaI420Buffer.NV12Buffer(width, height, width, width, videoBuffer, null);
+
+                // 4. Create the VideoFrame and send to observers
+                VideoFrame videoFrame = new VideoFrame(buffer, 0, SystemClock.elapsedRealtimeNanos());
+                capturerObserver.onFrameCaptured(videoFrame);
+                videoFrame.release();
             }
         });
     

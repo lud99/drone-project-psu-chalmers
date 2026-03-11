@@ -328,32 +328,18 @@ async def flightmanager_websocket(websocket: WebSocket):
         print("Closing flightmanager websocket")
 
 
-@app.get("/api/v1/video_feed/drone1")
-async def drone1_feed():
+@app.get("/api/v1/video_feed/drone{drone_id}")
+async def drone2_feed(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("1"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone2")
-async def drone2_feed():
-    return StreamingResponse(
-        stream_drone_frames("2"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone1_annotated")
-async def drone1_feed_annotated():
-    return StreamingResponse(
-        stream_drone_frames("1", "_annotated"),
+        stream_drone_frames(drone_id),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
-@app.get("/api/v1/video_feed/drone2_annotated")
-async def drone2_feed_annotated():
+@app.get("/api/v1/video_feed/drone{drone_id}_annotated")
+async def drone1_feed_annotated(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("2", "_annotated"),
+        stream_drone_frames(drone_id, "_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -406,7 +392,7 @@ def run_server(atos_communicator):
 # Video Frames Generation Based on Drone ID
 async def stream_drone_frames(drone_id: str, frame_type: str = ""):
 
-    redis_key = f"frame_drone{drone_id}${frame_type}"
+    redis_key = f"frame_drone{drone_id}{frame_type}"
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)

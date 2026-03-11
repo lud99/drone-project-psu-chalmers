@@ -3,6 +3,7 @@ import cv2
 import imutils
 import threading
 from queue import Queue
+
 from ultralytics import YOLO
 import supervision.detection.core as sv
 from annotator import Annotator
@@ -10,9 +11,11 @@ import coordinate_mapping
 import redis
 import asyncio
 import os
+
 import torch
 import io
 import json
+from typing import Optional
 
 from common.frame_utils import create_not_connected_frame, create_error_frame
 import common.json_schemas as json_schemas
@@ -644,17 +647,65 @@ async def test_stream_merge_frame():
     # But modifying the code to read detections, it works
 
 
+def get_connected_drone_ids() -> list[str]:
+    # 1. Collect all relevant keys
+    patterns = ["telemetry_drone*", "capabilities_drone*"]
+    all_keys = []
+    for p in patterns:
+        all_keys.extend(r.scan_iter(match=p))
+
+    # 2. Group keys by the ID
+    drone_groups: dict[str, dict[str, Optional[str]]] = {}
+
+    for key in all_keys:
+        # Decode if keys come back as bytes
+        key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+
+        # Extract drone id
+        drone_id: str = key_str.replace("telemetry_drone", "").replace(
+            "capabilities_drone", ""
+        )
+
+        if drone_id not in drone_groups:
+            drone_groups[drone_id] = {"telemetry": None, "capabilities": None}
+
+        if "telemetry" in key_str:
+            drone_groups[drone_id]["telemetry"] = key_str
+        elif "capabilities" in key_str:
+            drone_groups[drone_id]["capabilities"] = key_str
+
+    # 3. Create the list of tuples
+    return [
+        drone_id
+        for drone_id, data in drone_groups.items()
+        if data["telemetry"] and data["capabilities"]  # Only include if both exist
+    ]
+
+
 async def main() -> None:
     print("[INFO] Startar drönarvideoprocessorer...")
 
-    # await test_stream_merge_frame()
-    # await test_detect_and_annotate_image()
+    active_tasks = {}  # Map of drone_id -> asyncio.Task
 
-    # await annotate_stream(1)
+    while True:
+        current_ids = get_connected_drone_ids()
+        print(current_ids)
 
-    await asyncio.gather(annotate_stream("1"), annotate_stream("2"))
+        # 1. Start tasks for NEW drones
+        for d_id in current_ids:
+            if d_id not in active_tasks or active_tasks[d_id].done():
+                print(f"[NEW] Starting listener for drone {d_id}")
+                # Create the task and store it
+                active_tasks[d_id] = asyncio.create_task(annotate_stream(d_id))
 
-    # await merge_stream((1, 2))  # Call with drone ID 1 and 2
+        # 2. Cleanup: Stop tasks for drones that are no longer in the list
+        for d_id in list(active_tasks.keys()):
+            if d_id not in current_ids:
+                print(f"[REMOVED] Stopping listener for drone {d_id}")
+                active_tasks[d_id].cancel()
+                del active_tasks[d_id]
+
+        await asyncio.sleep(1)  # Poll for new drones every 5 seconds
 
 
 if __name__ == "__main__":

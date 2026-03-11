@@ -460,9 +460,9 @@ class DroneCommunication:
                 await self.start_drone_stream(message.drone_id)
 
             # Test sending a task
-            print(f"Sending task {self.task_index}")
-            await ws.send(json.dumps(self.task_list[self.task_index]))
-            self.task_index += 1
+            # print(f"Sending task {self.task_index}")
+            # await ws.send(json.dumps(self.task_list[self.task_index]))
+            # self.task_index += 1
 
             return message.drone_id
 
@@ -649,8 +649,7 @@ class DroneCommunication:
                 frame_str = buffer.tobytes().decode("latin1")
 
                 # Redis pipeline for storing the frame and setting TTL
-                drone_number = await self.get_connection_id_number(connection_id)
-                redis_key = f"frame_drone{drone_number}"
+                redis_key = f"frame_drone{connection_id}"
                 with r.pipeline() as pipe:
                     pipe.set(redis_key, frame_str)  # Save the frame
                     pipe.expire(redis_key, 60)  # Set expiration (60 seconds)

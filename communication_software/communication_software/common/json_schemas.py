@@ -162,6 +162,14 @@ class TelemetryMessage(DroneMessage):
     telemetry: Telemetry
 
 
+class PingMessage(DroneMessage):
+    msg_type: Literal["ping"] = "ping"
+
+
+class PongMessage(DroneMessage):
+    msg_type: Literal["pong"] = "pong"
+
+
 # WebRTC messages
 
 
@@ -175,7 +183,7 @@ class WebRTCCandidateMessage(DroneMessage):
 class WebRTCAnswerMessage(DroneMessage):
     msg_type: Literal["answer"]
     sdp: str
-    type: str
+    type: Optional[str] = None
 
 
 # Create a Union of all possible messages
@@ -188,6 +196,8 @@ AnyDroneMessage = Annotated[
         AbortTaskMessage,
         AbortMissionMessage,
         DebugMessage,
+        PingMessage,
+        PongMessage,
         WebRTCCandidateMessage,
         WebRTCAnswerMessage,
     ],
