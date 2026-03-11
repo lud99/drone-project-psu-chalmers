@@ -148,8 +148,9 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
         const BACKEND_URL = "ws://localhost:8000";
-
         // Initialize Map
+        let activePolygon = null;
+
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const markers = {
@@ -158,12 +159,37 @@
         };
 
         //  Map changes
+        // Save the last polygon that was made when updating the website
+async function loadWatchArea() {
+
+    try {
+
+        const response = await fetch("/api/v1/get_watch_areas");
+        const data = await response.json();
+
+        if (data.points && data.points.length > 0) {
+
+            const latlngs = data.points.map(p => [p.lat, p.lon]);
+
+            activePolygon = L.polygon(latlngs, {
+                color: "red",
+                fillOpacity: 0.3
+            }).addTo(map);
+
+            map.fitBounds(activePolygon.getBounds());
+        }
+
+    } catch (error) {
+        console.error("Failed to load watch area:", error);
+    }
+}
+loadWatchArea();
         // Skapa en custom control
     // -------- POLYGON MODE --------
 
 let polygonMode = false;
 let polygonPoints = [];
-let activePolygon = null;
+//let activePolygon = null;
 let previewLine = null;
 
 
@@ -182,6 +208,7 @@ const customControl = L.Control.extend({
         container.style.alignItems = 'center';
         container.style.justifyContent = 'center';
         container.style.cursor = 'pointer';
+        container.title = "Choose an area to surveil";
         container.innerHTML = "⬛";
 
         L.DomEvent.disableClickPropagation(container);
@@ -299,7 +326,7 @@ const sendCoordinates = L.Control.extend({
 
         L.DomEvent.disableClickPropagation(container);
 
-        container.onclick = function () {
+        container.onclick = async function () {
 
             if (!activePolygon) {
                 alert("No polygon created.");
@@ -313,26 +340,33 @@ const sendCoordinates = L.Control.extend({
                 lon: p.lng
             }));
 
-            if (flightmanagerWS.readyState !== WebSocket.OPEN) {
-                alert("FlightManager WebSocket not connected.");
-                return;
+            try {
+                const response = await fetch("/api/v1/set_watch_area", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        points: coordinates
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log("Coverage result:", result);
+
+            } catch (error) {
+                console.error("Error sending watch area", error);
+                alert("Failed to send watch area to backend");
             }
-
-            flightmanagerWS.send(JSON.stringify({
-                msg_type: "set_watch_area",
-                drone_id: "0",   // är noll en speciell drönare eller alla? fråga ludde
-                points: coordinates.map(p => ({
-                    lat: p.lat,
-                    lon: p.lng   
-                }))
-            }));
-
-            console.log("Polygon sent to backend:", coordinates);
         };
-
         return container;
     }
 });
+            
 
 map.addControl(new sendCoordinates());
 
