@@ -158,7 +158,6 @@
         };
 
         // WebSocket Connections
-        const droneWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/drone`);
         const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
         const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
 
@@ -188,22 +187,32 @@
             }
         });
 
+        flightmanagerWS.onmessage = (event) => {
+            console.log(JSON.parse(event.data));
+        }
+
         // Handle Drone Data
-        droneWS.onmessage = (event) => {
+        flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            // Update status
-            document.getElementById(`alt${data.drone_id}`).textContent = data.alt.toFixed(1);
-            document.getElementById(`speed${data.drone_id}`).textContent = data.speed.toFixed(1);
-            document.getElementById(`battery${data.drone_id}`).textContent = data.battery.toFixed(1);
+            console.log(data);
 
-            // Update map marker
-            markers[data.drone_id].setLatLng([data.lat, data.lng]);
+            if (data.msg_type == "telemetry")
+            {
+                
+                // Update status
+                document.getElementById(`alt${data.drone_id}`).textContent = data.telemetry.alt.toFixed(1);
+                document.getElementById(`speed${data.drone_id}`).textContent = data.telemetry.speed.toFixed(1);
+                document.getElementById(`battery${data.drone_id}`).textContent = data.telemetry.battery_percent.toFixed(1);
 
-            // Handle anomalies
-            if (data.anomaly) {
-                document.getElementById('atosStatus').textContent = "ANOMALY DETECTED!";
-                document.getElementById('atosStatus').className = "badge bg-danger float-end";
+                // Update map marker
+                markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
+                
+                // Handle anomalies
+                if (data.anomaly) {
+                    document.getElementById('atosStatus').textContent = "ANOMALY DETECTED!";
+                    document.getElementById('atosStatus').className = "badge bg-danger float-end";
+                }
             }
         };
 
