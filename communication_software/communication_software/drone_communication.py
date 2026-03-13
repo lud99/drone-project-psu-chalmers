@@ -315,13 +315,14 @@ class DroneCommunication:
         finally:
             self.cleanup_connection(connection_id)
 
-            # Send disconnect event
-            r.publish(
-                DRONE_EVENT_CHANNEL,
-                json_schemas.FrontendMessages.DroneDisconnected(
-                    drone_id=connection_id
-                ).model_dump_json(),
-            )
+            # Send disconnect event, but not for unregistered drones
+            if not connection_id.startswith("NON_droneid"):
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.DroneDisconnected(
+                        drone_id=connection_id
+                    ).model_dump_json(),
+                )
 
     async def on_message(
         self, frame: str, connection_id: str, ws: WebSocketServerProtocol

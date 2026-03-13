@@ -52,7 +52,8 @@
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
                             <img id="video1" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H">
-                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"  style="display: none;">
+                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"
+                                style="display: none;">
                             <img id="video2" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H_annotated"
                                 style="display: none;">
                         </div>
@@ -197,9 +198,16 @@
 
             console.log(data);
 
-            if (data.msg_type == "telemetry")
-            {
-                
+            if (data.msg_type == "error") {
+                alert(data.error)
+            }
+
+            // TODO: Handle all the message types here
+
+            if (data.msg_type == "telemetry") {
+
+                // TODO: This doesn't currently work 
+
                 // Update status
                 document.getElementById(`alt${data.drone_id}`).textContent = data.telemetry.alt.toFixed(1);
                 document.getElementById(`speed${data.drone_id}`).textContent = data.telemetry.speed.toFixed(1);
@@ -207,12 +215,6 @@
 
                 // Update map marker
                 markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
-                
-                // Handle anomalies
-                if (data.anomaly) {
-                    document.getElementById('atosStatus').textContent = "ANOMALY DETECTED!";
-                    document.getElementById('atosStatus').className = "badge bg-danger float-end";
-                }
             }
         };
 

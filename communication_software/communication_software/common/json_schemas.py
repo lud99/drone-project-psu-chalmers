@@ -265,6 +265,7 @@ class FrontendMessages:
         msg_type: Literal["active_missions"] = "active_missions"
         missions: list[dict]
 
+    # Sent via WebSockets
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
@@ -272,6 +273,7 @@ class FrontendMessages:
         telemetry: Telemetry
         error: Optional[str] = None
 
+    # Sent via WebSockets
     class DroneDisconnected(FrontendMessage):
         msg_type: Literal["drone_disconnected"] = "drone_disconnected"
         drone_id: str
@@ -289,6 +291,7 @@ class FrontendMessages:
         msg_type: Literal["response"] = "response"
         error: Optional[str] = None
 
+    # Sent via WebSockets
     class Error(FrontendMessage):
         msg_type: Literal["error"] = "error"
         error: str
@@ -308,6 +311,7 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
         FrontendMessages.Error,
+        TelemetryMessage,
     ],
     Field(discriminator="msg_type"),
 ]

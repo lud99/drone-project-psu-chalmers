@@ -5,7 +5,7 @@ import uvicorn
 import cv2
 from datetime import datetime
 import redis.exceptions
-import redis.asyncio as redis
+import redis
 import numpy as np
 from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.missions_planning.mission_status import MissionStatus
@@ -23,7 +23,7 @@ from communication_software.common.frame_utils import (
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
-    # r_async = redis.asyncio.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r_async = redis.asyncio.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()  # Check if the connection is successful
     print("Successfully connected to Redis!")
 except redis.exceptions.ConnectionError as e:
@@ -106,12 +106,12 @@ async def flightmanager_websocket(websocket: WebSocket):
 
     # Forward drone events
     async def redis_listener():
-        pubsub = r.pubsub()
+        pubsub = r_async.pubsub()
         await pubsub.subscribe(DRONE_EVENT_CHANNEL)
 
         async for message in pubsub.listen():
             if message["type"] == "message":
-                print("Received event")
+                print("Received event, sending to frontend clients")
                 await websocket.send_text(message["data"])
 
     listener_task = asyncio.create_task(redis_listener())
@@ -122,6 +122,7 @@ async def flightmanager_websocket(websocket: WebSocket):
             print(f"Received {data}")
 
             try:
+                # TODO handle some messages?
                 pass
 
             except redis.exceptions.RedisError as e:
