@@ -207,7 +207,7 @@ async def get_active_missions():
     pass
 
 
-@app.get("/api/v1/get_watch_areas")
+@app.get("/api/v1/get_watch_area")
 async def get_watch_areas():
     try:
         data = r.get("watch_area")
