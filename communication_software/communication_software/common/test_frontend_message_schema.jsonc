@@ -102,7 +102,6 @@
     // Sent
     {
         "msg_type": "set_watch_area",
-        "drone_id": "0",
         "points": [
             {
                 "lat": 12.3,

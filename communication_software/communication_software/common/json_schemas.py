@@ -224,8 +224,7 @@ class LatLon(BaseModel):
     lon: float
 
 
-class WatchArea(BaseModel):
-    drone_id: str
+class Points(BaseModel):
     points: list[LatLon]
 
 
@@ -254,8 +253,7 @@ class FrontendMessages:
 
     class SetWatchArea(FrontendMessage):
         msg_type: Literal["set_watch_area"] = "set_watch_area"
-        drone_id: str
-        points: list[LatLon]
+        area: Points
 
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
@@ -281,7 +279,7 @@ class FrontendMessages:
 
     class GetWatchAreas(FrontendMessage):
         msg_type: Literal["get_watch_areas"] = "get_watch_areas"
-        areas: list[WatchArea]
+        area: Points
 
     class ConnectedDrones(FrontendMessage):
         msg_type: Literal["connected_drones"] = "connected_drones"

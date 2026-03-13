@@ -210,8 +210,13 @@ async def start_drone(payload: str = Body(...)):
 @app.post("/api/v1/set_watch_area")
 async def set_watch_area(payload: str = Body(...)):
     try:
-        json_schemas.parse_frontend_message(payload)
+        message = json_schemas.parse_frontend_message(payload)
+        if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
+            r.set("watch_area", message.area.model_dump_json())
+            return {"msg_type": "response", "error": None}
+
     except Exception as e:
+        print(e)
         return {"msg_type": "response", "error": str(e)}
 
     return {"msg_type": "response", "error": None}
@@ -237,8 +242,14 @@ async def get_active_missions():
 
 @app.get("/api/v1/get_watch_areas")
 async def get_watch_areas():
-    # Logic to fetch watch areas
-    pass
+    try:
+        data = r.get("watch_area")
+        if not data:
+            return {"msg_type": "response", "points": [], "error": None}
+        watch_area = json.loads(data)
+        return {"msg_type": "response", "points": watch_area["points"], "error": None}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
 
 
 @app.get("/api/v1/connected_drones")
