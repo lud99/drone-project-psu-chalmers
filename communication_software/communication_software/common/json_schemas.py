@@ -155,9 +155,9 @@ class DroneRegistrationMessage(DroneMessage):
     telemetry: Telemetry
 
 
-# App -> backend. Sent continuously
+# App -> backend. Sent continuously. Also sent to frontend
 class TelemetryMessage(DroneMessage):
-    msg_type: Literal["telemetry"]
+    msg_type: Literal["telemetry"] = "telemetry"
     drone_id: str
     telemetry: Telemetry
 
@@ -265,20 +265,19 @@ class FrontendMessages:
         msg_type: Literal["active_missions"] = "active_missions"
         missions: list[dict]
 
-    class TelemetryUpdate(FrontendMessage):
-        msg_type: Literal["telemetry"] = "telemetry"
-        drone_id: str
-        telemetry: Telemetry
-
+    # Sent via WebSockets
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
         capabilities: Capabilities
         telemetry: Telemetry
+        error: Optional[str] = None
 
+    # Sent via WebSockets
     class DroneDisconnected(FrontendMessage):
         msg_type: Literal["drone_disconnected"] = "drone_disconnected"
         drone_id: str
+        error: Optional[str] = None
 
     class GetWatchAreas(FrontendMessage):
         msg_type: Literal["get_watch_areas"] = "get_watch_areas"
@@ -292,6 +291,11 @@ class FrontendMessages:
         msg_type: Literal["response"] = "response"
         error: Optional[str] = None
 
+    # Sent via WebSockets
+    class Error(FrontendMessage):
+        msg_type: Literal["error"] = "error"
+        error: str
+
 
 AnyFrontendMessage = Annotated[
     Union[
@@ -299,7 +303,6 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.RejectMissions,
         FrontendMessages.ProposedMissions,
         FrontendMessages.ActiveMissions,
-        FrontendMessages.TelemetryUpdate,
         FrontendMessages.StartDrone,
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
@@ -307,6 +310,8 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.GetWatchAreas,
         FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
+        FrontendMessages.Error,
+        TelemetryMessage,
     ],
     Field(discriminator="msg_type"),
 ]

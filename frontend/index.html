@@ -52,7 +52,8 @@
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
                             <img id="video1" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H">
-                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"  style="display: none;">
+                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"
+                                style="display: none;">
                             <img id="video2" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H_annotated"
                                 style="display: none;">
                         </div>
@@ -158,7 +159,6 @@
         };
 
         // WebSocket Connections
-        const droneWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/drone`);
         const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
         const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
 
@@ -188,22 +188,33 @@
             }
         });
 
+        flightmanagerWS.onmessage = (event) => {
+            console.log(JSON.parse(event.data));
+        }
+
         // Handle Drone Data
-        droneWS.onmessage = (event) => {
+        flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            // Update status
-            document.getElementById(`alt${data.drone_id}`).textContent = data.alt.toFixed(1);
-            document.getElementById(`speed${data.drone_id}`).textContent = data.speed.toFixed(1);
-            document.getElementById(`battery${data.drone_id}`).textContent = data.battery.toFixed(1);
+            console.log(data);
 
-            // Update map marker
-            markers[data.drone_id].setLatLng([data.lat, data.lng]);
+            if (data.msg_type == "error") {
+                alert(data.error)
+            }
 
-            // Handle anomalies
-            if (data.anomaly) {
-                document.getElementById('atosStatus').textContent = "ANOMALY DETECTED!";
-                document.getElementById('atosStatus').className = "badge bg-danger float-end";
+            // TODO: Handle all the message types here
+
+            if (data.msg_type == "telemetry") {
+
+                // TODO: This doesn't currently work 
+
+                // Update status
+                document.getElementById(`alt${data.drone_id}`).textContent = data.telemetry.alt.toFixed(1);
+                document.getElementById(`speed${data.drone_id}`).textContent = data.telemetry.speed.toFixed(1);
+                document.getElementById(`battery${data.drone_id}`).textContent = data.telemetry.battery_percent.toFixed(1);
+
+                // Update map marker
+                markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
             }
         };
 

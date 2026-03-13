@@ -7,7 +7,7 @@ from websockets import WebSocketServerProtocol
 
 import threading
 import asyncio
-import redis
+import redis as redis
 import os
 import cv2
 import numpy as np
@@ -28,6 +28,7 @@ except redis.exceptions.ConnectionError as e:
     exit()
 
 COMMAND_CHANNEL = "drone_commands"
+DRONE_EVENT_CHANNEL = "drone_events"
 
 
 from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
@@ -314,6 +315,15 @@ class DroneCommunication:
         finally:
             self.cleanup_connection(connection_id)
 
+            # Send disconnect event, but not for unregistered drones
+            if not connection_id.startswith("NON_droneid"):
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.DroneDisconnected(
+                        drone_id=connection_id
+                    ).model_dump_json(),
+                )
+
     async def on_message(
         self, frame: str, connection_id: str, ws: WebSocketServerProtocol
     ) -> Optional[str]:
@@ -422,9 +432,14 @@ class DroneCommunication:
                 ex=60,
             )
 
+            r.publish(DRONE_EVENT_CHANNEL, message.model_dump_json())
+
         except (TypeError, redis.exceptions.RedisError) as e:
-            print(
-                f"Error processing telemetry message {message.model_dump_json()}: {e}"
+            error = f"handle_telemetry_error {e}"
+            print(error)
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
             )
 
     async def handle_registration_message(
@@ -435,8 +450,14 @@ class DroneCommunication:
     ) -> Optional[str]:
         try:
             if message.drone_id in self.connections:
-                print(f"Drone id {message.drone_id} is already connected or used!!")
+                error = f"Drone id {message.drone_id} is already connected or used!!"
+                print(error)
+
                 await ws.close()
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+                )
                 return None
 
             # Move to proper drone id
@@ -459,6 +480,16 @@ class DroneCommunication:
                 self.create_peer_connection(message.drone_id)
                 await self.start_drone_stream(message.drone_id)
 
+            # Send connection event
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.DroneConnected(
+                    drone_id=message.drone_id,
+                    capabilities=message.capabilities,
+                    telemetry=message.telemetry,
+                ).model_dump_json(),
+            )
+
             # Test sending a task
             # print(f"Sending task {self.task_index}")
             # await ws.send(json.dumps(self.task_list[self.task_index]))
@@ -467,8 +498,12 @@ class DroneCommunication:
             return message.drone_id
 
         except (TypeError, redis.exceptions.RedisError) as e:
-            print(
-                f"Error processing registration message {message.model_dump_json()}: {e}"
+            error = f"Error processing registration message {message.model_dump_json()}: {e}"
+            print(error)
+
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
             )
 
         return None
@@ -476,62 +511,87 @@ class DroneCommunication:
     async def handle_task_event_message(
         self, message: json_schemas.TaskEventMessage, connection_id
     ):
-        if self.task_index < len(self.task_list):
-            print(f"Sending task {self.task_index}")
-            await self.connections[connection_id].send(
-                json.dumps(self.task_list[self.task_index])
+        try:
+            if self.task_index < len(self.task_list):
+                print(f"Sending task {self.task_index}")
+                await self.connections[connection_id].send(
+                    json.dumps(self.task_list[self.task_index])
+                )
+                self.task_index += 1
+        except Exception as e:
+            error = f"handle_task_event_error {e}"
+            print(error)
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
             )
-            self.task_index += 1
 
     async def handle_webrct_candidate_message(
         self, message: json_schemas.WebRTCCandidateMessage, connection_id
     ):
-        candidate_sdp = message.candidate
+        try:
+            candidate_sdp = message.candidate
 
-        sdp_mid = message.id
-        mline_index = message.label
+            sdp_mid = message.id
+            mline_index = message.label
 
-        # Parse the candidate line properly
-        rtc_candidate = candidate_from_sdp(candidate_sdp)
+            # Parse the candidate line properly
+            rtc_candidate = candidate_from_sdp(candidate_sdp)
 
-        rtc_candidate = RTCIceCandidate(
-            foundation=rtc_candidate.foundation,
-            component=rtc_candidate.component,
-            priority=rtc_candidate.priority,
-            ip=rtc_candidate.ip,
-            port=rtc_candidate.port,
-            protocol=rtc_candidate.protocol,
-            type=rtc_candidate.type,
-            sdpMid=sdp_mid,
-            sdpMLineIndex=mline_index,
-            relatedAddress=rtc_candidate.relatedAddress,
-            relatedPort=rtc_candidate.relatedPort,
-            tcpType=rtc_candidate.tcpType,
-        )
+            rtc_candidate = RTCIceCandidate(
+                foundation=rtc_candidate.foundation,
+                component=rtc_candidate.component,
+                priority=rtc_candidate.priority,
+                ip=rtc_candidate.ip,
+                port=rtc_candidate.port,
+                protocol=rtc_candidate.protocol,
+                type=rtc_candidate.type,
+                sdpMid=sdp_mid,
+                sdpMLineIndex=mline_index,
+                relatedAddress=rtc_candidate.relatedAddress,
+                relatedPort=rtc_candidate.relatedPort,
+                tcpType=rtc_candidate.tcpType,
+            )
 
-        await self.peer_connections[connection_id].addIceCandidate(rtc_candidate)
-        print(f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}")
+            await self.peer_connections[connection_id].addIceCandidate(rtc_candidate)
+            print(f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}")
+        except Exception as e:
+            error = f"handle_webrct_offer_error {e}"
+            print(error)
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+            )
 
     async def handle_webrct_answer_message(
         self, message: json_schemas.WebRTCAnswerMessage, connection_id
     ):
-        if connection_id in self.peer_connections:
-            sdp = message.sdp
-            sdp_type = message.msg_type
+        try:
+            if connection_id in self.peer_connections:
+                sdp = message.sdp
+                sdp_type = message.msg_type
 
-            if sdp_type not in ("answer", "offer"):
-                print(f"[RTC ERROR] Unexpected SDP type: {sdp_type}")
-                return
+                if sdp_type not in ("answer", "offer"):
+                    print(f"[RTC ERROR] Unexpected SDP type: {sdp_type}")
+                    return
 
-            await self.peer_connections[connection_id].setRemoteDescription(
-                RTCSessionDescription(sdp=sdp, type=sdp_type)
+                await self.peer_connections[connection_id].setRemoteDescription(
+                    RTCSessionDescription(sdp=sdp, type=sdp_type)
+                )
+
+            else:
+                print(
+                    f"[DroneStream] ERROR: Peer connection for {connection_id} not found."
+                )
+            print(f"Received SDP answer from {connection_id}: {message}")
+
+        except Exception as e:
+            error = f"handle_webrct_answer_error {e}"
+            print(error)
+            r.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
             )
-
-        else:
-            print(
-                f"[DroneStream] ERROR: Peer connection for {connection_id} not found."
-            )
-        print(f"Received SDP answer from {connection_id}: {message}")
 
     ###WEBBRTC###
 
