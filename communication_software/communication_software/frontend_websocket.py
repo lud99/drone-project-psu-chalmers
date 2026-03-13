@@ -3,6 +3,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
 import uvicorn
 import cv2
+import json
 from datetime import datetime
 import redis.exceptions
 import redis
@@ -240,7 +241,7 @@ async def get_active_missions():
     pass
 
 
-@app.get("/api/v1/get_watch_areas")
+@app.get("/api/v1/get_watch_area")
 async def get_watch_areas():
     try:
         data = r.get("watch_area")
