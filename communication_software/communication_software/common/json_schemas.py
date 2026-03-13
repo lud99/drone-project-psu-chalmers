@@ -12,15 +12,18 @@ class CameraCapabilities(BaseModel):
 
 
 class LEDCapabilities(BaseModel):
-    colors: list[str]  # will likely have to change
+    types: list[str]  # will likely have to change
+
+
+class SpeakerCapabilities(BaseModel):
+    audio_files: list[str]
 
 
 class Capabilities(BaseModel):
-    camera: Union[CameraCapabilities, None]
-    led: Union[LEDCapabilities, None]
+    camera: Optional[CameraCapabilities]
+    led: Optional[LEDCapabilities]
     spotlight: bool
-    speaker: bool
-    max_speed: float
+    speaker: Optional[SpeakerCapabilities]
 
 
 class Telemetry(BaseModel):
@@ -37,6 +40,8 @@ class Telemetry(BaseModel):
 
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed"]
+TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
+AbortActionTypes = Literal["go_home", "hover", "land"]
 
 
 # Specific task definitions
@@ -50,40 +55,40 @@ class GoToParams(BaseModel):
 class PlayAudioParams(BaseModel):
     file: str
     volume: float = 1.0
-    duration_seconds: int
+    duration_seconds: Optional[float]
 
 
 class LEDParams(BaseModel):
     color: str
     pattern: str
-    duration_seconds: float
+    duration_seconds: Optional[float]
 
 
 class SpotlightParams(BaseModel):
     pattern: str
-    duration_seconds: float
+    duration_seconds: Optional[float]
 
 
 # The specific Task types
 
 
 class GoToTask(BaseModel):
-    action: Literal["go_to"]
+    action: Literal["go_to"] = "go_to"
     params: GoToParams
 
 
 class PlayAudioTask(BaseModel):
-    action: Literal["play_audio"]
+    action: Literal["play_audio"] = "play_audio"
     params: PlayAudioParams
 
 
 class LEDTask(BaseModel):
-    action: Literal["led"]
+    action: Literal["led"] = "led"
     params: LEDParams
 
 
 class SpotlightTask(BaseModel):
-    action: Literal["spotlight"]
+    action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
 
 
@@ -104,15 +109,39 @@ class BackendToDroneMessage(DroneMessage):
 
 # Backend -> app
 class TaskMessage(BackendToDroneMessage):
-    msg_type: Literal["task"]
+    msg_type: Literal["task"] = "task"
     mission_id: str
     index: int
     # This field now enforces strict structure based on the 'action' string
-    task: AnyTaskAction = Field(..., discriminator="action")
+    task_action: AnyTaskAction = Field(..., discriminator="action")
+
+
+# Backend -> app
+class TaskEventMessage(BackendToDroneMessage):
+    msg_type: Literal["task_event"] = "task_event"
+    mission_id: str
+    index: int
+    event: TaskEvents
+    message: Optional[str] = None
+    timestamp: int
+
+
+# Backend -> app
+class AbortTaskMessage(BackendToDroneMessage):
+    msg_type: Literal["abort_task"] = "abort_task"
+    mission_id: str
+    task_action: TaskTypes
+
+
+# Backend -> app
+class AbortMissionMessage(BackendToDroneMessage):
+    msg_type: Literal["abort_mission"] = "abort_mission"
+    mission_id: str
+    next_action: AbortActionTypes
 
 
 class DebugMessage(DroneMessage):
-    msg_type: Literal["debug"]
+    msg_type: Literal["debug"] = "debug"
     message: str
 
 
@@ -123,31 +152,22 @@ class DroneRegistrationMessage(DroneMessage):
     model: str
     drone_id: str
     capabilities: Capabilities
+    telemetry: Telemetry
 
 
-# App -> backend. Sent continuously
+# App -> backend. Sent continuously. Also sent to frontend
 class TelemetryMessage(DroneMessage):
-    msg_type: Literal["telemetry"]
+    msg_type: Literal["telemetry"] = "telemetry"
     drone_id: str
     telemetry: Telemetry
 
 
-# Backend -> app
-class TaskEventMessage(BackendToDroneMessage):
-    msg_type: Literal["task_event"]
-    mission_id: str
-    index: int
-    event: TaskEvents
-    message: str
-    timestamp: int
+class PingMessage(DroneMessage):
+    msg_type: Literal["ping"] = "ping"
 
 
-# Backend -> app
-class AbortTaskMessage(BackendToDroneMessage):
-    msg_type: Literal["abort_task"]
-    mission_id: str
-    index: int
-    next: Literal["go_home", "hover", "land"]
+class PongMessage(DroneMessage):
+    msg_type: Literal["pong"] = "pong"
 
 
 # WebRTC messages
@@ -163,7 +183,7 @@ class WebRTCCandidateMessage(DroneMessage):
 class WebRTCAnswerMessage(DroneMessage):
     msg_type: Literal["answer"]
     sdp: str
-    type: str
+    type: Optional[str] = None
 
 
 # Create a Union of all possible messages
@@ -174,7 +194,10 @@ AnyDroneMessage = Annotated[
         TelemetryMessage,
         TaskEventMessage,
         AbortTaskMessage,
+        AbortMissionMessage,
         DebugMessage,
+        PingMessage,
+        PongMessage,
         WebRTCCandidateMessage,
         WebRTCAnswerMessage,
     ],
@@ -240,20 +263,19 @@ class FrontendMessages:
         msg_type: Literal["active_missions"] = "active_missions"
         missions: list[dict]
 
-    class TelemetryUpdate(FrontendMessage):
-        msg_type: Literal["telemetry"] = "telemetry"
-        drone_id: str
-        telemetry: Telemetry
-
+    # Sent via WebSockets
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
         capabilities: Capabilities
         telemetry: Telemetry
+        error: Optional[str] = None
 
+    # Sent via WebSockets
     class DroneDisconnected(FrontendMessage):
         msg_type: Literal["drone_disconnected"] = "drone_disconnected"
         drone_id: str
+        error: Optional[str] = None
 
     class GetWatchAreas(FrontendMessage):
         msg_type: Literal["get_watch_areas"] = "get_watch_areas"
@@ -267,6 +289,11 @@ class FrontendMessages:
         msg_type: Literal["response"] = "response"
         error: Optional[str] = None
 
+    # Sent via WebSockets
+    class Error(FrontendMessage):
+        msg_type: Literal["error"] = "error"
+        error: str
+
 
 AnyFrontendMessage = Annotated[
     Union[
@@ -274,7 +301,6 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.RejectMissions,
         FrontendMessages.ProposedMissions,
         FrontendMessages.ActiveMissions,
-        FrontendMessages.TelemetryUpdate,
         FrontendMessages.StartDrone,
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
@@ -282,6 +308,8 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.GetWatchAreas,
         FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
+        FrontendMessages.Error,
+        TelemetryMessage,
     ],
     Field(discriminator="msg_type"),
 ]
