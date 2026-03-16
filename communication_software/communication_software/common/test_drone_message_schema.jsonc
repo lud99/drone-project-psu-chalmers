@@ -22,6 +22,14 @@
             }, // Depends on what info we can get from the drone
             "spotlight": false,
             "speaker": {"audio_files": ["alarm", "voice"]}
+        },
+        "telemetry": {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
         }
     },
     // app --> backend, on connection
@@ -35,6 +43,14 @@
             "led": null, // Depends on what info we can get from the drone
             "spotlight": false,
             "speaker": null
+        },
+        "telemetry": {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
         }
     },
     // app --> backend, sent continuously
