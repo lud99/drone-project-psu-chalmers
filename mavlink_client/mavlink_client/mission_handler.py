@@ -98,6 +98,10 @@ class MissionHandler:
         )
         return True
 
+    def go_home(self) -> bool:
+        """Command return to launch (alias for task action 'go_home')."""
+        return self.return_to_launch()
+
     def land(self) -> bool:
         """Command land at current position."""
         m = self._master()
@@ -136,3 +140,31 @@ class MissionHandler:
             alt,
         )
         return True
+
+    def play_audio(
+        self, file: str, volume: float = 1.0, duration_seconds: Optional[int] = None
+    ) -> bool:
+        """
+        Play audio (speaker). Not supported on generic MAVLink vehicles; returns False.
+        Exists as a setter for the task interface.
+        """
+        return False
+
+    def led(
+        self,
+        color: str,
+        pattern: str,
+        duration_seconds: float,
+    ) -> bool:
+        """
+        Set LED color/pattern. Not supported on generic MAVLink vehicles; returns False.
+        Exists as a setter for the task interface.
+        """
+        return False
+
+    def spotlight(self, pattern: str, duration_seconds: float) -> bool:
+        """
+        Set spotlight. Not supported on generic MAVLink vehicles; returns False.
+        Exists as a setter for the task interface.
+        """
+        return False

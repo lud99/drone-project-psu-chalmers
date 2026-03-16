@@ -203,14 +203,30 @@ class BackendClient:
                     task.params.lat,
                     task.params.lon,
                     task.params.alt,
-                    task.params.heading,
+                    getattr(task.params, "heading", None),
                 )
             elif task.action == "go_home":
-                ok = self._mission.return_to_launch()
+                ok = self._mission.go_home()
             elif task.action == "land":
                 ok = self._mission.land()
+            elif task.action == "play_audio":
+                ok = self._mission.play_audio(
+                    task.params.file,
+                    getattr(task.params, "volume", 1.0),
+                    getattr(task.params, "duration_seconds", None),
+                )
+            elif task.action == "led":
+                ok = self._mission.led(
+                    task.params.color,
+                    task.params.pattern,
+                    task.params.duration_seconds,
+                )
+            elif task.action == "spotlight":
+                ok = self._mission.spotlight(
+                    task.params.pattern,
+                    task.params.duration_seconds,
+                )
             else:
-                # play_audio, led, spotlight: not implemented on MAVLink
                 ok = False
             if ok:
                 await self._send(
