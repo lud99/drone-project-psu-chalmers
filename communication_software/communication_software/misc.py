@@ -3,7 +3,7 @@ import os
 import threading
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
 from communication_software.frontend_websocket import run_server
-from communication_software.communication import Communication
+from communication_software.drone_communication import DroneCommunication
 import rclpy
 
 
@@ -85,44 +85,38 @@ def get_drone_coordinates(atos_communicator):
     return (drone_origins, angles)
 
 
-def start_communication_websocket_server(ip, drone_origins, angles):
-    communication = Communication()
+def start_communication_websocket_server(ip):
+    drone_communication = DroneCommunication()
     try:
-        print("Communication server starting, press ctrl + c to exit")
+        print("Drone Communication server starting, press ctrl + c to exit")
 
         asyncio.run(
             run_comm_server(
-                communication,
+                drone_communication,
                 ip=ip,
-                drone_origins=drone_origins,
-                angles=angles,
             )
         )
     except KeyboardInterrupt:
-        print("\nCommunication server interrupted!")
+        print("\nDrone Communication server interrupted!")
         if (
-            communication.redis_listener_task
-            and communication.redis_listener_task.is_alive()
+            drone_communication.redis_listener_task
+            and drone_communication.redis_listener_task.is_alive()
         ):
-            communication.redis_listener_stop_event.set()
-            communication.redis_listener_task.join(timeout=2)
+            drone_communication.redis_listener_stop_event.set()
+            drone_communication.redis_listener_task.join(timeout=2)
     except OSError as e:
         print(f"OS Error starting server: {e}")
     except Exception as e:
         print(f"Unexpected error starting server: {e}")
 
 
-async def run_comm_server(
-    communication: Communication, ip: str, drone_origins: list, angles: list
-):
+async def run_comm_server(drone_communication: DroneCommunication, ip: str):
     loop = asyncio.get_running_loop()
-    communication.loop = loop
+    drone_communication.loop = loop
 
-    communication.start_redis_listener_thread()
+    drone_communication.start_redis_listener_thread()
 
-    await communication.send_coordinates_websocket(
-        ip=ip, drone_origins=drone_origins, angles=angles
-    )
+    await drone_communication.start_websocket_server(ip=ip)
 
 
 def main_loop_exit(atos_communicator):

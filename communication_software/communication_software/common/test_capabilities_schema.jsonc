@@ -1,0 +1,24 @@
+[
+    {
+        "camera": {
+            "aspect_ratio": 1.77776,
+            "horizontal_fov": 84.0,
+            "resolution_width": 1920,
+            "resolution_height": 1080
+        }, // This is possible to retrieve (at least from DJI SDK)
+        "led": {
+            "types": [
+                "rear",
+                "beacon"
+            ]
+        }, // Depends on what info we can get from the drone
+        "spotlight": false,
+        "speaker": {"audio_files": ["alarm"]}
+    },
+    {
+        "camera": null, // This is possible to retrieve (at least from DJI SDK)
+        "led": null, // Depends on what info we can get from the drone
+        "spotlight": false,
+        "speaker": null
+    }
+]

@@ -45,7 +45,7 @@
         <div class="row">
             <!-- Left Side -->
             <div class="col-md-8">
-                 <!-- Video Section -->
+                <!-- Video Section -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         Live Feed
@@ -53,9 +53,10 @@
                     </div>
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
-                            <img id="video1" class="video-stream" src="/api/v1/video_feed/drone1_annotated" style="display: none;">
-                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged">
-                            <img id="video2" class="video-stream" src="/api/v1/video_feed/drone2_annotated"
+                            <img id="video1" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H">
+                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"
+                                style="display: none;">
+                            <img id="video2" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H_annotated"
                                 style="display: none;">
                         </div>
                     </div>
@@ -100,7 +101,7 @@
                                     <button id="rthBtn1" data-drone-id="1" data-command="flight_return_to_home"
                                         class="btn btn-info btn-sm">Return Home</button>
                                 </div>
-                            </div>    
+                            </div>
                         </div>
                         <div class="status-card mb-3">
                             <div class="row">
@@ -143,11 +144,11 @@
 
                     </div>
                 </div>
-                
+
             </div>
 
             <!-- Right Side -->
-            <div class="col-md-4">                
+            <div class="col-md-4">
                 <!-- Map Section -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
@@ -164,7 +165,7 @@
                     </div>
                     <div class="card-body">
                         <div id="mission-list-container" class="row">
-                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -174,21 +175,21 @@
     <!-- Mission modal -->
     <div class="modal fade" id="missionModal" tabindex="-1" aria-labelledby="missionModalLabel" aria-hidden="true">
         <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="missionModalLabel">Mission details</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="missionModalLabel">Mission details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modal-content-area">
+                    Info regarding the mission...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">Choose Mission</button>
+                </div>
             </div>
-            <div class="modal-body" id="modal-content-area">
-              Info regarding the mission...
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="button" class="btn btn-success" data-bs-dismiss="modal">Choose Mission</button>
-            </div>
-          </div>
         </div>
-      </div>
+    </div>
 
     <!-- <script src="/misc/bootstrap.bundle.min.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -201,99 +202,99 @@
             {
                 name: "Lisas uppdrag",
                 tasks: [
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_101",
-                    "drone_id": "AZL-55555",
-                    "index": 0,
-                    "task": {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.688787,
-                            "lon": 11.978403,
-                            "alt": 25.0,
-                            "heading": 180
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 0,
+                        "task": {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.688787,
+                                "lon": 11.978403,
+                                "alt": 25.0,
+                                "heading": 180
+                            }
                         }
-                    }
-                },
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_101",
-                    "drone_id": "AZL-55555",
-                    "index": 1,
-                    "task": {
-                        "action": "play_audio",
-                        "params": {
-                            "file": "alarm.mp3",
-                            "volume": 1.0,
-                            "duration_seconds": 60
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 1,
+                        "task": {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "alarm.mp3",
+                                "volume": 1.0,
+                                "duration_seconds": 60
+                            }
                         }
-                    }
-                },
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_101",
-                    "index": 2,
-                    "drone_id": "AZL-55555",
-                    "task": {
-                        "action": "led",
-                        "params": {
-                            "color": "red",
-                            "pattern": "pulse",
-                            "duration_seconds": -1
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "index": 2,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "led",
+                            "params": {
+                                "color": "red",
+                                "pattern": "pulse",
+                                "duration_seconds": -1
+                            }
                         }
-                    }
-                },
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_101",
-                    "index": 3,
-                    "drone_id": "AZL-55555",
-                    "task": {
-                        "action": "spotlight",
-                        "params": {
-                            "pattern": "steady",
-                            "duration_seconds": 90
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "index": 3,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "spotlight",
+                            "params": {
+                                "pattern": "steady",
+                                "duration_seconds": 90
+                            }
                         }
-                    }
-                },
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_101",
-                    "drone_id": "AZL-55555",
-                    "index": 4,
-                    "task": {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.704512,
-                            "lon": 11.963704,
-                            "alt": 25.0,
-                            "heading": 180
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 4,
+                        "task": {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.704512,
+                                "lon": 11.963704,
+                                "alt": 25.0,
+                                "heading": 180
+                            }
                         }
-                    }
-                },
+                    },
                 ]
             },
             {
                 name: "Luddes uppdrag",
                 tasks: [
-                {
-                    "msg_type": "task",
-                    "mission_id": "mission_102",
-                    "index": 3,
-                    "drone_id": "AZL-55555",
-                    "task": {
-                        "action": "spotlight",
-                        "params": {
-                            "pattern": "steady",
-                            "duration_seconds": 90
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_102",
+                        "index": 3,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "spotlight",
+                            "params": {
+                                "pattern": "steady",
+                                "duration_seconds": 90
+                            }
                         }
-                    }
-                },
+                    },
                 ]
             }
         ]
-        
+
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
 
@@ -338,27 +339,25 @@
             let fullContent = '';
             allWaypoints = {};
             createdMap = false
-            
+
             for (const currentTaskData of selectedMission.tasks) {
 
                 if (currentTaskData) {
-                        
+
                     let paramsHtml = '';
                     const action = currentTaskData.task.action;
                     const p = currentTaskData.task.params;
 
                     if (action === 'go_to') {
                         const uniqueMapId = `map-${currentTaskData.mission_id}`;
-                        if (!allWaypoints[uniqueMapId])
-                        {
+                        if (!allWaypoints[uniqueMapId]) {
                             allWaypoints[uniqueMapId] = []
                         }
                         allWaypoints[uniqueMapId].push({
                             coords: [p.lat, p.lon]
                         });
-                        
-                        if (!createdMap)
-                        {
+
+                        if (!createdMap) {
                             paramsHtml = `
                             <div class="alert alert-info py-2 mb-1">
                                 <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
@@ -370,8 +369,7 @@
                                 <div id="${uniqueMapId}" style="height: 200px; width: 100%; border-radius: 8px; background: #eee;"></div>
                                 `;
                         }
-                        else
-                        {
+                        else {
                             paramsHtml = `
                             <div class="alert alert-info py-2 mb-1">
                                 <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
@@ -383,14 +381,14 @@
                                 `;
                         }
                         createdMap = true
-                    } 
+                    }
                     else if (action === 'play_audio') {
                         paramsHtml = `
                             <p><i class="bi bi-volume-up"></i> Plays audiofile: <strong>${p.file}</strong></p>
                             <ul>
                                 <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
                             </ul>`;
-                    } 
+                    }
                     else if (action === 'led') {
                         paramsHtml = `
                             <p><strong>LED-status:</strong></p>
@@ -398,14 +396,14 @@
                                 <div style="width: 20px; height: 20px; border-radius: 50%; background-color: ${p.color}; border: 1px solid #000;"></div>
                                 <span>Color: ${p.color} (${p.pattern})</span>
                             </div>`;
-                    } 
+                    }
                     else if (action === 'spotlight') {
                         paramsHtml = `
                             <p><i class="bi bi-volume-up"></i> Pattern: <strong>${p.pattern}</strong></p>
                             <ul>
                                 <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
                             </ul>`;
-                    } 
+                    }
                     else {
                         paramsHtml = '<ul>';
                         for (const [key, value] of Object.entries(p)) {
@@ -429,7 +427,7 @@
             }
             modalBody.innerHTML = fullContent;
         });
-        
+
         // Creates map for action = go_to
         missionModal.addEventListener('shown.bs.modal', function () {
             activeMaps.forEach(m => m.remove());
@@ -437,7 +435,7 @@
 
             Object.entries(allWaypoints).forEach(([id, points]) => {
                 const container = document.getElementById(id);
-                
+
                 if (!container || points.length === 0) return;
 
                 const initialCoords = points[0].coords;
@@ -475,8 +473,232 @@
             2: L.marker([57.705941, 11.939096]).addTo(map)
         };
 
+        //  Map changes
+        // Save the last polygon that was made when updating the website
+        async function loadWatchArea() {
+
+            try {
+
+                const response = await fetch("/api/v1/get_watch_area");
+                const data = await response.json();
+
+                if (data.points && data.points.length > 0) {
+
+                    const latlngs = data.points.map(p => [p.lat, p.lon]);
+
+                    activePolygon = L.polygon(latlngs, {
+                        color: "green",
+                        fillOpacity: 0.3
+                    }).addTo(map);
+
+                    map.fitBounds(activePolygon.getBounds());
+                }
+
+            } catch (error) {
+                console.error("Failed to load watch area:", error);
+            }
+        }
+        loadWatchArea();
+        // Skapa en custom control
+        // -------- POLYGON MODE --------
+
+        let polygonMode = false;
+        let polygonPoints = [];
+        //let activePolygon = null;
+        let previewLine = null;
+
+
+        // -------- CUSTOM CONTROL --------
+
+        const customControl = L.Control.extend({
+            options: { position: 'topleft' },
+
+            onAdd: function (map) {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+
+                container.style.backgroundColor = 'white';
+                container.style.width = '34px';
+                container.style.height = '34px';
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.justifyContent = 'center';
+                container.style.cursor = 'pointer';
+                container.title = "Choose an area to surveil";
+                container.innerHTML = "⬛";
+
+                L.DomEvent.disableClickPropagation(container);
+
+                container.onclick = function () {
+
+                    // Ta bort gammal polygon
+                    if (activePolygon) {
+                        map.removeLayer(activePolygon);
+                        activePolygon = null;
+                    }
+
+                    if (previewLine) {
+                        map.removeLayer(previewLine);
+                        previewLine = null;
+                    }
+
+                    polygonMode = true;
+                    polygonPoints = [];
+
+                    console.log("Polygon drawing started");
+                };
+
+                return container;
+            }
+        });
+
+        map.addControl(new customControl());
+
+
+        // -------- CLICK HANDLER --------
+
+        map.on('click', function (e) {
+
+            if (!polygonMode) return;
+
+            polygonPoints.push(e.latlng);
+
+            // Skapa polygon när vi har minst 2 punkter
+            if (!activePolygon) {
+                activePolygon = L.polygon(polygonPoints, {
+                    color: "#ff0000",
+                    weight: 2,
+                    fillColor: "#ff0000",
+                    fillOpacity: 0.2
+                }).addTo(map);
+            } else {
+                activePolygon.setLatLngs(polygonPoints);
+            }
+        });
+
+
+        // -------- LIVE PREVIEW --------
+
+        map.on('mousemove', function (e) {
+
+            if (!polygonMode || polygonPoints.length === 0) return;
+
+            const previewPoints = [...polygonPoints, e.latlng];
+
+            if (!previewLine) {
+                previewLine = L.polyline(previewPoints, {
+                    color: "#ff0000",
+                    dashArray: "5,5"
+                }).addTo(map);
+            } else {
+                previewLine.setLatLngs(previewPoints);
+            }
+        });
+
+
+        // -------- DOUBLE CLICK TO FINISH --------
+
+        map.on('dblclick', function () {
+
+            if (!polygonMode) return;
+
+            polygonMode = false;
+
+            if (previewLine) {
+                map.removeLayer(previewLine);
+                previewLine = null;
+            }
+
+            if (activePolygon) {
+                activePolygon.setStyle({
+                    color: "green",
+                    fillColor: "green"
+                });
+            }
+
+            console.log("Polygon finalized");
+        });
+
+        //-------New button for sending area coordinates to backend--------
+
+
+        const sendCoordinates = L.Control.extend({
+            options: { position: 'topleft' },
+
+            onAdd: function (map) {
+
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+
+                container.style.backgroundColor = '#28a745';
+                container.style.width = '34px';
+                container.style.height = '34px';
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.justifyContent = 'center';
+                container.style.cursor = 'pointer';
+                container.style.color = 'white';
+                container.title = "Send area to backend";
+                container.innerHTML = "GO";
+
+                L.DomEvent.disableClickPropagation(container);
+
+                container.onclick = async function () {
+
+                    if (!activePolygon) {
+                        alert("No polygon created.");
+                        return;
+                    }
+
+                    const latlngs = activePolygon.getLatLngs()[0];
+
+                    const coordinates = latlngs.map(p => ({
+                        lat: p.lat,
+                        lon: p.lng
+                    }));
+
+                    try {
+                        const response = await fetch("/api/v1/set_watch_area", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/text"
+                            },
+                            body: JSON.stringify({
+                                msg_type: "set_watch_area",
+                                area: {
+                                    points: coordinates
+                                }
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        console.log(result)
+
+                        if (!result.error) {
+                            alert("Coordinates sent ok");
+                        }
+                        else {
+                            alert("Error: " + result.error);
+                        }
+
+                    } catch (error) {
+                        console.error("Error sending watch area", error);
+                        alert("Failed to send watch area to backend");
+                    }
+                };
+                return container;
+            }
+        });
+
+
+        map.addControl(new sendCoordinates());
+
+        //slut      Slut
+
+
         // WebSocket Connections
-        const droneWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/drone`);
         const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
         const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
 
@@ -492,7 +714,7 @@
                 merged.style.display = 'block'
                 video1.style.display = 'none';
                 video2.style.display = 'none';
-                videoContainer.style.gridTemplateColumns = '1fr'; 
+                videoContainer.style.gridTemplateColumns = '1fr';
             } else if (layout === 'sidebyside') {
                 merged.style.display = 'none'
                 video1.style.display = 'block';
@@ -511,46 +733,58 @@
             }
         });
 
+        flightmanagerWS.onmessage = (event) => {
+            console.log(JSON.parse(event.data));
+        }
+
         // Handle Drone Data
         const specsLoaded = {};
 
-        droneWS.onmessage = (event) => {
+        flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            // Update status continouosly 
-            document.getElementById(`alt${data.drone_id}`).textContent = data.alt.toFixed(1);
-            document.getElementById(`speed${data.drone_id}`).textContent = data.speed.toFixed(1);
-            document.getElementById(`battery${data.drone_id}`).textContent = data.battery.toFixed(1);
+            console.log(data);
 
-            // Update specs one time (static data)
-            if (!specsLoaded[data.drone_id]) {
-                document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
+            if (data.msg_type == "error") {
+                alert(data.error)
+            }
 
-                const hasCamera = data.capabilities && data.capabilities.camera;
-                document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
-                
-                if (hasCamera) {
-                    const res = data.capabilities.camera;
-                    document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
-                } else {
-                    document.getElementById(`res${data.drone_id}`).textContent = "N/A";
-                }
+            // TODO: Handle all the message types here
 
-                const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
-                document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+            if (data.msg_type == "telemetry") {
 
-                document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
+                // TODO: This doesn't currently work 
 
-                specsLoaded[data.drone_id] = true;
-            };
 
-            // Update map marker
-            markers[data.drone_id].setLatLng([data.lat, data.lng]);
 
-            // Handle anomalies
-            if (data.anomaly) {
-                document.getElementById('atosStatus').textContent = "ANOMALY DETECTED!";
-                document.getElementById('atosStatus').className = "badge bg-danger float-end";
+                // TODO: This doesn't currently work 
+
+
+
+                // Update specs one time (static data)
+                if (!specsLoaded[data.drone_id]) {
+                    document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
+
+                    const hasCamera = data.capabilities && data.capabilities.camera;
+                    document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
+
+                    if (hasCamera) {
+                        const res = data.capabilities.camera;
+                        document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
+                    } else {
+                        document.getElementById(`res${data.drone_id}`).textContent = "N/A";
+                    }
+
+                    const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
+                    document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+
+                    document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
+
+                    specsLoaded[data.drone_id] = true;
+                };
+
+                // Update map marker
+                markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
             }
         };
 

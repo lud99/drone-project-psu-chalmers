@@ -1,26 +1,37 @@
 import asyncio
-import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
 import uvicorn
 import cv2
+import json
 from datetime import datetime
-import redis
 import redis.exceptions
+import redis
 import numpy as np
+from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.missions_planning.mission_status import MissionStatus
+
+
+from typing import Optional
+
+import communication_software.common.json_schemas as json_schemas
 
 from communication_software.common.frame_utils import (
     create_not_connected_frame,
+    create_no_camera_frame,
     create_error_frame,
 )
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r_async = redis.asyncio.Redis(host="redis", port=6379, db=0, decode_responses=True)
     r.ping()  # Check if the connection is successful
     print("Successfully connected to Redis!")
 except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis: {e}")
     exit()  # Exit if we can't connect
+
+DRONE_EVENT_CHANNEL = "drone_events"
 
 app = FastAPI()
 
@@ -51,111 +62,91 @@ class ATOSController:
 atos = ATOSController()
 
 
+def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
+    # 1. Collect all relevant keys
+    patterns = ["telemetry_drone*", "capabilities_drone*"]
+    all_keys = []
+    for p in patterns:
+        all_keys.extend(r.scan_iter(match=p))
+
+    # 2. Group keys by the ID
+    drone_groups: dict[str, dict[str, Optional[str]]] = {}
+
+    for key in all_keys:
+        # Decode if keys come back as bytes
+        key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+
+        # Extract drone id
+        drone_id: str = key_str.replace("telemetry_drone", "").replace(
+            "capabilities_drone", ""
+        )
+
+        if drone_id not in drone_groups:
+            drone_groups[drone_id] = {"telemetry": None, "capabilities": None}
+
+        if "telemetry" in key_str:
+            drone_groups[drone_id]["telemetry"] = key_str
+        elif "capabilities" in key_str:
+            drone_groups[drone_id]["capabilities"] = key_str
+
+    # 3. Create the list of tuples
+    return [
+        (drone_id, data["telemetry"], data["capabilities"])
+        for drone_id, data in drone_groups.items()
+        if data["telemetry"] and data["capabilities"]  # Only include if both exist
+    ]
+
+
 # WebSocket Endpoints
-@app.websocket("/api/v1/ws/drone")
-async def drone_websocket(websocket: WebSocket):
+
+
+@app.websocket("/api/v1/ws/flightmanager")
+async def flightmanager_websocket(websocket: WebSocket):
     await websocket.accept()
-    print("Drone client connected")
+    print("Flight Manager WebSocket connected")
+
+    # Forward drone events
+    async def redis_listener():
+        pubsub = r_async.pubsub()
+        await pubsub.subscribe(DRONE_EVENT_CHANNEL)
+
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                print("Received event, sending to frontend clients")
+                await websocket.send_text(message["data"])
+
+    listener_task = asyncio.create_task(redis_listener())
+
     try:
         while True:
-            processed_data_for_cycle = {}
-            drone_id = 0
-            redis_key_list = r.scan_iter(match="position_drone*")
-            # print(f"redis keys: {redis_key_list}")
-            for redis_key in redis_key_list:
-                drone_id += 1
-                json_data_string = None
-                try:
-                    json_data_string = r.get(redis_key)
+            data = await websocket.receive_json()
+            print(f"Received {data}")
 
-                    if json_data_string:
-                        try:
-                            data_dict = json.loads(json_data_string)
-                        except json.JSONDecodeError as e:
-                            print(
-                                f"Error decoding JSON for {redis_key}: {e}. Data: '{json_data_string}'"
-                            )
-                            # Optionally use last known good data if available
-                            if drone_id in atos.drone_data:
-                                processed_data_for_cycle[drone_id] = atos.drone_data[
-                                    drone_id
-                                ]
-                            continue  # Skip update for this drone this cycle
+            try:
+                # TODO handle some messages?
+                pass
 
-                        # 3. Safely get values
-                        lat = data_dict.get("latitude")
-                        lng = data_dict.get("longitude")
-                        alt = data_dict.get("altitude")
-                        speed = data_dict.get("speed")
-                        battery_percent = data_dict.get("batteryPercent")
-
-                        if (
-                            lat is None
-                            or lng is None
-                            or alt is None
-                            or speed is None
-                            or battery_percent is None
-                        ):
-                            print(
-                                f"Warning: Missing position, battery or speed data fields in {redis_key}. Found: {data_dict}"
-                            )
-                            if drone_id in atos.drone_data:
-                                processed_data_for_cycle[drone_id] = atos.drone_data[
-                                    drone_id
-                                ]
-                            continue
-
-                        if drone_id not in atos.drone_data:
-                            atos.drone_data[drone_id] = {"battery": 0}
-                        elif "battery" not in atos.drone_data[drone_id]:
-                            atos.drone_data[drone_id]["battery"] = 0
-
-                        atos.drone_data[drone_id].update(
-                            {
-                                "lat": lat,
-                                "lng": lng,
-                                "alt": alt,
-                                "speed": speed,
-                                "battery": battery_percent,
-                            }
-                        )
-                        processed_data_for_cycle[drone_id] = atos.drone_data[drone_id]
-
-                    else:
-                        print(f"No data found in Redis for key: {redis_key}")
-                        if drone_id in atos.drone_data:
-                            processed_data_for_cycle[drone_id] = atos.drone_data[
-                                drone_id
-                            ]
-
-                except redis.exceptions.RedisError as e:
-                    print(f"Redis error while getting/processing {redis_key}: {e}")
-                    if drone_id in atos.drone_data:
-                        processed_data_for_cycle[drone_id] = atos.drone_data[drone_id]
-                except Exception as e:
-                    print(
-                        f"An unexpected error occurred processing drone {drone_id}: {e}"
-                    )
-                    if drone_id in atos.drone_data:
-                        processed_data_for_cycle[drone_id] = atos.drone_data[drone_id]
-
-                await websocket.send_json(
-                    {
-                        "drone_id": drone_id,
-                        **atos.drone_data[drone_id],
-                        "anomaly": atos.anomalies,
-                    }
+            except redis.exceptions.RedisError as e:
+                error = f"Redis error publishing command: {e}"
+                print(error)
+                await websocket.send_text(
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json()
                 )
-                # print(f"Sent data to client: {processed_data_for_cycle}") # Optional: Verbose logging
-            await asyncio.sleep(0.5)
+
+            except Exception as e:
+                error = f"Unexpected error publishing command: {e}"
+                print(error)
+                await websocket.send_text(
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json()
+                )
 
     except WebSocketDisconnect:
-        print("Drone client disconnected")
+        print("Flight Manager WebSocket disconnected")
     except Exception as e:
-        print(f"Unexpected error in drone_websocket main loop: {e}")
+        print(f"Error in flightmanager_websocket: {e}")
     finally:
-        print("Closing drone websocket connection.")
-        # FastAPI handles closing the connection, but you can add specific cleanup here if needed.
+        print("Closing flightmanager websocket")
+        listener_task.cancel()
 
 
 @app.websocket("/api/v1/ws/atos")
@@ -184,101 +175,147 @@ async def atos_websocket(websocket: WebSocket):
 
 COMMAND_CHANNEL = "drone_commands"
 
+### POST routes
 
-@app.websocket("/api/v1/ws/flightmanager")
-async def flightmanager_websocket(websocket: WebSocket):
-    await websocket.accept()
-    print("Flight Manager WebSocket connected")
+
+@app.post("/api/v1/accept_mission")
+async def accept_mission(payload: str = Body(...)):
     try:
-        while True:
-            data = await websocket.receive_json()
-            drone_id = data.get("drone_id")
-            command = data.get("command")
-            payload = data.get("payload", {})
-
-            if drone_id is None or command is None:
-                print(f"Received invalid command data: {data}")
-                await websocket.send_json(
-                    {"status": "error", "message": "Missing drone_id or command"}
-                )
-                continue
-
-            message_to_publish = {
-                "target_drone_id": drone_id,
-                "command": command,
-                "payload": payload,
-                "timestamp": datetime.now().isoformat(),
-            }
-            message_str = json.dumps(message_to_publish)
-
-            try:
-                print(
-                    f"Publishing command to Redis channel '{COMMAND_CHANNEL}': {message_str}"
-                )
-                await asyncio.to_thread(r.publish, COMMAND_CHANNEL, message_str)
-                print(f"Successfully published command for drone {drone_id}")
-                await websocket.send_json(
-                    {
-                        "drone_id": drone_id,
-                        "command_sent": command,
-                        "status": "published",
-                    }
-                )
-            except redis.exceptions.RedisError as e:
-                print(f"Redis error publishing command: {e}")
-                await websocket.send_json(
-                    {
-                        "drone_id": drone_id,
-                        "command_sent": command,
-                        "status": "error",
-                        "message": f"Redis publish error: {e}",
-                    }
-                )
-            except Exception as e:
-                print(f"Unexpected error publishing command: {e}")
-                await websocket.send_json(
-                    {
-                        "drone_id": drone_id,
-                        "command_sent": command,
-                        "status": "error",
-                        "message": f"Unexpected error: {e}",
-                    }
-                )
-
-    except WebSocketDisconnect:
-        print("Flight Manager WebSocket disconnected")
+        json_schemas.parse_frontend_message(payload)
     except Exception as e:
-        print(f"Error in flightmanager_websocket: {e}")
-    finally:
-        print("Closing flightmanager websocket")
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
 
 
-@app.get("/api/v1/video_feed/drone1")
-async def drone1_feed():
+@app.post("/api/v1/reject_missions")
+async def reject_missions(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/start_drone")
+async def start_drone(payload: str = Body(...)):
+    try:
+        json_schemas.parse_frontend_message(payload)
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/set_watch_area")
+async def set_watch_area(payload: str = Body(...)):
+    try:
+        message = json_schemas.parse_frontend_message(payload)
+        if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
+            r.set("watch_area", message.area.model_dump_json())
+            return {"msg_type": "response", "error": None}
+
+    except Exception as e:
+        print(e)
+        return {"msg_type": "response", "error": str(e)}
+
+    return {"msg_type": "response", "error": None}
+
+
+### GET routes
+
+
+@app.get("/api/v1/proposed_missions")
+async def get_proposed_missions():
+    try:
+        # todo: get from redis
+        return json_schemas.FrontendMessages.ProposedMissions(missions=[dict()])
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.get("/api/v1/active_missions")
+async def get_active_missions():
+    # Logic to fetch active missions
+    pass
+
+
+@app.get("/api/v1/get_watch_area")
+async def get_watch_areas():
+    try:
+        data = r.get("watch_area")
+        if not data:
+            return {"msg_type": "response", "points": [], "error": None}
+        watch_area = json.loads(data)
+        return {"msg_type": "response", "points": watch_area["points"], "error": None}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.get("/api/v1/connected_drones")
+async def get_connected_drones():
+
+    drone_list = json_schemas.FrontendMessages.ConnectedDrones(drones=[])
+
+    try:
+        for drone_id, telem_key, cap_key in get_telemetry_and_capabilities_key_tuples():
+            print(f"Processing drone id {drone_id}: {telem_key} <-> {cap_key}")
+
+            telemetry_str = r.get(telem_key)
+            capabilities_str = r.get(cap_key)
+            if telemetry_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+            if capabilities_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+
+            telemetry = json_schemas.parse_telemetry(telemetry_str)
+            capabilities = json_schemas.parse_capabilities(capabilities_str)
+
+            drone_list.drones.append(
+                json_schemas.DroneInfo(
+                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                )
+            )
+
+        return drone_list.model_dump_json()
+
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.get("/api/v1/telemetry/{drone_id}")
+async def get_telemetry(drone_id: str):
+    try:
+        telemetry = r.get(f"telemetry_drone{drone_id}")
+        if telemetry is None:
+            raise Exception(
+                f"Telemetry for drone {drone_id} not found, is it connected?"
+            )
+
+        return json_schemas.TelemetryMessage(
+            drone_id=drone_id,
+            telemetry=json_schemas.parse_telemetry(r.get(f"telemetry_drone{drone_id}")),
+        ).model_dump_json()
+
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.get("/api/v1/video_feed/drone{drone_id}")
+async def drone2_feed(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("1"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone2")
-async def drone2_feed():
-    return StreamingResponse(
-        stream_drone_frames("2"), media_type="multipart/x-mixed-replace; boundary=frame"
-    )
-
-
-@app.get("/api/v1/video_feed/drone1_annotated")
-async def drone1_feed_annotated():
-    return StreamingResponse(
-        stream_drone_frames("1_annotated"),
+        stream_drone_frames(drone_id),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
-@app.get("/api/v1/video_feed/drone2_annotated")
-async def drone2_feed_annotated():
+@app.get("/api/v1/video_feed/drone{drone_id}_annotated")
+async def drone1_feed_annotated(drone_id: str):
     return StreamingResponse(
-        stream_drone_frames("2_annotated"),
+        stream_drone_frames(drone_id, "_annotated"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -286,9 +323,30 @@ async def drone2_feed_annotated():
 @app.get("/api/v1/video_feed/merged")
 async def merged_feed():
     return StreamingResponse(
-        stream_drone_frames("_merged_annotated"),
+        stream_drone_frames("merged"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+## Connect missions to the API/frontend
+mission_registry = MissionRegistry()
+
+
+@app.get("/api/v1/missions")
+def get_missions():
+    return mission_registry.get_all()
+
+
+@app.post("/api/v1/missions/dispatch/{mission_id}")
+def dispatch_mission(mission_id: str):
+    mission = mission_registry.get(mission_id)
+    if not mission:
+        return {"error": "Mission not found"}
+
+    mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
+    # TODO: Forward to translation layer here
+
+    return {"status": "dispatched", "mission": mission}
 
 
 @app.get("/api/v1/health")
@@ -308,9 +366,9 @@ def run_server(atos_communicator):
 
 
 # Video Frames Generation Based on Drone ID
-async def stream_drone_frames(drone_id: str):
+async def stream_drone_frames(drone_id: str, frame_type: str = ""):
 
-    redis_key = f"frame_drone{drone_id}"
+    redis_key = f"frame_drone{drone_id}{frame_type}"
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
@@ -325,10 +383,19 @@ async def stream_drone_frames(drone_id: str):
                 )
 
         else:
-            # No frame found in Redis, so generate a dummy frame.
-            frame = create_not_connected_frame(
-                np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+            telemetry, capabilities = await asyncio.to_thread(
+                r.mget, f"telemetry_drone{drone_id}", f"capabilities_drone{drone_id}"
             )
+            if telemetry is None:
+                frame = create_not_connected_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
+            elif (capabilities is not None) and (
+                json_schemas.parse_capabilities(capabilities).camera is None
+            ):
+                frame = create_no_camera_frame(
+                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+                )
 
         # Encode frame as JPEG
         ret, buffer = cv2.imencode(".jpg", frame)
