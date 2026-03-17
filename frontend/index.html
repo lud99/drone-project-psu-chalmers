@@ -92,6 +92,7 @@
                                     <div>Camera: <span id="camera1">--</span></div>
                                     <div>Camera resolution: <span id="res1">--</span></div>
                                     <div>Speaker: <span id="speaker1">--</span></div>
+                                    <div>Spotlight: <span id="spotlight1">--</span></div>
                                 </div>
                                 <div class="drone-controls mt-2">
                                     <button id="takeoffBtn1" data-drone-id="1" data-command="flight_take_off"
@@ -115,6 +116,7 @@
                                     <div>Camera: <span id="camera2">--</span></div>
                                     <div>Camera resolution: <span id="res2">--</span></div>
                                     <div>Speaker: <span id="speaker2">--</span></div>
+                                    <div>Spotlight: <span id="spotlight2">--</span></div>
                                 </div>
                                 <div class="drone-controls mt-2">
                                     <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
@@ -161,51 +163,32 @@
                         Mission Planning
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-12 mb-2">
-                                <div id="mission1" class="d-flex justify-content-between align-items-center" style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
-                                    <div>
-                                        <strong>Mission 1</strong>
-                                        <div id="mission1_data">No mission found.</div>
-                                    </div>
-                                    <div class="d-grid gap-2 mt-2">
-                                        <button class="btn btn-success btn-sm mission-action-btn" data-mission-id="1">Choose mission</button>
-                                        <button class="btn btn-danger btn-sm abort-mission-btn" data-mission-id="1">Abort mission</button>
-                                    </div>
-                                </div>
+                        <div id="mission-list-container" class="row">
                             </div>
-                            
-                            <div class="col-12 mb-2">
-                                <div id="mission2" class="d-flex justify-content-between align-items-center" style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
-                                    <div>
-                                        <strong>Mission 2</strong>
-                                        <div id="mission2_data">No mission found.</div>
-                                    </div>
-                                    <div class="d-grid gap-2 mt-2">
-                                        <button class="btn btn-success btn-sm mission-action-btn" data-mission-id="2">Choose mission</button>
-                                        <button class="btn btn-danger btn-sm abort-mission-btn" data-mission-id="2">Abort mission</button>
-                                    </div>
-                                </div>
-                            </div>
-                        
-                            <div class="col-12">
-                                <div id="mission3" class="d-flex justify-content-between align-items-center" style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
-                                    <div>
-                                        <strong>Mission 3</strong>
-                                        <div id="mission3_data">No mission found.</div>
-                                    </div>
-                                    <div class="d-grid gap-2 mt-2">
-                                        <button class="btn btn-success btn-sm mission-action-btn" data-mission-id="3">Choose mission</button>
-                                        <button class="btn btn-danger btn-sm abort-mission-btn" data-mission-id="3">Abort mission</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-                </div> 
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Mission modal -->
+    <div class="modal fade" id="missionModal" tabindex="-1" aria-labelledby="missionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="missionModalLabel">Mission details</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modal-content-area">
+              Info regarding the mission...
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-success" data-bs-dismiss="modal">Choose Mission</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
     <!-- <script src="/misc/bootstrap.bundle.min.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -214,7 +197,277 @@
     <script>
         const BACKEND_URL = "ws://localhost:8000";
 
-        // Initialize Map
+        const missions = [
+            {
+                name: "Lisas uppdrag",
+                tasks: [
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_101",
+                    "drone_id": "AZL-55555",
+                    "index": 0,
+                    "task": {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.688787,
+                            "lon": 11.978403,
+                            "alt": 25.0,
+                            "heading": 180
+                        }
+                    }
+                },
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_101",
+                    "drone_id": "AZL-55555",
+                    "index": 1,
+                    "task": {
+                        "action": "play_audio",
+                        "params": {
+                            "file": "alarm.mp3",
+                            "volume": 1.0,
+                            "duration_seconds": 60
+                        }
+                    }
+                },
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_101",
+                    "index": 2,
+                    "drone_id": "AZL-55555",
+                    "task": {
+                        "action": "led",
+                        "params": {
+                            "color": "red",
+                            "pattern": "pulse",
+                            "duration_seconds": -1
+                        }
+                    }
+                },
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_101",
+                    "index": 3,
+                    "drone_id": "AZL-55555",
+                    "task": {
+                        "action": "spotlight",
+                        "params": {
+                            "pattern": "steady",
+                            "duration_seconds": 90
+                        }
+                    }
+                },
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_101",
+                    "drone_id": "AZL-55555",
+                    "index": 4,
+                    "task": {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.704512,
+                            "lon": 11.963704,
+                            "alt": 25.0,
+                            "heading": 180
+                        }
+                    }
+                },
+                ]
+            },
+            {
+                name: "Luddes uppdrag",
+                tasks: [
+                {
+                    "msg_type": "task",
+                    "mission_id": "mission_102",
+                    "index": 3,
+                    "drone_id": "AZL-55555",
+                    "task": {
+                        "action": "spotlight",
+                        "params": {
+                            "pattern": "steady",
+                            "duration_seconds": 90
+                        }
+                    }
+                },
+                ]
+            }
+        ]
+        
+        // Creates mission buttons
+        const container = document.getElementById('mission-list-container');
+
+        missions.forEach((mission, index) => {
+            container.innerHTML += `
+                <div class="col-12 mb-2">
+                    <div class="d-flex justify-content-between align-items-center" 
+                        style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
+                        <div>
+                            <strong>Mission ${index + 1}</strong>
+                            <div>${mission.name}</div>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-success btn-sm mission-action-btn" 
+                                    data-mission-index="${index}" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#missionModal">
+                                Show More Info
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Mission display
+        const missionModal = document.getElementById('missionModal');
+        let currentTaskData = null;
+        let modalMap = null;
+
+        let allWaypoints = [];
+        let activeMaps = [];
+
+        missionModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const missionIndex = button.getAttribute('data-mission-index');
+            const selectedMission = missions[missionIndex];
+            const modalTitle = missionModal.querySelector('.modal-title');
+            const modalBody = missionModal.querySelector('#modal-content-area');
+            modalTitle.textContent = `Mission: ${selectedMission.name}`;
+
+            let fullContent = '';
+            allWaypoints = {};
+            createdMap = false
+            
+            for (const currentTaskData of selectedMission.tasks) {
+
+                if (currentTaskData) {
+                        
+                    let paramsHtml = '';
+                    const action = currentTaskData.task.action;
+                    const p = currentTaskData.task.params;
+
+                    if (action === 'go_to') {
+                        const uniqueMapId = `map-${currentTaskData.mission_id}`;
+                        if (!allWaypoints[uniqueMapId])
+                        {
+                            allWaypoints[uniqueMapId] = []
+                        }
+                        allWaypoints[uniqueMapId].push({
+                            coords: [p.lat, p.lon]
+                        });
+                        
+                        if (!createdMap)
+                        {
+                            paramsHtml = `
+                            <div class="alert alert-info py-2 mb-1">
+                                <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
+                            </div>
+                            <ul>
+                                <li>Coordinates: ${p.lat}, ${p.lon}</li>
+                                <li>Altitude: ${p.alt}m</li>
+                                </ul>
+                                <div id="${uniqueMapId}" style="height: 200px; width: 100%; border-radius: 8px; background: #eee;"></div>
+                                `;
+                        }
+                        else
+                        {
+                            paramsHtml = `
+                            <div class="alert alert-info py-2 mb-1">
+                                <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
+                            </div>
+                            <ul>
+                                <li>Coordinates: ${p.lat}, ${p.lon}</li>
+                                <li>Altitude: ${p.alt}m</li>
+                                </ul>
+                                `;
+                        }
+                        createdMap = true
+                    } 
+                    else if (action === 'play_audio') {
+                        paramsHtml = `
+                            <p><i class="bi bi-volume-up"></i> Plays audiofile: <strong>${p.file}</strong></p>
+                            <ul>
+                                <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
+                            </ul>`;
+                    } 
+                    else if (action === 'led') {
+                        paramsHtml = `
+                            <p><strong>LED-status:</strong></p>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 20px; height: 20px; border-radius: 50%; background-color: ${p.color}; border: 1px solid #000;"></div>
+                                <span>Color: ${p.color} (${p.pattern})</span>
+                            </div>`;
+                    } 
+                    else if (action === 'spotlight') {
+                        paramsHtml = `
+                            <p><i class="bi bi-volume-up"></i> Pattern: <strong>${p.pattern}</strong></p>
+                            <ul>
+                                <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
+                            </ul>`;
+                    } 
+                    else {
+                        paramsHtml = '<ul>';
+                        for (const [key, value] of Object.entries(p)) {
+                            paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
+                        }
+                        paramsHtml += '</ul>';
+                    }
+
+                    fullContent += `
+                        <div class="task-card mb-4 border-bottom pb-3">
+                            <div class="d-flex justify-content-between">
+                                <strong>Drone: ${currentTaskData.drone_id}</strong>
+                                <span class="badge bg-secondary">${action}</span>
+                            </div>
+                            <div class="mt-2">
+                                ${paramsHtml}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            modalBody.innerHTML = fullContent;
+        });
+        
+        // Creates map for action = go_to
+        missionModal.addEventListener('shown.bs.modal', function () {
+            activeMaps.forEach(m => m.remove());
+            activeMaps = [];
+
+            Object.entries(allWaypoints).forEach(([id, points]) => {
+                const container = document.getElementById(id);
+                
+                if (!container || points.length === 0) return;
+
+                const initialCoords = points[0].coords;
+                const map = L.map(id).setView(initialCoords, 15);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap'
+                }).addTo(map);
+
+                const markerGroup = L.featureGroup();
+
+                points.forEach(({ coords }, idx) => {
+                    console.log(`Adding marker to ${id}:`, coords);
+                    L.marker(coords)
+                        .bindPopup(`Waypoint ${idx + 1}`)
+                        .addTo(markerGroup);
+                });
+
+                markerGroup.addTo(map);
+
+                if (points.length > 1) {
+                    map.fitBounds(markerGroup.getBounds(), { padding: [20, 20] });
+                }
+
+                setTimeout(() => { map.invalidateSize(); }, 200);
+                activeMaps.push(map);
+            });
+        });
+
+        // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const markers = {
@@ -239,7 +492,7 @@
                 merged.style.display = 'block'
                 video1.style.display = 'none';
                 video2.style.display = 'none';
-                videoContainer.style.gridTemplateColumns = '1fr'; // One column
+                videoContainer.style.gridTemplateColumns = '1fr'; 
             } else if (layout === 'sidebyside') {
                 merged.style.display = 'none'
                 video1.style.display = 'block';
@@ -264,17 +517,29 @@
         droneWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            // Update status continouosly
+            // Update status continouosly 
             document.getElementById(`alt${data.drone_id}`).textContent = data.alt.toFixed(1);
             document.getElementById(`speed${data.drone_id}`).textContent = data.speed.toFixed(1);
             document.getElementById(`battery${data.drone_id}`).textContent = data.battery.toFixed(1);
 
             // Update specs one time (static data)
             if (!specsLoaded[data.drone_id]) {
-                document.getElementById(`dronetype${data.drone_id}`).textContent = data.droneType + data.model;
-                document.getElementById(`camera${data.drone_id}`).textContent = data.camera ? "Yes" : "No";
-                document.getElementById(`res${data.drone_id}`).textContent = data.camera ? data.res + "p" : "N/A";
-                document.getElementById(`speaker${data.drone_id}`).textContent = data.speaker ? "Yes" : "No";
+                document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
+
+                const hasCamera = data.capabilities && data.capabilities.camera;
+                document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
+                
+                if (hasCamera) {
+                    const res = data.capabilities.camera;
+                    document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
+                } else {
+                    document.getElementById(`res${data.drone_id}`).textContent = "N/A";
+                }
+
+                const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
+                document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+
+                document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
 
                 specsLoaded[data.drone_id] = true;
             };
