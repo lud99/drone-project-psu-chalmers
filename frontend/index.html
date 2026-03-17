@@ -197,6 +197,8 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
         const BACKEND_URL = "ws://localhost:8000";
+        // Initialize Map
+        let activePolygon = null;
 
         const missions = [
             {
