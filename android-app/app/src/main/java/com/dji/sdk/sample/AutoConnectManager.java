@@ -194,7 +194,6 @@ public class AutoConnectManager {
             MulticastReceiver.BackendInformation backend = backends.get(0);
             try {
             URI uri = new URI("ws://" +  backend.ip +":" + backend.port);
-            Log.i(TAG, "Using discovered URI via multicast" + uri);
             saveLastConnection(backend.ip, backend.port);
             return uri;
             } catch (URISyntaxException e) {

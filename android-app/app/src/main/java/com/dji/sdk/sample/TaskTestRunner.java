@@ -128,7 +128,7 @@ public class TaskTestRunner {
     }
 
     public void runPlayAudio(String missionId, int taskIndex) {
-        adapter.playAudio("ticking_sound", 0.5f, 5, missionId, taskIndex);
+        adapter.playAudio("instructions", 0.5f, 5, missionId, taskIndex);
     }
 
     public void runGoHome(String missionId, int taskIndex) {

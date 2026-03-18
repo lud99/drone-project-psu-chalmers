@@ -30,7 +30,7 @@ public class WebsocketClientHandler {
     // Delay between registration retries when telemetry is not ready, in milliseconds.
     private static final long REGISTRATION_RETRY_DELAY_MS = 500L;
     // Max number of retries for sending registration data when telemetry is not ready before giving up and sending with fallback data.
-    private static final int MAX_REGISTRATION_RETRIES = 20;
+    private static final int MAX_REGISTRATION_RETRIES = 50;
     
     public interface ConnectionStateListener {
         void onConnected();
@@ -420,6 +420,7 @@ public class WebsocketClientHandler {
 
     private void handleIncomingMessage(JSONObject jsonMessage, String rawMessage) {
         String type = jsonMessage.optString("msg_type", "");
+        Log.d(TAG, "Received: " + rawMessage);
 
         if ("Coordinate_request".equals(type)) {
             Log.d(TAG, "Received: " + rawMessage);
@@ -443,12 +444,14 @@ public class WebsocketClientHandler {
         }
 
         if ("task".equals(type)) {
+            Log.d(TAG, "Task message received: " + rawMessage);
             handleTaskMessage(jsonMessage);
             return;
         }
 
         if ("abort_task".equals(type)) {
             refreshAdapterSelection();
+            Log.d(TAG, "Abort task message received: " + rawMessage);
             String missionId = readMissionId(jsonMessage);
             int taskIndex = readTaskIndex(jsonMessage);
             String taskType = jsonMessage.optString("task_action", "");
@@ -462,12 +465,14 @@ public class WebsocketClientHandler {
 
         if ("go_home".equals(type)) {
             refreshAdapterSelection();
+            Log.d(TAG, "Go home message received: " + rawMessage);
             droneAdapter.goHome("manual", 0);
             return;
         }
 
         if ("land".equals(type)) {
             refreshAdapterSelection();
+            Log.d(TAG, "Land message received: " + rawMessage);
             droneAdapter.land("manual", 0);
             return;
         }
@@ -481,7 +486,7 @@ public class WebsocketClientHandler {
             Log.e(TAG, "No DroneAdapter selected when task message was received.");
             return;
         }
-
+        Log.d(TAG, "Handling task message: " + jsonMessage.toString());
         String missionId = readMissionId(jsonMessage);
         int taskIndex = readTaskIndex(jsonMessage);
 
@@ -603,15 +608,15 @@ public class WebsocketClientHandler {
 
     private int readTaskIndex(JSONObject jsonMessage) {
         if (jsonMessage.has("index")) {
-            return jsonMessage.optInt("index", 0);
+            return jsonMessage.optInt("index", -1);
         }
         if (jsonMessage.has("task_index")) {
-            return jsonMessage.optInt("task_index", 0);
+            return jsonMessage.optInt("task_index", -1);
         }
         if (jsonMessage.has("taskIndex")) {
-            return jsonMessage.optInt("taskIndex", 0);
+            return jsonMessage.optInt("taskIndex", -1);
         }
-        return 0;
+        return -1;
     }
     
     private synchronized void stopPositionSending() {
@@ -657,7 +662,7 @@ private final Runnable heartbeatRunnable = new Runnable() {
         try {
             String ping = "{\"msg_type\": \"ping\"}";
             webSocketClient.send(ping);
-            Log.d(TAG, "Heartbeat ping sent");
+            // Log.d(TAG, "Heartbeat ping sent");
             if (heartbeatHandler != null) {
                 heartbeatHandler.postDelayed(this, 5000);
             }

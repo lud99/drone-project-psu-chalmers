@@ -7,8 +7,8 @@
         "task_action": {
             "action": "go_to",
             "params": {
-                "lat": 57.7090,
-                "lon": 11.9750,
+                "lat": 22.5430,
+                "lon": 113.9590,
                 "alt": 25.0,
                 "heading": 180
             }
@@ -22,8 +22,8 @@
         "task_action": {
             "action": "play_audio",
             "params": {
-                "file": "alarm.mp3",
-                "volume": 1.0,
+                "file": "ticking_sound",
+                "volume": 0.5,
                 "duration_seconds": 5
             }
         }
@@ -38,6 +38,32 @@
             "params": {
                 "type": "front",
                 "duration_seconds": null
+            }
+        }
+    },
+        {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "type": "rear",
+                "duration_seconds": 5
+            }
+        }
+    },
+        {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "type": "beacon",
+                "duration_seconds": 3
             }
         }
     },

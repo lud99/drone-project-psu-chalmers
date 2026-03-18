@@ -50,9 +50,7 @@ class WSPosition implements Runnable {
 
                     Log.d(TAG, "Sending telemetry: " + message);
                     webSocketClient.send(message);
-                } else {
-                    Log.d(TAG, "Waiting for valid telemetry data...");
-                }
+                } 
 
                 // Wait for 1 second before sending the next update
                 Thread.sleep(1000);

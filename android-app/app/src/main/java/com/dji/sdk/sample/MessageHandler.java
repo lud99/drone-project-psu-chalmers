@@ -39,8 +39,8 @@ class MessageHandler {
         sendTaskEvent(currentMissionID, -1, "task_aborted", "all_tasks_aborted");
     }
 
-    public void taskFailed(String currentMissionID, int currentTaskIndex) {
-        sendTaskEvent(currentMissionID, currentTaskIndex, "task_failed", null);
+    public void taskFailed(String currentMissionID, int currentTaskIndex, String errorMessage) {
+        sendTaskEvent(currentMissionID, currentTaskIndex, "task_failed", errorMessage);
     }
 
     private void sendTaskEvent(String missionId, int index, String event, String eventMessage) {
@@ -51,6 +51,7 @@ class MessageHandler {
             message.put("mission_id", missionId == null ? "unknown" : missionId);
             message.put("index", index);
             message.put("event", event);
+
             if (eventMessage != null && !eventMessage.isEmpty()) {
                 message.put("message", eventMessage);
             }
