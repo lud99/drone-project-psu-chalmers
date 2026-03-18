@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from pymavlink import mavutil
 
@@ -32,27 +32,13 @@ class MavlinkConnectionManager:
         print(
             f"[DEBUG] available_modes={list(mode_mapping.keys()) if mode_mapping else None}"
         )
+        try:
+            print(f"[DEBUG] initial flightmode={self.master.flightmode}")
+        except Exception:
+            print("[DEBUG] initial flightmode unavailable")
 
     def is_connected(self) -> bool:
         return self.master is not None
-
-    def drain_messages(self, duration: float = 5.0) -> None:
-        if self.master is None:
-            raise RuntimeError("MAVLink not connected")
-
-        end_time = time.time() + duration
-        while time.time() < end_time:
-            msg = self.master.recv_match(blocking=True, timeout=1)
-            if msg is None:
-                continue
-
-            msg_type = msg.get_type()
-            if msg_type == "STATUSTEXT":
-                print(f"[PX4 STATUS] {msg.text}")
-            elif msg_type == "SYS_STATUS":
-                print("[DEBUG] Received SYS_STATUS")
-            elif msg_type == "EKF_STATUS_REPORT":
-                print("[DEBUG] Received EKF_STATUS_REPORT")
 
     def is_px4(self) -> bool:
         if self.heartbeat is None:
@@ -78,8 +64,7 @@ class MavlinkConnectionManager:
 
         if self.is_px4():
             px4_aliases = {
-                "GUIDED": "TAKEOFF",
-                "AUTO.TAKEOFF": "TAKEOFF",
+                "GUIDED": "LOITER",
                 "AUTO.LOITER": "LOITER",
                 "AUTO.RTL": "RTL",
                 "AUTO.LAND": "LAND",
@@ -92,25 +77,57 @@ class MavlinkConnectionManager:
             f"Unknown mode: {mode}. Supported modes: {list(mode_mapping.keys())}"
         )
 
-    def set_mode(self, mode: str) -> None:
+    def set_mode(self, mode: str, wait: bool = True, timeout: float = 5.0) -> bool:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
 
-        mode_mapping = self.get_mode_mapping()
         resolved_mode = self._resolve_mode_name(mode)
+        mode_mapping = self.get_mode_mapping()
 
         print(
             f"[DEBUG] set_mode requested={mode}, resolved={resolved_mode}, "
             f"supported={list(mode_mapping.keys())}"
         )
 
-        mode_value = mode_mapping[resolved_mode]
-        if isinstance(mode_value, tuple):
-            mode_id = mode_value[1]
-        else:
-            mode_id = mode_value
+        # Let pymavlink handle PX4 vs ArduPilot correctly
+        self.master.set_mode(resolved_mode)
 
-        self.master.set_mode(mode_id)
+        if not wait:
+            return True
+
+        start = time.time()
+        while time.time() - start < timeout:
+            msg = self.master.recv_match(blocking=True, timeout=0.5)
+            if msg is None:
+                continue
+
+            msg_type = msg.get_type()
+
+            if msg_type == "STATUSTEXT":
+                print(f"[PX4 STATUS] {msg.text}")
+
+            elif msg_type == "COMMAND_ACK":
+                print(
+                    f"[DEBUG] COMMAND_ACK command={msg.command} result={msg.result}")
+
+            elif msg_type == "HEARTBEAT":
+                current_mode = "UNKNOWN"
+                try:
+                    current_mode = self.master.flightmode or "UNKNOWN"
+                except Exception:
+                    pass
+
+                armed = bool(
+                    msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+                )
+                print(f"[DEBUG] HEARTBEAT mode={current_mode} armed={armed}")
+
+                if current_mode.upper() == resolved_mode.upper():
+                    print(f"[DEBUG] Mode changed to {current_mode}")
+                    return True
+
+        print(f"[WARN] Timed out waiting for mode change to {resolved_mode}")
+        return False
 
     def print_status_messages(self, duration: float = 5.0) -> None:
         if self.master is None:
@@ -123,49 +140,34 @@ class MavlinkConnectionManager:
                 print(f"[PX4 STATUS] {msg.text}")
             time.sleep(0.1)
 
-    # def arm(self) -> None:
-    #     if self.master is None:
-    #         raise RuntimeError("MAVLink not connected")
+    def drain_messages(self, duration: float = 5.0) -> None:
+        if self.master is None:
+            raise RuntimeError("MAVLink not connected")
 
-    #     print("[DEBUG] Sending arm command")
+        end_time = time.time() + duration
+        while time.time() < end_time:
+            msg = self.master.recv_match(blocking=True, timeout=0.5)
+            if msg is None:
+                continue
 
-    #     self.master.mav.command_long_send(
-    #         self.master.target_system,
-    #         self.master.target_component,
-    #         mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
-    #         0,
-    #         1, 0, 0, 0, 0, 0, 0,
-    #     )
+            msg_type = msg.get_type()
+            if msg_type == "STATUSTEXT":
+                print(f"[PX4 STATUS] {msg.text}")
+            elif msg_type == "SYS_STATUS":
+                print("[DEBUG] Received SYS_STATUS")
+            elif msg_type == "EKF_STATUS_REPORT":
+                print("[DEBUG] Received EKF_STATUS_REPORT")
+            elif msg_type == "HEARTBEAT":
+                mode = "UNKNOWN"
+                try:
+                    mode = self.master.flightmode or "UNKNOWN"
+                except Exception:
+                    pass
+                armed = bool(msg.base_mode &
+                             mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+                print(f"[DEBUG] HEARTBEAT mode={mode} armed={armed}")
 
-    #     start = time.time()
-    #     timeout = 10
-
-    #     while time.time() - start < timeout:
-    #         msg = self.master.recv_match(blocking=True, timeout=1)
-    #         if msg is None:
-    #             continue
-
-    #         msg_type = msg.get_type()
-
-    #         if msg_type == "STATUSTEXT":
-    #             print(f"[PX4 STATUS] {msg.text}")
-
-    #         elif msg_type == "COMMAND_ACK":
-    #             print(
-    #                 f"[DEBUG] COMMAND_ACK command={msg.command} result={msg.result}"
-    #             )
-
-    #         elif msg_type == "HEARTBEAT":
-    #             armed = bool(msg.base_mode &
-    #                          mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
-    #             print(f"[DEBUG] Armed status: {armed}")
-    #             if armed:
-    #                 print("[DEBUG] Motors armed")
-    #                 return
-
-    #     raise TimeoutError("Drone did not arm within 10 seconds")
-
-    def arm(self) -> None:
+    def arm(self, timeout: float = 10.0) -> None:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
 
@@ -180,16 +182,13 @@ class MavlinkConnectionManager:
         )
 
         start = time.time()
-        timeout = 10
-
         while time.time() - start < timeout:
-            msg = self.master.recv_match(blocking=True, timeout=1)
+            msg = self.master.recv_match(blocking=True, timeout=0.5)
             if msg is None:
                 continue
 
             msg_type = msg.get_type()
 
-            # 👇 THIS IS THE NEW PART
             if msg_type == "STATUSTEXT":
                 print(f"[PX4 STATUS] {msg.text}")
 
@@ -200,30 +199,23 @@ class MavlinkConnectionManager:
             elif msg_type == "HEARTBEAT":
                 armed = bool(msg.base_mode &
                              mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
-                print(f"[DEBUG] Armed status: {armed}")
+                mode = "UNKNOWN"
+                try:
+                    mode = self.master.flightmode or "UNKNOWN"
+                except Exception:
+                    pass
+                print(f"[DEBUG] HEARTBEAT mode={mode} armed={armed}")
                 if armed:
                     print("[DEBUG] Motors armed")
                     return
 
-        raise TimeoutError("Drone did not arm within 10 seconds")
-
-    def arm_and_takeoff(self, altitude: float | None = None) -> None:
-        alt = altitude if altitude is not None else self.config.default_takeoff_alt
-
-        print("[DEBUG] Setting POSCTL mode")
-        self.adapter.set_mode("POSCTL")
-        time.sleep(1)
-
-        print("[DEBUG] Arming drone")
-        self.adapter.arm()
-        time.sleep(2)
-
-        print(f"[DEBUG] Sending takeoff command to altitude={alt}")
-        self.adapter.takeoff(alt)
+        raise TimeoutError("Drone did not arm within timeout")
 
     def disarm(self) -> None:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
+
+        print("[DEBUG] Sending disarm command")
 
         self.master.mav.command_long_send(
             self.master.target_system,
@@ -232,17 +224,42 @@ class MavlinkConnectionManager:
             0,
             0, 0, 0, 0, 0, 0, 0,
         )
-        self.master.motors_disarmed_wait()
 
-    def takeoff(self, altitude: float) -> None:
+        start = time.time()
+        while time.time() - start < 5.0:
+            msg = self.master.recv_match(blocking=True, timeout=0.5)
+            if msg is None:
+                continue
+
+            msg_type = msg.get_type()
+
+            if msg_type == "STATUSTEXT":
+                print(f"[PX4 STATUS] {msg.text}")
+
+            elif msg_type == "COMMAND_ACK":
+                print(
+                    f"[DEBUG] COMMAND_ACK command={msg.command} result={msg.result}")
+
+            elif msg_type == "HEARTBEAT":
+                armed = bool(msg.base_mode &
+                             mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+                mode = "UNKNOWN"
+                try:
+                    mode = self.master.flightmode or "UNKNOWN"
+                except Exception:
+                    pass
+                print(f"[DEBUG] HEARTBEAT mode={mode} armed={armed}")
+                if not armed:
+                    print("[DEBUG] Motors disarmed")
+                    return
+
+        print("[WARN] Timed out waiting for disarm")
+
+    def takeoff(self, altitude: float, timeout: float = 5.0) -> None:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
 
-        if self.is_px4():
-            mode_mapping = self.get_mode_mapping()
-            if "TAKEOFF" in mode_mapping:
-                self.set_mode("TAKEOFF")
-                time.sleep(1)
+        print(f"[DEBUG] Sending MAV_CMD_NAV_TAKEOFF altitude={altitude}")
 
         self.master.mav.command_long_send(
             self.master.target_system,
@@ -253,18 +270,70 @@ class MavlinkConnectionManager:
             0, 0, altitude,
         )
 
+        start = time.time()
+        while time.time() - start < timeout:
+            msg = self.master.recv_match(blocking=True, timeout=0.5)
+            if msg is None:
+                continue
+
+            msg_type = msg.get_type()
+
+            if msg_type == "STATUSTEXT":
+                print(f"[PX4 STATUS] {msg.text}")
+
+            elif msg_type == "COMMAND_ACK":
+                print(
+                    f"[DEBUG] COMMAND_ACK command={msg.command} result={msg.result}")
+                if msg.command == mavutil.mavlink.MAV_CMD_NAV_TAKEOFF:
+                    if msg.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                        raise RuntimeError(
+                            f"Takeoff command rejected with result={msg.result}"
+                        )
+                    print("[DEBUG] Takeoff command accepted")
+                    return
+
+            elif msg_type == "HEARTBEAT":
+                mode = "UNKNOWN"
+                try:
+                    mode = self.master.flightmode or "UNKNOWN"
+                except Exception:
+                    pass
+                armed = bool(msg.base_mode &
+                             mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+                print(f"[DEBUG] HEARTBEAT mode={mode} armed={armed}")
+
+        raise TimeoutError("Did not receive takeoff ACK")
+
+    def arm_and_takeoff(self, altitude: float = 2.0) -> None:
+        print("[DEBUG] Setting LOITER mode")
+        if not self.set_mode("LOITER"):
+            raise RuntimeError("Failed to switch to LOITER mode")
+
+        time.sleep(2)
+
+        print("[DEBUG] Arming drone")
+        self.arm()
+        time.sleep(2)
+
+        print(f"[DEBUG] Sending takeoff command to altitude={altitude}")
+        self.takeoff(altitude)
+
     def rtl(self) -> None:
-        self.set_mode("RTL")
+        print("[DEBUG] Setting RTL mode")
+        if not self.set_mode("RTL"):
+            raise RuntimeError("Failed to switch to RTL mode")
 
     def land(self) -> None:
-        self.set_mode("LAND")
-
+        print("[DEBUG] Setting LAND mode")
+        if not self.set_mode("LAND", wait=True):
+            raise RuntimeError("Failed to switch to LAND mode")
+        
     def goto_location(
         self,
         lat: float,
         lon: float,
         alt: float,
-        yaw: float | None = None,
+        yaw: Optional[float] = None,
     ) -> None:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
@@ -296,6 +365,9 @@ class MavlinkConnectionManager:
             0 if yaw is None else math.radians(yaw),
             0,
         )
+
+        print(
+            f"[DEBUG] Sent goto command lat={lat}, lon={lon}, alt={alt}, yaw={yaw}")
 
     def recv_match(self, *args, **kwargs):
         if self.master is None:

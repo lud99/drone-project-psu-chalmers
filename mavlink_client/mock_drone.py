@@ -3,6 +3,7 @@ import random
 import time
 from .telemetry_manager import TelemetryManager
 
+
 class MockDrone:
     def __init__(self, telemetry_manager: TelemetryManager):
         self.telemetry_manager = telemetry_manager
@@ -58,3 +59,7 @@ class MockDrone:
             satellites_visible=14,
             timestamp=time.time(),
         )
+
+    def disarm(self):
+        self.armed = False
+        print("[MOCK] Disarmed")
