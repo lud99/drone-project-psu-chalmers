@@ -8,8 +8,8 @@ import dji.sdk.base.BaseProduct;
 
 
 /*
-* Manages the selection of the version of DroneAdapter to use based on the connected product or specified drone type.
-* Currently, it defaults to DJIAdapter for all cases, but it is designed to be easily extendable to support multiple drone types in the future.
+* Selects which DroneAdapter implementation to use based on connected product or drone type.
+* It currently defaults to DJIAdapter, but is designed to be extended for additional drone types.
 */
 public final class DroneAdapterManager {
     private static final String TAG = DroneAdapterManager.class.getSimpleName();
@@ -42,7 +42,7 @@ public final class DroneAdapterManager {
                 currentAdapter = DJIAdapter.getInstance();
                 break;
             case "mavlink":
-                // When implementing new drone tyepes, these can get added here.
+                // Additional drone types can be added here when implemented.
                 currentAdapter = DJIAdapter.getInstance();
                 Log.w(TAG, "MavlinkAdapter not implemented yet. Falling back to DJIAdapter");
                 break;

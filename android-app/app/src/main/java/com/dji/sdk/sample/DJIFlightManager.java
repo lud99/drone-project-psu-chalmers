@@ -122,9 +122,7 @@ class DJIFlightManager {
             }
             @Override
             public void onExecutionUpdate(WaypointMissionExecutionEvent executionEvent) {
-                if (executionEvent != null) {
-                    Log.d("DJI", "Mission execution update received for task " + currentTaskIndex);
-                }
+                // Intentionally left empty.
             }
             @Override
             public void onExecutionStart() {
@@ -140,7 +138,6 @@ class DJIFlightManager {
                         MessageHandler.getInstance().taskComplete(currentMissionID, currentTaskIndex);
                     }
                 } else {
-                    // Elso add message to backend here
                     Log.e("DJI", "Mission failed: " + error.getDescription());
                     if (MessageHandler.getInstance() != null) {
                         MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, error.getDescription());
@@ -262,7 +259,7 @@ class DJIFlightManager {
     public void getRegistrationData(CommonCallbacks.CompletionCallbackWith<DroneAdapter.RegistrationData> callback) {
         BaseProduct product = DJISDKManager.getInstance().getProduct();
         if (!(product instanceof Aircraft)) {
-            Log.e("DJI", "getRegistrationData misslyckades: Ingen drönare ansluten.");
+            Log.e("DJI", "getRegistrationData failed: No drone connected.");
             if (callback != null) {
                 callback.onFailure(DJIError.COMMON_DISCONNECTED);
             }
@@ -271,7 +268,8 @@ class DJIFlightManager {
 
         this.aircraft = (Aircraft) product;
         DroneAdapter.RegistrationData registrationData = createRegistrationDataSnapshot(this.aircraft);
-
+        // Chain async calls to fetch drone ID, camera capabilities, LED capabilities, and speaker capabilities in sequence
+        // then return the complete registration data in the callback
         fetchDroneIDAsync(this.aircraft, registrationData, () ->
                 fetchCameraCapabilitiesAsync(this.aircraft, registrationData, () ->
                         fetchLedCapabilitiesAsync(this.aircraft, registrationData, () ->
@@ -484,15 +482,7 @@ class DJIFlightManager {
                 return;
             }
 
-            Log.w(
-                    "DJI",
-                    "Failed to refresh speaker file list (attempt "
-                            + attempt
-                            + "/"
-                            + SPEAKER_FILELIST_MAX_RETRIES
-                            + "): "
-                            + djiError.getDescription()
-            );
+            Log.w("DJI","Failed to refresh speaker file list (attempt " + attempt + "/" + SPEAKER_FILELIST_MAX_RETRIES + "): " + djiError.getDescription());
 
             if (attempt < SPEAKER_FILELIST_MAX_RETRIES) {
                 Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -526,24 +516,23 @@ class DJIFlightManager {
 
 
     /**
-     * This function starts the process of setting up the waypoint mission and is called when
+     * This method starts the process of setting up the waypoint mission and is called when
      * the user presses the Arm button.
-     * Firstly we check the batterystate to ensure the drones battery is above 20% as the the
-     * application just crashes otherwise.
-     * Secondly checking that gps connection is ensured
-     * To ensure a correct mission, possible leftovers of previous missions is deleted.
-     * It fetches the coordinates of the drone on the ground and creating the first waypoint 10 m above.
-     * Thereafter we fetch the test origin coordinates loaded from either the user manually or from ATOS.
+        * First we check battery state to ensure the drone battery is above 20%, because lower values
+        * can cause unstable mission start behavior.
+        * Second, we check GPS strength before mission setup.
+        * To ensure a clean mission, leftovers from previous missions are removed.
+        * The method fetches the current aircraft coordinates and creates the first waypoint 10 m above.
+        * Then it adds the mission target coordinates loaded either manually or from ATOS.
      * The waypoints are then put in a list by order of execution,
      * so our primary waypoint is added lastly.
-     * Lastly we call configWaypointMission() to further specify the behavior of the waypointMission and
-     * uploadWaypointMission() to send the finished product to the drone
+        * Finally it calls configWaypointMission() to configure behavior and
+        * uploadWaypointMission() to send the mission to the drone.
      *
      */
 
     public void GoToWaypoint(double waypoint_lat, double waypoint_lon, float waypoint_alt, Integer waypoint_heading, String missionID, int taskIndex){
-        Log.d("DJI", "GoToWaypoint called with lat: " + waypoint_lat + ", lon: " + waypoint_lon + ", alt: " + waypoint_alt + ", heading: " + waypoint_heading);
-        // Set these since the Args dont "survive" the entire mission
+        // Persist these values because SDK callbacks execute asynchronously.
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
 
@@ -567,11 +556,11 @@ class DJIFlightManager {
             return;
         }
 
-        //Checking battery before takeoff to prevent application crash
+        // Check battery before takeoff to avoid unstable mission start.
         int batteryPercent = batteryState.getChargeRemainingInPercent();
         Log.d("DJI", "GoTo precheck batteryPercent=" + batteryPercent);
         if (batteryPercent <= 20) {
-            String errorMessage = "Battery to low to start mission, needs above 20%. Is: " + batteryPercent + "%";
+            String errorMessage = "Battery too low to start mission, needs to be above 20%. Is: " + batteryPercent + "%";
             Log.e("DJI", errorMessage);
             showToastOnMainThread(errorMessage, Toast.LENGTH_LONG);
             if (MessageHandler.getInstance() != null) {
@@ -593,6 +582,7 @@ class DJIFlightManager {
             return;
         };
 
+        // Fetching the current location of the drone to be able to set the first waypoint 10m above it
         dji.common.flightcontroller.LocationCoordinate3D aircraftLocation = state.getAircraftLocation();
         if (aircraftLocation == null) {
             String errorMessage = "Cannot start go_to: aircraft location is unavailable";
@@ -648,15 +638,15 @@ class DJIFlightManager {
         operator.stopMission(djiError -> {
             
             if (djiError != null) {
-                Log.d("DJI", "StopMission returnerade: " + djiError.getDescription() + " (Detta är normalt om inget kördes)");
+                Log.d("DJI", "stopMission returned: " + djiError.getDescription() + " (normal if no mission was running)");
             } else {
-                Log.d("DJI", "Aktivt uppdrag stoppades framgångsrikt.");
+                Log.d("DJI", "Active mission stopped successfully.");
             }
             
             configWayPointMission();   
             addListener();         
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                Log.d("DJI", "Försöker ladda upp nytt uppdrag...");
+                Log.d("DJI", "Trying to upload new mission...");
                 uploadWayPointMission();
             }, 500);
 
@@ -666,15 +656,15 @@ class DJIFlightManager {
 
 
         /**
-     * This function rotates the Gimbal
+     * This method rotates the Gimbal
      * If successful it sends "task complete" to the backend, else it sends "task failed".
-     * It awaits the specified duration before it send "task complete" or "task failed"
+      * It waits for the specified duration before sending "task complete" or "task failed".
      */
     public void angleCamera(float pitch, float yaw, float transitionTime, String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
 
-        // Create the rotation-object, didn't include .roll() since its prob. not needed
+        // Roll is intentionally unchanged; only pitch and yaw are used here.
         Rotation rotation = new Rotation.Builder()
                 // All below are methods of Builder(), chained for readability
                 .pitch(pitch)
@@ -712,7 +702,7 @@ class DJIFlightManager {
                 .pitch(currentGimbalAttitude.getPitch())
                 .yaw(currentGimbalAttitude.getYaw())
                 .mode(RotationMode.ABSOLUTE_ANGLE)
-                .time(0.1f) // Snabb inbromsning
+            .time(0.1f) // Quick brake to stop movement smoothly
                 .build();
 
         aircraft.getGimbal().rotate(stopRotation, djiError -> {
@@ -725,8 +715,8 @@ class DJIFlightManager {
 
 
     /**
-     * This function starts the specified soundtrack playing on the speaker
-     * If duration is specified it will automatically shut of after that time
+     * This method starts the specified soundtrack playing on the speaker
+        * If duration is specified it will automatically shut off after that time
      * If duration is NOT specified it will keep playing until "stop_task" is received
      */
 
@@ -753,7 +743,6 @@ class DJIFlightManager {
         Integer fileIndex = AudioFileMapping.getCachedFileIndex(audioIndexCache, fileName);
 
         if (fileIndex == null) {
-            // messageHandler.sendTaskFailed(missionID, taskIndex, "Audio file not found in cache: " + fileName); ###########
             Log.e("DJI", "Audio file not found in cache: " + fileName);
             if (MessageHandler.getInstance() != null) {
                 MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, "Audio file not found in cache: " + fileName);
@@ -766,7 +755,7 @@ class DJIFlightManager {
 
         // Set volume and play file
         speaker.setVolume((int) (volume * 100), djiError -> {
-            // Continue ever if error with setting volume
+            // Continue even if setting volume fails.
 
             // The file will repeat till duration is reached or receiving "end_task"
             speaker.setPlayMode(PlayMode.REPEAT_SINGLE, error -> {
@@ -826,7 +815,7 @@ class DJIFlightManager {
     }
 
     /**
-     * This function turns on the spotlight with the specified brightness.
+     * This method turns on the spotlight with the specified brightness.
      * If durationSeconds <= 0, the spotlight stays on indefinitely.
      */
     public void activateSpotlight(float brightness, Integer durationSeconds, String missionID, int taskIndex) {
@@ -904,7 +893,7 @@ class DJIFlightManager {
     }
 
     /*
-    * This function activates the specified LED type (front, rear, or beacon) for the given duration.
+    * This method activates the specified LED type (front, rear, or beacon) for the given duration.
      * If durationSeconds <= 0, the LED stays on indefinitely until "stop_task" is received.
     */
     public void activateLED(String ledType, Integer durationSeconds, String missionID, int taskIndex) {
@@ -1168,8 +1157,8 @@ class DJIFlightManager {
 
 
     /**
-     * This function is used to stop a specific task when "stop_task" is received from the backend.
-     * It checks the task type and calls the appropriate stop function for that task.
+     * This method is used to stop a specific task when "stop_task" is received from the backend.
+     * It checks the task type and calls the appropriate stop method for that task.
      */
     public void stopTask(String missionID, int taskIndex, String taskType) {
         this.currentMissionID = missionID;
@@ -1188,7 +1177,6 @@ class DJIFlightManager {
                 deactivateSpotlight(missionID, taskIndex);
                 break;
             case "led_rear":
-                // For LED we would ideally want to specify which LED to turn off, but for simplicity we can just try turning off all
                 deactivateLED("rear", missionID, taskIndex);
             case "led_front":
                 deactivateLED("front", missionID, taskIndex);
@@ -1223,9 +1211,9 @@ class DJIFlightManager {
 
 
     /**
-     * ConfigWayPointMission() extends the onArm function and builds the characteristics of the waypoint mission.
+     * ConfigWayPointMission() extends the onArm method and builds the characteristics of the waypoint mission.
      * We set finishedAction and headingMode to what was defined in onArm()
-     * We continue to define alla actions for our waypoint (test origin) in primaryWaypointActions
+        * We continue to define all actions for our waypoint (test origin) in primaryWaypointActions
      * The list is connected to our main waypoint on index 1
      * After all configurations are complete the mission is ready to be uploaded to the drone
      *
@@ -1238,7 +1226,7 @@ class DJIFlightManager {
      */
     private void configWayPointMission(){
         float mSpeed = 6.0f;
-        // Vi behöver inte kolla om den är null längre eftersom vi skapar den i GoToWaypoint
+        // waypointMissionBuilder is always created in GoToWaypoint before this method is called.
         waypointMissionBuilder.finishedAction(mFinishedAction)
                 .headingMode(mHeadingMode)
                 .autoFlightSpeed(mSpeed)
@@ -1312,8 +1300,8 @@ class DJIFlightManager {
     }
 
     /**
-     * Function for terminating current waypoint mission.
-     * This function is directly used when the Abort button is pressed
+        * Method for terminating current waypoint mission.
+     * This method is directly used when the Abort button is pressed
      * When called, the drone exits the waypoint mission and hovers in current position with manual controls activated
      */
     public void abortWaypointMission(){
@@ -1335,6 +1323,7 @@ class DJIFlightManager {
         showToastOnMainThread(message, Toast.LENGTH_SHORT);
     }
 
+    // Utility method to show a toast message on the main thread, since DJI callbacks may be on a background thread.
     private void showToastOnMainThread(String message, int duration) {
         Handler mainHandler = new Handler(Looper.getMainLooper());
         mainHandler.post(() -> {
@@ -1349,8 +1338,8 @@ class DJIFlightManager {
     }
 
     /**
-     * Function to use when everything is done and the test is completed.
-     * Waypointmode is stopped and the drone returns to home to start position.
+        * Method to use when everything is done and the test is completed.
+        * Waypoint mode is stopped and the drone returns to its home position.
      */
     public void endWaypointMission(){
         abortWaypointMission();
@@ -1359,7 +1348,7 @@ class DJIFlightManager {
 
 
     /**
-     * Implements the DJI function startGoHome.
+     * Implements the DJI method startGoHome.
      * Is called when test is complete
      */
     public void goingHome(){
@@ -1388,7 +1377,7 @@ class DJIFlightManager {
      */
     public void addListener() {
     if (getWaypointMissionOperator() != null && eventNotificationListener != null) {
-        // First remove, to avoid cuplicates
+        // First remove, to avoid duplicates
         getWaypointMissionOperator().removeListener(eventNotificationListener);
         getWaypointMissionOperator().addListener(eventNotificationListener);
         }

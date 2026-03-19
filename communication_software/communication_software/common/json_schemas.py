@@ -199,10 +199,6 @@ class WebRTCAnswerMessage(DroneMessage):
     sdp: str
     type: Optional[str] = None
 
-class Ping(DroneMessage):
-    msg_type: Literal["ping"]
-
-
 # Create a Union of all possible messages
 AnyDroneMessage = Annotated[
     Union[
@@ -218,11 +214,9 @@ AnyDroneMessage = Annotated[
         PongMessage,
         WebRTCCandidateMessage,
         WebRTCAnswerMessage,
-        Ping,
     ],
     Field(discriminator="msg_type"),
 ]
-
 
 ### Detections schema
 class SingleDetection(BaseModel):

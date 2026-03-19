@@ -75,7 +75,7 @@ public class DJIDroneSpecs {
 
         switch (modelName) {
             case "UNKNOWN_AIRCRAFT":
-                modelFov = 0.0;
+                modelFov = baseFov;
                 break;
             case "INSPIRE_1":
                 modelFov = 81.9;

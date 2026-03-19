@@ -45,11 +45,11 @@ public interface DroneAdapter {
         }
 
         public static class Led {
-            public String[] types = {}; // Will likely have to changed
+            public String[] types = {};
         }
 
         public static class Speaker {
-            public String[] audio_files = {}; // Will likely have to changed
+            public String[] audio_files = {};
         }
     }
 

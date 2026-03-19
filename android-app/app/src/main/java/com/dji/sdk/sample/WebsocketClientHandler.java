@@ -115,7 +115,7 @@ public class WebsocketClientHandler {
     }
 
     public synchronized void trySendRegistrationDataIfReady() {
-        Log.d(TAG, "xxxxx Attempting to send registration data if ready...");
+        Log.d(TAG, "Attempting to send registration data if ready...");
         if (!connected || registrationDataSentForCurrentConnection) {
             return;
         }
@@ -129,7 +129,7 @@ public class WebsocketClientHandler {
         if (droneAdapter == null) {
             return;
         }
-        Log.d(TAG, "xxxxx Drone adapter found, requesting registration data asynchronously...");
+        Log.d(TAG, "Drone adapter found, requesting registration data asynchronously...");
         droneAdapter.getRegistrationData(new DroneAdapter.RegistrationDataCallback() {
             @Override
             public void onSuccess(DroneAdapter.RegistrationData registrationData) {
@@ -316,8 +316,7 @@ public class WebsocketClientHandler {
         try {
             webSocketClient.close(0, 1001, "Connection closed by app");
         } catch (Exception e) {
-            Log.d(TAG, "Failed to close connection!");
-            e.printStackTrace();
+            Log.e(TAG, "Failed to close connection.", e);
         }
     }
 
@@ -431,13 +430,13 @@ public class WebsocketClientHandler {
 
         if ("offer".equals(type) || "candidate".equals(type) || "answer".equals(type)) {
             if (webRTCClient == null) {
-                Log.w(TAG, "RTC CLIENT IS NULL, initializing...");
+                Log.w(TAG, "WebRTC client is null; initializing...");
                 initializeWebRTCClient();
             }
             if (webRTCClient != null) {
                 webRTCClient.handleWebRTCMessage(jsonMessage);
             } else {
-                Log.e(TAG, "RTC CLIENT still null after initialization, dropping message");
+                Log.e(TAG, "WebRTC client is still null after initialization; dropping message");
                 
             }
             return;
@@ -671,9 +670,9 @@ private final Runnable heartbeatRunnable = new Runnable() {
             connected = false;
             stopHeartbeat();
             status_update.release();
+            }
         }
-    }
-};
+    };
 
 }
 
