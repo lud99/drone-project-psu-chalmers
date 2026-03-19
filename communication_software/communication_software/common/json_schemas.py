@@ -169,9 +169,9 @@ class DroneRegistrationMessage(DroneMessage):
     telemetry: Telemetry
 
 
-# App -> backend. Sent continuously
+# App -> backend. Sent continuously. Also sent to frontend
 class TelemetryMessage(DroneMessage):
-    msg_type: Literal["telemetry"]
+    msg_type: Literal["telemetry"] = "telemetry"
     drone_id: str
     telemetry: Telemetry
 
@@ -237,8 +237,7 @@ class LatLon(BaseModel):
     lon: float
 
 
-class WatchArea(BaseModel):
-    drone_id: str
+class Points(BaseModel):
     points: list[LatLon]
 
 
@@ -266,8 +265,7 @@ class FrontendMessages:
 
     class SetWatchArea(FrontendMessage):
         msg_type: Literal["set_watch_area"] = "set_watch_area"
-        drone_id: str
-        points: list[LatLon]
+        area: Points
 
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
@@ -277,24 +275,23 @@ class FrontendMessages:
         msg_type: Literal["active_missions"] = "active_missions"
         missions: list[dict]
 
-    class TelemetryUpdate(FrontendMessage):
-        msg_type: Literal["telemetry"] = "telemetry"
-        drone_id: str
-        telemetry: Telemetry
-
+    # Sent via WebSockets
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
         capabilities: Capabilities
         telemetry: Telemetry
+        error: Optional[str] = None
 
+    # Sent via WebSockets
     class DroneDisconnected(FrontendMessage):
         msg_type: Literal["drone_disconnected"] = "drone_disconnected"
         drone_id: str
+        error: Optional[str] = None
 
     class GetWatchAreas(FrontendMessage):
         msg_type: Literal["get_watch_areas"] = "get_watch_areas"
-        areas: list[WatchArea]
+        area: Points
 
     class ConnectedDrones(FrontendMessage):
         msg_type: Literal["connected_drones"] = "connected_drones"
@@ -304,6 +301,11 @@ class FrontendMessages:
         msg_type: Literal["response"] = "response"
         error: Optional[str] = None
 
+    # Sent via WebSockets
+    class Error(FrontendMessage):
+        msg_type: Literal["error"] = "error"
+        error: str
+
 
 AnyFrontendMessage = Annotated[
     Union[
@@ -311,7 +313,6 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.RejectMissions,
         FrontendMessages.ProposedMissions,
         FrontendMessages.ActiveMissions,
-        FrontendMessages.TelemetryUpdate,
         FrontendMessages.StartDrone,
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
@@ -319,6 +320,8 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.GetWatchAreas,
         FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
+        FrontendMessages.Error,
+        TelemetryMessage,
     ],
     Field(discriminator="msg_type"),
 ]

@@ -1,10 +1,6 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
     "python.analysis.typeCheckingMode": "standard",
-    "[python]": {
-        "editor.formatOnSave": true
-    },
-    "files.eol": "\r\n",
-    "liveServer.settings.port": 5501,
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "editor.formatOnSave": true,
+    "files.eol": "\r\n"
 }

@@ -2,18 +2,14 @@
     // Messages that are sent by the client should be sent over HTTP to a /api/v1/<name> endpoint.
     // Messages are received using a web socket.
     // Sending HTTP request allows easily waiting for responses and handling errors.
-
     // To make it easy, json data is submitted as the body. The "msg_type" fields specified are
     // either all sent to the same endpoint, or to different ones there the msg_name is the name of the endpoint
-
-
     // Sent
     {
         "msg_type": "accept_mission",
         "mission_id": "1"
     },
     // Sent
-
     {
         "msg_type": "reject_missions" // The user chooses to not do a mission. 
         // The mission planning should know what mission should be rejected
@@ -46,23 +42,21 @@
         }
     },
     // Sent
-
     {
         "msg_type": "start_drone", // 
         "drone_id": "0"
     },
     // Received
-
     {
         "msg_type": "drone_connected",
         "drone_id": "1",
-         "capabilities": {
+        "capabilities": {
             "camera": null, // This is possible to retrieve (at least from DJI SDK)
             "led": null, // Depends on what info we can get from the drone
             "spotlight": false,
             "speaker": {"audio_files": ["alarm"]}
         },
-        "telemetry":  {
+        "telemetry": {
             "lat": 57.7089,
             "lon": 11.9746,
             "alt": 30.5,
@@ -92,7 +86,6 @@
         }}]
     },
     // Received
-
     {
         "msg_type": "drone_disconnected",
         "drone_id": "1"
@@ -100,9 +93,11 @@
     // Sent
     {
         "msg_type": "set_watch_area",
-        "drone_id": "0",
         "points": [
-            { "lat": 12.3, "lon": 16.5 }
+            {
+                "lat": 12.3,
+                "lon": 16.5
+            }
             // .. and more
         ]
     },
@@ -110,11 +105,18 @@
     {
         "msg_type": "get_watch_areas",
         "areas": [
-            { "drone_id": "0", "points": [{ "lat": 12.3, "lon": 16.5 }] }
+            {
+                "drone_id": "0",
+                "points": [
+                    {
+                        "lat": 12.3,
+                        "lon": 16.5
+                    }
+                ]
+            }
             // ...
         ]
     },
-
     // For receiving responses
     {
         "msg_type": "response",
@@ -122,6 +124,10 @@
     },
     {
         "msg_type": "response",
+        "error": "Drone '1' doesn't exist"
+    },
+    {
+        "msg_type": "error",
         "error": "Drone '1' doesn't exist"
     }
 ]
