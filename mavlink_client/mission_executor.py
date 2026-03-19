@@ -16,30 +16,36 @@ class MissionExecutor:
         print("[DEBUG] PX4 arm + takeoff")
 
         current_mode = self.adapter.wait_for_valid_mode()
-        print(f"[DEBUG] Current mode before arm: {current_mode}")
+        print(f"[DEBUG] Current mode before takeoff prep: {current_mode}")
 
-        if current_mode not in ["LOITER", "POSCTL"]:
-            if not self.adapter.set_mode("LOITER"):
+        if current_mode != "TAKEOFF":
+            if not self.adapter.set_mode("TAKEOFF"):
                 raise RuntimeError(
-                    f"Vehicle is currently in {current_mode} and failed to switch to LOITER"
+                    f"Vehicle is currently in {current_mode} and failed to switch to TAKEOFF"
                 )
+
             time.sleep(1.0)
 
             current_mode = self.adapter.wait_for_valid_mode()
             print(f"[DEBUG] Mode after switch attempt: {current_mode}")
 
-            if current_mode not in ["LOITER", "POSCTL"]:
+            if current_mode != "TAKEOFF":
                 raise RuntimeError(
-                    f"Vehicle is currently in {current_mode}, not safe to auto-arm from this state"
+                    f"Vehicle is currently in {current_mode}, failed to enter TAKEOFF mode"
                 )
 
         if not self.adapter.arm():
             raise RuntimeError("Arm command rejected by flight controller")
 
-        time.sleep(1.0)
+        print("[DEBUG] Waiting to confirm armed state is stable")
+        time.sleep(2.0)
+
+        if not self.adapter._is_armed():
+            raise RuntimeError("Vehicle disarmed immediately after arming")
 
         if not self.adapter.takeoff(alt):
-            raise RuntimeError("Takeoff failed or no altitude increase")
+            raise RuntimeError(
+                "Takeoff failed or vehicle disarmed during climb")
 
     def fly_to_coordinate(
         self,

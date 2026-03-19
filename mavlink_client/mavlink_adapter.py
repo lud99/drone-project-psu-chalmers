@@ -73,7 +73,7 @@ class MavlinkAdapter:
 
         print(f"[WARN] Timed out waiting for mode change to {target}")
         return False
-    
+
     def wait_for_valid_mode(self, timeout: float = 5.0) -> str:
         end_time = time.time() + timeout
 
@@ -153,14 +153,46 @@ class MavlinkAdapter:
 
     def takeoff(self, altitude: float) -> bool:
         start_alt = self._current_alt()
+
         print(f"[DEBUG] Sending takeoff command to {altitude} m")
         self.connection.takeoff(altitude)
 
-        if self._wait_for_altitude_gain(start_alt=start_alt, min_gain=0.7, timeout=12.0):
-            print("[DEBUG] Takeoff appears successful")
-            return True
+        end_time = time.time() + 15.0
+        saw_positive_climb = False
 
-        print("[WARN] Takeoff command sent, but no clear altitude increase detected")
+        while time.time() < end_time:
+            self._drain_messages(duration=0.2)
+
+            current_alt = self._current_alt()
+            armed = self._is_armed()
+            mode = self._current_mode()
+
+            print(
+                f"[DEBUG] TAKEOFF CHECK mode={mode} armed={armed} alt={current_alt}")
+
+            if current_alt is not None:
+                if start_alt is None:
+                    climb = current_alt
+                else:
+                    climb = current_alt - start_alt
+
+                if climb > 0.05:
+                    saw_positive_climb = True
+
+                if climb >= 0.7:
+                    print("[DEBUG] Takeoff successful")
+                    return True
+
+            if not armed:
+                if saw_positive_climb:
+                    print("[ERROR] Drone disarmed after beginning climb")
+                else:
+                    print("[ERROR] Drone disarmed before meaningful climb")
+                return False
+
+            time.sleep(0.1)
+
+        print("[WARN] No sufficient altitude increase detected")
         return False
 
     def go_to(
