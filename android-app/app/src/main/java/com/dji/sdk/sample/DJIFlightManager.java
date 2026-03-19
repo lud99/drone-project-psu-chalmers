@@ -516,20 +516,19 @@ class DJIFlightManager {
 
 
     /**
-     * This method starts the process of setting up the waypoint mission and is called when
-     * the user presses the Arm button.
-        * First we check battery state to ensure the drone battery is above 20%, because lower values
-        * can cause unstable mission start behavior.
-        * Second, we check GPS strength before mission setup.
-        * To ensure a clean mission, leftovers from previous missions are removed.
-        * The method fetches the current aircraft coordinates and creates the first waypoint 10 m above.
-        * Then it adds the mission target coordinates loaded either manually or from ATOS.
-     * The waypoints are then put in a list by order of execution,
-     * so our primary waypoint is added lastly.
-        * Finally it calls configWaypointMission() to configure behavior and
-        * uploadWaypointMission() to send the mission to the drone.
-     *
-     */
+    * This method starts the process of setting up the waypoint mission and is called when
+    * the user presses the Arm button.
+    * First we check battery state to ensure the drone battery is above 20%, because lower values
+    * can cause unstable mission start behavior.
+    * Second, we check GPS strength before mission setup.
+    * To ensure a clean mission, leftovers from previous missions are removed.
+    * The method fetches the current aircraft coordinates and creates the first waypoint 10 m above.
+    * Then it adds the mission target coordinates loaded either manually or from ATOS.
+    * The waypoints are then put in a list by order of execution,
+    * so our primary waypoint is added lastly.
+    * Finally it calls configWaypointMission() to configure behavior and
+    * uploadWaypointMission() to send the mission to the drone.
+    */
 
     public void GoToWaypoint(double waypoint_lat, double waypoint_lon, float waypoint_alt, Integer waypoint_heading, String missionID, int taskIndex){
         // Persist these values because SDK callbacks execute asynchronously.
@@ -730,9 +729,6 @@ class DJIFlightManager {
                 MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, "Speaker accessory not connected");
             }
             Log.e("DJI", "Speaker accessory not connected");
-            if (MessageHandler.getInstance() != null) {
-                MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, "Speaker accessory not connected");
-            }
             return;
         }
 
@@ -1178,6 +1174,7 @@ class DJIFlightManager {
                 break;
             case "led_rear":
                 deactivateLED("rear", missionID, taskIndex);
+                break;
             case "led_front":
                 deactivateLED("front", missionID, taskIndex);
                 break;
@@ -1300,10 +1297,10 @@ class DJIFlightManager {
     }
 
     /**
-        * Method for terminating current waypoint mission.
-     * This method is directly used when the Abort button is pressed
-     * When called, the drone exits the waypoint mission and hovers in current position with manual controls activated
-     */
+    * Method for terminating current waypoint mission.
+    * This method is directly used when the Abort button is pressed
+    * When called, the drone exits the waypoint mission and hovers in current position with manual controls activated
+    */
     public void abortWaypointMission(){
         WaypointMissionOperator operator = getWaypointMissionOperator();
         if (operator == null) {
@@ -1338,9 +1335,9 @@ class DJIFlightManager {
     }
 
     /**
-        * Method to use when everything is done and the test is completed.
-        * Waypoint mode is stopped and the drone returns to its home position.
-     */
+    * Method to use when everything is done and the test is completed.
+    * Waypoint mode is stopped and the drone returns to its home position.
+    */
     public void endWaypointMission(){
         abortWaypointMission();
         goingHome();

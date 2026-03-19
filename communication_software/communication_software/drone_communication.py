@@ -323,8 +323,11 @@ class DroneCommunication:
         try:
             while True:
                 data = await ws.recv()
-                filter_types = ["answer", "candidate", "ping"] # Temporary for debugging
-                if not any(ft in data for ft in filter_types):
+                filter_types = ["answer", "candidate", "ping", "telemetry"] # Enter keywords to filter out from logs
+                try:
+                    if json.loads(data).get("msg_type") not in filter_types:
+                        print(f"Received from {connection_id}: {data}")
+                except (json.JSONDecodeError, AttributeError):
                     print(f"Received from {connection_id}: {data}")
                 new_connection_id = await self.on_message(data, connection_id, ws)
                 if new_connection_id is not None:
@@ -521,15 +524,10 @@ class DroneCommunication:
     ):
         if self.task_index < len(self.task_list):
             action = self.task_list[self.task_index].get(
-                'task_action',
-                self.task_list[self.task_index].get(
-                    'msg_type',
-                    'unknown'
-                )
+                "task_action",
+                self.task_list[self.task_index].get("msg_type", "unknown"),
             )
-            print(
-                f"Sending task from event: index:{self.task_index}, action:{action}"
-            )
+            print(f"Sending task from event: index:{self.task_index}, action:{action}")
             await self.connections[connection_id].send(
                 json.dumps(self.task_list[self.task_index])
             )
@@ -591,8 +589,8 @@ class DroneCommunication:
 
     async def send_message(self, connection_id, message):
         """ "Sends a message to the WebSocket connection."""
-        filter_types = ["offer"] # Temporary for debugging
-        if not any(ft in message.get("msg_type", "") for ft in filter_types):
+        filter_types = ["offer"] # Enter keywords to filter out from logs
+        if message.get("msg_type") not in filter_types:
             print(
                 f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"
             )
