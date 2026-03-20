@@ -21,7 +21,6 @@ class WSPosition implements Runnable {
     @Override
     public void run() {
         Log.i(TAG, "WSPosition thread started.");
-        // TODO Check that it is connected
         while (isRunning && webSocketClient != null ) {
             try {
                 if (droneAdapter == null) {

@@ -103,12 +103,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    // @Override
-    // protected void onDestroy() {
-    //     super.onDestroy();
-    //     AutoConnectManager.getInstance(getApplicationContext()).stop();
-    // }
-
     @Override
     protected void onResume() {
         super.onResume();

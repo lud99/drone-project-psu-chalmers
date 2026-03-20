@@ -112,7 +112,7 @@ public class TaskTestRunner {
     public void runGoTo(String missionId, int taskIndex) {
         DroneAdapter.Telemetry telemetry = adapter.getTelemetry();
         if (telemetry == null) {
-            Log.w(TAG, "Telemetry unavailable; GO_TO test skipped.");
+            Log.e(TAG, "Telemetry unavailable; GO_TO test skipped.");
             return;
         }
 
@@ -158,7 +158,7 @@ public class TaskTestRunner {
     public void runSendTelemetry(String missionId, int taskIndex) {
         DroneAdapter.Telemetry telemetry = adapter.getTelemetry();
         if (telemetry == null) {
-            Log.w(TAG, "Telemetry unavailable; SEND_TELEMETRY skipped.");
+            Log.e(TAG, "Telemetry unavailable; SEND_TELEMETRY skipped.");
             return;
         }
 
@@ -190,14 +190,14 @@ public class TaskTestRunner {
 
             @Override
             public void onFailure(String reason) {
-                Log.w(TAG, "Registration data unavailable; SEND_REGISTRATION_DATA skipped. Reason: " + reason);
+                Log.e(TAG, "Registration data unavailable; SEND_REGISTRATION_DATA skipped. Reason: " + reason);
             }
         });
     }
 
     private void logRegistrationDataPayload(String missionId, int taskIndex, DroneAdapter.RegistrationData registrationData) {
         if (registrationData == null) {
-            Log.w(TAG, "Registration data unavailable; SEND_REGISTRATION_DATA skipped.");
+            Log.e(TAG, "Registration data unavailable; SEND_REGISTRATION_DATA skipped.");
             return;
         }
 

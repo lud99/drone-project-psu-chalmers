@@ -29,6 +29,8 @@ except redis.exceptions.ConnectionError as e:
 
 COMMAND_CHANNEL = "drone_commands"
 DRONE_EVENT_CHANNEL = "drone_events"
+# Set to `true` in .env to run mock mission from test_mock_mission.json when receiving registration.
+doMockMission = os.environ.get("DO_MOCK_MISSION", "false").lower() == "true"  # noqa: N816
 
 
 from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
@@ -324,7 +326,7 @@ class DroneCommunication:
         try:
             while True:
                 data = await ws.recv()
-                filter_types = ["answer", "candidate", "ping", "telemetry"] # Enter keywords to filter out from logs
+                filter_types = [] # Enter keywords to filter out from logs
                 try:
                     if json.loads(data).get("msg_type") not in filter_types:
                         print(f"Received from {connection_id}: {data}")
@@ -512,11 +514,16 @@ class DroneCommunication:
                 self.create_peer_connection(message.drone_id)
                 await self.start_drone_stream(message.drone_id)
 
-            self.task_list = self.build_mock_mission_for_position(
-                message.telemetry.lat,
-                message.telemetry.lon,
-            )
-            self.task_index = 0
+            if doMockMission:
+                self.task_list = self.build_mock_mission_for_position(
+                    message.telemetry.lat,
+                    message.telemetry.lon,
+                )
+                self.task_index = 0
+            else:
+                self.task_list = []
+                self.task_index = 0
+
             
             # Send connection event
             r.publish(
@@ -533,13 +540,13 @@ class DroneCommunication:
             await asyncio.sleep(2)
 
             # Test sending a task
-            if self.task_index < len(self.task_list):
+            if doMockMission and self.task_index < len(self.task_list):
                 print(
                     f"Sending task from reg. index:{self.task_index}, action:{self.task_list[self.task_index]['task_action']}"
                 )
                 await ws.send(json.dumps(self.task_list[self.task_index]))
                 self.task_index += 1
-            else:
+            elif doMockMission:
                 print("No tasks available to send after registration")
 
             return message.drone_id
@@ -652,7 +659,7 @@ class DroneCommunication:
 
     async def send_message(self, connection_id, message):
         """ "Sends a message to the WebSocket connection."""
-        filter_types = ["offer"] # Enter keywords to filter out from logs
+        filter_types = [] # Enter keywords to filter out from logs
         if message.get("msg_type") not in filter_types:
             print(
                 f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"

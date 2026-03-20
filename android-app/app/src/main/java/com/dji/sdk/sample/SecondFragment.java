@@ -162,8 +162,6 @@ public class SecondFragment extends Fragment{
             @Override
             public void onClick(View v) {
                 if(getStatus().equals(MissionState.READY_TO_UPLOAD) && !flightmanager.getState().isFlying()){
-                    //startMonitoring();
-                    //flightmanager.onArm();
                     statusUpdate();
                 } else if(flightmanager.getState().isFlying()){
                     Toast.makeText(getContext(), "Can't upload in flight!", Toast.LENGTH_SHORT).show();

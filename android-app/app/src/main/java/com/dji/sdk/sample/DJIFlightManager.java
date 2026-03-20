@@ -55,6 +55,9 @@ import dji.common.mission.waypoint.WaypointMissionState;
 class DJIFlightManager {
     private static final int SPEAKER_FILELIST_MAX_RETRIES = 3;
     private static final long SPEAKER_FILELIST_RETRY_DELAY_MS = 500L;
+    // Near-ground thresholds used to detect the landing pause before final touchdown.
+    private static final float LANDING_CONFIRMATION_ALTITUDE_METERS = 0.6f;
+    private static final float LANDING_HOVER_VERTICAL_SPEED_MPS = 0.2f;
 
     private final List<Waypoint> waypointList = new ArrayList<>(); //List for storing waypoint / -s
     private final List<WaypointAction> primarywaypointActions = new ArrayList<>();
@@ -78,6 +81,13 @@ class DJIFlightManager {
     private int currentTaskIndex;
     private String cachedSerialNumber = null;
     private String cachedModel = null;
+    // Prevents sending repeated confirmLanding calls while waiting for callback/state change.
+    private volatile boolean landingConfirmationRequested = false;
+    // Tracks if a go_home/land task should send taskComplete once the aircraft is actually down.
+    private boolean landingTaskCompletionPending = false;
+    private boolean landingTaskWasAirborne = false;
+    private String landingCompletionMissionID = null;
+    private int landingCompletionTaskIndex = -1;
 
     private Map<String, Integer> audioIndexCache = new ArrayMap<>();
 
@@ -86,10 +96,13 @@ class DJIFlightManager {
 
     private DJIFlightManager(){
         this.aircraft = (Aircraft) DJISDKManager.getInstance().getProduct();
-        aircraft.getFlightController().setStateCallback(new FlightControllerState.Callback() {
+        this.controller = aircraft.getFlightController();
+        controller.setStateCallback(new FlightControllerState.Callback() {
             @Override
             public void onUpdate(@NonNull FlightControllerState flightControllerState) {
                 state = flightControllerState;
+                handleLandingConfirmationIfSafe(flightControllerState);
+                maybeCompleteLandingTask(flightControllerState);
             }
         });
         aircraft.getBattery().setStateCallback(new BatteryState.Callback() {
@@ -98,7 +111,6 @@ class DJIFlightManager {
                 DJIFlightManager.this.batteryState = batteryState;
             }
         });
-        controller = aircraft.getFlightController();
 
         if (aircraft.getGimbal() != null) {
             aircraft.getGimbal().setStateCallback(new dji.common.gimbal.GimbalState.Callback() {
@@ -145,6 +157,124 @@ class DJIFlightManager {
                 }
             }
         };
+    }
+
+    // Handles DJI landing-confirmation flow: when near ground and safe, confirm final touchdown.
+    private void handleLandingConfirmationIfSafe(@NonNull FlightControllerState flightControllerState) {
+        if (!flightControllerState.isLandingConfirmationNeeded()) {
+            landingConfirmationRequested = false;
+            return;
+        }
+
+        if (landingConfirmationRequested) {
+            return;
+        }
+
+        dji.common.flightcontroller.LocationCoordinate3D location = flightControllerState.getAircraftLocation();
+        if (location == null) {
+            return;
+        }
+
+        float altitude = location.getAltitude();
+        float verticalSpeed = flightControllerState.getVelocityZ();
+        boolean nearGroundHover = altitude <= LANDING_CONFIRMATION_ALTITUDE_METERS
+                && Math.abs(verticalSpeed) <= LANDING_HOVER_VERTICAL_SPEED_MPS;
+
+        if (!nearGroundHover) {
+            return;
+        }
+
+        String landingProtectionState = getLandingProtectionStateName(flightControllerState);
+        if (!isSafeToLand(landingProtectionState)) {
+            Log.w("DJI", "Landing confirmation paused. Landing spot not safe yet. state=" + landingProtectionState + " alt=" + altitude + " vz=" + verticalSpeed);
+            return;
+        }
+
+        landingConfirmationRequested = true;
+        controller.confirmLanding(djiError -> {
+            if (djiError == null) {
+                Log.i("DJI", "Landing confirmed after near-ground safety check.");
+            } else {
+                Log.e("DJI", "confirmLanding failed: " + djiError.getDescription());
+                landingConfirmationRequested = false;
+            }
+        });
+    }
+
+    private String getLandingProtectionStateName(@NonNull FlightControllerState flightControllerState) {
+        try {
+            Object stateObj = flightControllerState.getClass().getMethod("getLandingProtectionState").invoke(flightControllerState);
+            if (stateObj != null) {
+                return stateObj.toString().toUpperCase();
+            }
+        } catch (Exception e) {
+            Log.w("DJI", "Landing protection state unavailable in this SDK/aircraft: " + e.getMessage());
+        }
+        return "UNKNOWN";
+    }
+
+    private boolean isSafeToLand(String landingProtectionState) {
+        if (landingProtectionState == null || landingProtectionState.isEmpty()) {
+            return false;
+        }
+
+        String stateName = landingProtectionState.toUpperCase();
+        if (stateName.contains("NOT_SAFE") || stateName.contains("UNSAFE")) {
+            return false;
+        }
+
+        if (stateName.contains("SAFE_TO_LAND") || stateName.equals("SAFE")) {
+            return true;
+        }
+
+        // If the landing-protection API is unavailable, avoid blocking supported drones forever.
+        return stateName.equals("UNKNOWN");
+    }
+
+    // Called when land/go_home starts so completion is reported after touchdown, not on command start.
+    private synchronized void startLandingTaskCompletionTracking(String missionID, int taskIndex) {
+        landingTaskCompletionPending = true;
+        landingCompletionMissionID = missionID;
+        landingCompletionTaskIndex = taskIndex;
+        landingTaskWasAirborne = state != null && state.isFlying();
+    }
+
+    private synchronized void clearLandingTaskCompletionTracking() {
+        landingTaskCompletionPending = false;
+        landingTaskWasAirborne = false;
+        landingCompletionMissionID = null;
+        landingCompletionTaskIndex = -1;
+    }
+
+    // Emits taskComplete once after the aircraft transitions from airborne to landed.
+    private synchronized void maybeCompleteLandingTask(@NonNull FlightControllerState flightControllerState) {
+        if (!landingTaskCompletionPending) {
+            return;
+        }
+
+        boolean isFlying = flightControllerState.isFlying();
+        if (isFlying) {
+            landingTaskWasAirborne = true;
+            return;
+        }
+
+        // Avoid reporting complete while landing protection is still waiting for confirmation.
+        if (flightControllerState.isLandingConfirmationNeeded()) {
+            return;
+        }
+
+        if (!landingTaskWasAirborne) {
+            return;
+        }
+
+        String missionID = landingCompletionMissionID;
+        int taskIndex = landingCompletionTaskIndex;
+        clearLandingTaskCompletionTracking();
+
+        if (MessageHandler.getInstance() != null) {
+            MessageHandler.getInstance().taskComplete(missionID, taskIndex);
+        }
+        Log.i("DJI", "Landing task completed after touchdown. mission=" + missionID + " task=" + taskIndex);
     }
 
     /**
@@ -1099,6 +1229,7 @@ class DJIFlightManager {
     public void goHome(String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
+        startLandingTaskCompletionTracking(missionID, taskIndex);
 
         stopAllTasks();
         goingHome();
@@ -1194,6 +1325,7 @@ class DJIFlightManager {
     public void land(String missionID, int taskIndex) {
         this.currentMissionID = missionID;
         this.currentTaskIndex = taskIndex;
+        startLandingTaskCompletionTracking(missionID, taskIndex);
 
         stopAllTasks();
 
@@ -1202,6 +1334,10 @@ class DJIFlightManager {
                 Log.d("DJI", "Landing initiated...");
             } else{
                 Log.e("DJI", "Failed to start landing: " + djiError.getDescription());
+                clearLandingTaskCompletionTracking();
+                if (MessageHandler.getInstance() != null) {
+                    MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, djiError.getDescription());
+                }
             }
         });
     }
@@ -1351,9 +1487,13 @@ class DJIFlightManager {
     public void goingHome(){
         controller.startGoHome(djiError -> {
             if (djiError == null){
-                showToastOnMainThread("Returning... :)");
+                showToastOnMainThread("Going Home...");
             } else{
                 showToastOnMainThread(djiError.getDescription());
+                clearLandingTaskCompletionTracking();
+                if (MessageHandler.getInstance() != null) {
+                    MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, djiError.getDescription());
+                }
             }
         });
     }
@@ -1362,7 +1502,7 @@ class DJIFlightManager {
     void setHomeLocationUsingAircraftCurrentLocation(){
         controller.setHomeLocationUsingAircraftCurrentLocation(djiError -> {
             if (djiError == null){
-                showToastOnMainThread("Home set :)");
+                showToastOnMainThread("Home set");
             } else{
                 showToastOnMainThread(djiError.getDescription());
             }

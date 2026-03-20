@@ -597,9 +597,6 @@ public class WebsocketClientHandler {
     private String readMissionId(JSONObject jsonMessage) {
         String missionId = jsonMessage.optString("mission_id", "");
         if (missionId.isEmpty()) {
-            missionId = jsonMessage.optString("missionID", "");
-        }
-        if (missionId.isEmpty()) {
             missionId = "unknown";
         }
         return missionId;
@@ -611,9 +608,6 @@ public class WebsocketClientHandler {
         }
         if (jsonMessage.has("task_index")) {
             return jsonMessage.optInt("task_index", -1);
-        }
-        if (jsonMessage.has("taskIndex")) {
-            return jsonMessage.optInt("taskIndex", -1);
         }
         return -1;
     }
@@ -661,7 +655,6 @@ private final Runnable heartbeatRunnable = new Runnable() {
         try {
             String ping = "{\"msg_type\": \"ping\"}";
             webSocketClient.send(ping);
-            // Log.d(TAG, "Heartbeat ping sent");
             if (heartbeatHandler != null) {
                 heartbeatHandler.postDelayed(this, 5000);
             }
