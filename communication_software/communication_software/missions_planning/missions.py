@@ -9,8 +9,16 @@ DEFAULT_HOVER_TIME = 2  # seconds, placeholder
 RETURN_HOME = True  # placeholder
 
 
+class Coordinates:
+    def __init__(self, lat, lon, alt, heading) -> None:
+        self.lat = lat
+        self.lon = lon
+        self.alt = alt
+        self.heading = heading
+
+
 class Mission(ABC):
-    def __init__(self, drone: DroneSpecs, coordinates: dict):
+    def __init__(self, drone: DroneSpecs, coordinates: Coordinates):
         self.drone = drone
         self.coordinates = coordinates
         self.mission_id = str(uuid.uuid4())
