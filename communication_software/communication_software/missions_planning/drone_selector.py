@@ -23,7 +23,7 @@ import redis.exceptions
 from communication_software.missions_planning.missions import (
     Mission,
     Coordinates,
-    GotoAndSound,
+    GotoAndAudio,
     GotoAndBlink,
     GotoOnly,
 )
@@ -91,8 +91,8 @@ class HardwareProfile:
             )
 
 
-# GotoAndSound: speaker is primary; camera quality acts as a tiebreaker
-PROFILE_GOTO_AND_SOUND = HardwareProfile(
+# GotoAndAudio: speaker is primary; camera quality acts as a tiebreaker
+PROFILE_GOTO_AND_AUDIO = HardwareProfile(
     speaker=0.70,
     resolution=0.20,
     fov=0.10,
@@ -113,7 +113,7 @@ PROFILE_GOTO_ONLY = HardwareProfile(
 
 # Registry: maps mission class → its hardware profile
 HARDWARE_PROFILES: dict[Type[Mission], HardwareProfile] = {
-    GotoAndSound: PROFILE_GOTO_AND_SOUND,
+    GotoAndAudio: PROFILE_GOTO_AND_AUDIO,
     GotoAndBlink: PROFILE_GOTO_AND_BLINK,
     GotoOnly: PROFILE_GOTO_ONLY,
 }
@@ -140,7 +140,7 @@ def compute_hardware_score(
     *specific* mission type.  Only the capabilities that the mission actually
     uses contribute to the score - everything else is ignored.
     So:
-    • GotoAndSound  → only speaker quality counts
+    • GotoAndAudio  → only speaker quality counts
     • GotoAndBlink  → only lights quality counts
     • GotoOnly      → camera resolution + FOV provide a tie-breaker
     """
@@ -213,13 +213,13 @@ class DroneSelector:
     Usage
     -----
     >>> selector = DroneSelector()
-    >>> mission = selector.select(GotoAndSound, coordinates={"lat": 57.7, "lng": 11.9})
+    >>> mission = selector.select(GotoAndAudio, coordinates={"lat": 57.7, "lng": 11.9})
     >>> if mission:
     ...     mission_registry.store(mission)
     """
 
     # Minimum battery level required to even be considered
-    MIN_BATTERY_THRESHOLD: float = 20.0
+    MIN_BATTERY_THRESHOLD: float = 30.0 # At 20 the drone will go home, to send it on a mission 30 is required
 
     def __init__(self, redis_host: str = "redis", redis_port: int = 6379):
         self._redis = redis.Redis(
@@ -390,7 +390,7 @@ class DroneSelector:
         Parameters
         ----------
         mission_type : subclass of Mission
-            The kind of mission to execute, e.g. GotoAndSound, GotoAndBlink, GotoOnly.
+            The kind of mission to execute, e.g. GotoAndAudio, GotoAndBlink, GotoOnly.
         coordinates : dict
             Target location, e.g. {"lat": 57.705, "lng": 11.938}.
 
@@ -449,10 +449,10 @@ def select_drone_for_mission(
     >>> from communication_software.missions_planning.drone_selector import (
     ...     select_drone_for_mission
     ... )
-    >>> from communication_software.missions_planning.missions import GotoAndSound
+    >>> from communication_software.missions_planning.missions import GotoAndAudio
     >>>
     >>> mission = select_drone_for_mission(
-    ...     mission_type=GotoAndSound,
+    ...     mission_type=GotoAndAudio,
     ...     coordinates=Coordinates(lat=57.705841, lon=11.938096, alt=20, heading=0),
     ... )
     >>> if mission:

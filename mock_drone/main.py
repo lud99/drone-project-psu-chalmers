@@ -72,7 +72,7 @@ async def do_task(
         await asyncio.sleep(5)
         await send_task_complete(ws, drone_id, task_message)
     elif isinstance(action, json_schemas.PlayAudioTask):
-        print(f"Playing sound for {action.params.duration_seconds}s")
+        print(f"Playing audio for {action.params.duration_seconds}s")
 
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:

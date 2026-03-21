@@ -42,8 +42,7 @@ class Mission(ABC):
             "parameters": self.get_parameters(),
         }
 
-
-class GotoAndSound(Mission):
+class GotoAndAudio(Mission):
     def can_execute(self) -> bool:
         return self.drone.speaker
 
@@ -56,7 +55,7 @@ class GotoAndSound(Mission):
                     "altitude": DEFAULT_ALTITUDE,
                 },
                 {"action": "HOVER", "duration": DEFAULT_HOVER_TIME},
-                {"action": "PLAY_SOUND", "sound_type": "alert", "sound_duration": 5},
+                {"action": "PLAY_AUDIO", "audio_file": "alert", "duration": 5},
                 {"action": "RETURN_HOME", "enabled": RETURN_HOME},
             ]
         }

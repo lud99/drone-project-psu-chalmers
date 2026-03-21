@@ -1,9 +1,9 @@
 from .drone_specs import DroneSpecs
-from .missions import GotoAndSound, GotoAndBlink, GotoOnly, Mission
+from .missions import GotoAndAudio, GotoAndBlink, GotoOnly, Mission
 
 
 class MissionFactory:
-    MISSION_TYPES = [GotoAndSound, GotoAndBlink, GotoOnly]
+    MISSION_TYPES = [GotoAndAudio, GotoAndBlink, GotoOnly]
 
     @staticmethod
     def get_feasible_missions(coordinates: dict, drone: DroneSpecs) -> list[Mission]:
