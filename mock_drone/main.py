@@ -184,10 +184,16 @@ async def run_drone_client(drone_id: str):
 
                         await websocket.send(event_message.model_dump_json())
 
-                    elif isinstance(message, json_schemas.AbortMissionMessage):
-                        print(f"Aborting mission, doing {message.next_action}")
+                    elif isinstance(message, json_schemas.GoHomeMessage):
+                        print("Aborting mission, doing go_home")
 
-                        # This should abort all active task (if any are active) and do the specified next action
+                        # This should abort all active task (if any are active) and do go_home
+                        wait_event.set()
+
+                    elif isinstance(message, json_schemas.LandMessage):
+                        print("Aborting mission, doing land")
+
+                        # This should abort all active task (if any are active) and land
                         wait_event.set()
 
                 except Exception as e_inner:

@@ -39,9 +39,8 @@ class Telemetry(BaseModel):
 
 
 # Sub-models for Tasks
-TaskEvents = Literal["task_complete", "task_failed"]
+TaskEvents = Literal["task_complete", "task_failed", "task_aborted"]
 TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
-AbortActionTypes = Literal["go_home", "hover", "land"]
 
 
 # Specific task definitions
@@ -59,7 +58,7 @@ class PlayAudioParams(BaseModel):
 
 
 class LEDParams(BaseModel):
-    color: str
+    type: str
     pattern: str
     duration_seconds: Optional[float]
 
@@ -90,6 +89,16 @@ class LEDTask(BaseModel):
 class SpotlightTask(BaseModel):
     action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
+
+class AngleCameraParams(BaseModel):
+    pitch: float
+    roll: float
+    yaw: float
+    duration_seconds: Optional[float] = None
+
+class AngleCameraTask(BaseModel):
+    action: Literal["angle_camera"] = "angle_camera"
+    params: AngleCameraParams
 
 
 # This variable holds the "one of these" logic
@@ -134,10 +143,15 @@ class AbortTaskMessage(BackendToDroneMessage):
 
 
 # Backend -> app
-class AbortMissionMessage(BackendToDroneMessage):
-    msg_type: Literal["abort_mission"] = "abort_mission"
+class GoHomeMessage(BackendToDroneMessage):
+    msg_type: Literal["go_home"] = "go_home"
     mission_id: str
-    next_action: AbortActionTypes
+
+
+# Backend -> app
+class LandMessage(BackendToDroneMessage):
+    msg_type: Literal["land"] = "land"
+    mission_id: str
 
 
 class DebugMessage(DroneMessage):
@@ -185,7 +199,6 @@ class WebRTCAnswerMessage(DroneMessage):
     sdp: str
     type: Optional[str] = None
 
-
 # Create a Union of all possible messages
 AnyDroneMessage = Annotated[
     Union[
@@ -194,7 +207,8 @@ AnyDroneMessage = Annotated[
         TelemetryMessage,
         TaskEventMessage,
         AbortTaskMessage,
-        AbortMissionMessage,
+        GoHomeMessage,
+        LandMessage,
         DebugMessage,
         PingMessage,
         PongMessage,
@@ -203,7 +217,6 @@ AnyDroneMessage = Annotated[
     ],
     Field(discriminator="msg_type"),
 ]
-
 
 ### Detections schema
 class SingleDetection(BaseModel):
@@ -232,7 +245,6 @@ class DroneInfo(BaseModel):
     drone_id: str
     capabilities: Capabilities
     telemetry: Telemetry
-
 
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):

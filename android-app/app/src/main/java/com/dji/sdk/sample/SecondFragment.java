@@ -37,7 +37,6 @@ import dji.sdk.products.Aircraft;
 import dji.sdk.sdkmanager.DJISDKManager;
 import dji.sdk.sdkmanager.LiveStreamManager;
 import dji.sdk.sdkmanager.LiveVideoBitRateMode;
-import dji.thirdparty.afinal.core.AsyncTask;
 
 public class SecondFragment extends Fragment{
 
@@ -47,13 +46,24 @@ public class SecondFragment extends Fragment{
     static final String TAG = MainActivity.class.getName();
     LiveStreamManager liveStreamManager;
 
-    FlightManager flightmanager;
+    DJIFlightManager flightmanager;
 
     FlightControllerState state;
 
     private CameraController cameraController;
 
     private volatile boolean isWaypointMonitored = false;
+    private final android.os.Handler statusHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable statusUpdateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdded() || binding == null) {
+                return;
+            }
+            statusUpdate();
+            statusHandler.postDelayed(this, 750);
+        }
+    };
 
     @Override
     public View onCreateView(
@@ -63,7 +73,7 @@ public class SecondFragment extends Fragment{
         binding = FragmentSecondBinding.inflate(inflater, container, false);
         cameraController = CameraController.getInstance();
 
-        flightmanager = FlightManager.getFlightManager();
+        flightmanager = DJIFlightManager.getFlightManager();
 
         cameraTextureView = binding.cameraTextureView;
 
@@ -115,27 +125,8 @@ public class SecondFragment extends Fragment{
         Log.e(TAG, "onResume");
         super.onResume();
         onProductChange();
-        AsyncTask.execute(new Runnable() {
-            // This part of the code runs continuously during the camera view and updates the
-            // status for waypoint missions every 750 ms
-            @Override
-            public void run() {
-                while(true){
-                    try {
-                        requireActivity().runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                statusUpdate();
-                            }
-                        });
-
-                        Thread.sleep(750);
-                    } catch (InterruptedException | IllegalStateException e) {
-                        Log.e(TAG, e.toString());
-                    }
-                }
-            }
-        });
+        statusHandler.removeCallbacks(statusUpdateRunnable);
+        statusHandler.post(statusUpdateRunnable);
 
         statusUpdate();
 
@@ -143,6 +134,12 @@ public class SecondFragment extends Fragment{
             Log.e(TAG, "mVideoSurface is null");
         }
 
+    }
+
+    @Override
+    public void onPause() {
+        statusHandler.removeCallbacks(statusUpdateRunnable);
+        super.onPause();
     }
 
 
@@ -165,11 +162,9 @@ public class SecondFragment extends Fragment{
             @Override
             public void onClick(View v) {
                 if(getStatus().equals(MissionState.READY_TO_UPLOAD) && !flightmanager.getState().isFlying()){
-                    //startMonitoring();
-                    flightmanager.onArm();
                     statusUpdate();
                 } else if(flightmanager.getState().isFlying()){
-                    Toast.makeText(getContext(), "Cant upload in flight!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "Can't upload in flight!", Toast.LENGTH_SHORT).show();
                 } else{
                     Toast.makeText(getContext(), "Not ready to upload!", Toast.LENGTH_SHORT).show();
                 }
@@ -409,6 +404,7 @@ public class SecondFragment extends Fragment{
     }
     @Override
     public void onDestroyView() {
+        statusHandler.removeCallbacks(statusUpdateRunnable);
         super.onDestroyView();
         binding = null;
 

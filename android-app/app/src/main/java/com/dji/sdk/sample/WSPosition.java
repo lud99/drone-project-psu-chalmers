@@ -2,88 +2,54 @@ package com.dji.sdk.sample;
 
 import android.util.Log;
 
-import java.util.Locale;
+import org.json.JSONObject;
 
-import dji.common.battery.BatteryState;
-import dji.common.flightcontroller.FlightControllerState;
-import dji.common.flightcontroller.LocationCoordinate3D;
 import dev.gustavoavila.websocketclient.WebSocketClient;
-import dji.sdk.base.BaseProduct;
-import dji.sdk.battery.Battery;
-import dji.common.battery.BatteryState;
-import dji.sdk.products.HandHeld;
-import dji.sdk.sdkmanager.DJISDKManager;
 
 class WSPosition implements Runnable {
     private static final String TAG = WSPosition.class.getSimpleName();
     private final WebSocketClient webSocketClient;
+    private final DroneAdapter droneAdapter;
     private volatile boolean isRunning = true; // Flag to control the loop
 
     // Constructor to receive the WebSocketClient instance
-    public WSPosition(WebSocketClient client) {
+    public WSPosition(WebSocketClient client, DroneAdapter droneAdapter) {
         this.webSocketClient = client;
+        this.droneAdapter = droneAdapter;
     }
 
     @Override
     public void run() {
         Log.i(TAG, "WSPosition thread started.");
-        // TODO Check that it is connected
         while (isRunning && webSocketClient != null ) {
             try {
-                // Get the FlightManager instance (since it's a singleton)
-                // TODO solve when flight manager is unavailable causes error
-                FlightManager flightManager = FlightManager.getFlightManager();
-                BaseProduct product = DJISDKManager.getInstance().getProduct();
-                BatteryState batteryState = flightManager.getBatteryState();
-                int batteryPercent = -1;
-
-                if (flightManager != null) {
-                    // Get the current state
-                    FlightControllerState currentState = flightManager.getState();
-
-                    if (currentState != null) {
-                        LocationCoordinate3D location = currentState.getAircraftLocation();
-
-                        // Important: Check if location data is valid (non-zero and not NaN)
-                        // DJI SDK often returns 0 or NaN before a valid GPS lock.
-                        if (location != null &&
-                            !Double.isNaN(location.getLatitude()) &&
-                            !Double.isNaN(location.getLongitude()) &&
-                            (location.getLatitude() != 0.0 || location.getLongitude() != 0.0))
-                        {
-                            double latitude = location.getLatitude();
-                            double longitude = location.getLongitude();
-                            float altitude = location.getAltitude(); // You might want altitude too
-                            batteryPercent = batteryState.getChargeRemainingInPercent();
-                            // Speed (NED frame: North, East, Down)
-                            float velocityX = currentState.getVelocityX(); // Speed towards North (m/s)
-                            float velocityY = currentState.getVelocityY(); // Speed towards East (m/s)
-                            float verticalSpeed = currentState.getVelocityZ();   // Speed downwards (m/s). Negative value means climbing.
-                            double horizontalSpeed = Double.NaN;
-                            // Calculate horizontal speed
-                            if (!Float.isNaN(velocityX) && !Float.isNaN(velocityY)) {
-                                horizontalSpeed = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-                            }
-                            // Format the data (e.g., as JSON)
-                            String message = String.format(Locale.US,
-                                    "{\"msg_type\": \"Position\",\"latitude\": %.8f, \"longitude\": %.8f, \"altitude\": %.2f, \"speed\": %.2f, \"batteryPercent\": %d}",
-                                    latitude, longitude, altitude, horizontalSpeed, batteryPercent);
-
-                            // Send the data via WebSocket
-                            Log.d(TAG, "Sending position: " + message);
-                            webSocketClient.send(message);
-
-                        } else {
-                            Log.d(TAG, "Waiting for valid location data...");
-                        }
-                    } else {
-                        Log.d(TAG, "FlightControllerState is null.");
-                    }
-                } else {
-                    Log.e(TAG, "FlightManager instance is null.");
-                    // Consider stopping if FlightManager can't be obtained
-                    // stopRunning();
+                if (droneAdapter == null) {
+                    Log.e(TAG, "DroneAdapter is null.");
+                    Thread.sleep(1000);
+                    continue;
                 }
+
+                DroneAdapter.Telemetry telemetry = droneAdapter.getTelemetry();
+
+                if (telemetry != null) {
+                    JSONObject telemetryJson = new JSONObject();
+                    telemetryJson.put("lat", telemetry.lat);
+                    telemetryJson.put("lon", telemetry.lon);
+                    telemetryJson.put("alt", telemetry.alt);
+                    telemetryJson.put("heading", telemetry.heading);
+                    telemetryJson.put("speed", telemetry.speed);
+                    telemetryJson.put("battery_percent", telemetry.batteryPercent);
+
+                    JSONObject messageJson = new JSONObject();
+                    messageJson.put("msg_type", "telemetry");
+                    messageJson.put("drone_id", telemetry.droneID);
+                    messageJson.put("telemetry", telemetryJson);
+
+                    String message = messageJson.toString();
+
+                    Log.d(TAG, "Sending telemetry: " + message);
+                    webSocketClient.send(message);
+                } 
 
                 // Wait for 1 second before sending the next update
                 Thread.sleep(1000);

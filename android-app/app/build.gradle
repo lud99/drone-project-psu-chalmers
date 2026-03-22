@@ -9,6 +9,8 @@ android {
     defaultConfig {
         applicationId "com.dji.sdk.sample"
         minSdk 24
+        // If the app fails to grant permissions (Bluetooth/Location) on newer Android versions:
+        // Try lowering targetSdk to 30. Versions 31+ require new permissions 
         targetSdk 33
         versionCode 1
         versionName "1.0"

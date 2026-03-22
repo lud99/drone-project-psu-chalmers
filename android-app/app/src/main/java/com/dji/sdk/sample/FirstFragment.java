@@ -7,6 +7,9 @@ import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Toast;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -47,14 +50,49 @@ public class FirstFragment extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         binding.buttonFirst.setEnabled(false);
+        binding.buttonRunTest.setEnabled(false);
+        binding.testTaskSpinner.setEnabled(false);
         binding.buttonFirst.setText(R.string.button_disabled);
         binding.textviewFirst.setText(R.string.await_registration);
+
+        TaskTestRunner.TestTask[] availableTasks = TaskTestRunner.TestTask.values();
+        String[] taskLabels = new String[availableTasks.length];
+        for (int i = 0; i < availableTasks.length; i++) {
+            taskLabels[i] = availableTasks[i].name();
+        }
+
+        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_spinner_item,
+                taskLabels
+        );
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        binding.testTaskSpinner.setAdapter(spinnerAdapter);
+        binding.testTaskSpinner.setSelection(TaskTestRunner.getInstance().getActiveTask().ordinal());
+        binding.testTaskSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view1, int position, long id) {
+                TaskTestRunner.getInstance().setActiveTask(availableTasks[position]);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
 
         binding.buttonFirst.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 NavHostFragment.findNavController(FirstFragment.this)
                         .navigate(R.id.action_FirstFragment_to_SecondFragment);
+            }
+        });
+
+        binding.buttonRunTest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                TaskTestRunner.getInstance().runActiveTask();
+                Toast.makeText(getContext(), "Run Test started: " + TaskTestRunner.getInstance().getActiveTask(), Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -73,11 +111,6 @@ public class FirstFragment extends Fragment {
         }
     };
 
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        binding = null;
-    }
 
     /**
      * This method updates the SDK UI, meaning the text and the button on the first page,
@@ -92,10 +125,16 @@ public class FirstFragment extends Fragment {
             return;
         }*/
 
+       if (binding == null) {
+        return;
+    }
+
         BaseProduct baseProduct = DJISDKManager.getInstance().getProduct();
 
         if (null != baseProduct && baseProduct.isConnected()){
             binding.buttonFirst.setEnabled(true);
+            binding.buttonRunTest.setEnabled(true);
+            binding.testTaskSpinner.setEnabled(true);
             binding.buttonFirst.setText(R.string.button_enabled);
             if (null != baseProduct.getModel()){
                 binding.textviewFirst.setText(String.format("%s%s", getString(R.string.connected_to), baseProduct.getModel().getDisplayName()));
@@ -105,9 +144,25 @@ public class FirstFragment extends Fragment {
         }
         else{
             binding.buttonFirst.setEnabled(false);
+            binding.buttonRunTest.setEnabled(false);
+            binding.testTaskSpinner.setEnabled(false);
             binding.buttonFirst.setText(R.string.button_disabled);
             binding.textviewFirst.setText(R.string.no_device_connected);
         }
+    }
+
+    @Override
+    public void onDestroyView() {
+        // 1. Avregistrera först din receiver så den slutar lyssna
+        try {
+            requireActivity().unregisterReceiver(receiver);
+        } catch (Exception e) {
+            // Om den inte var registrerad gör vi inget
+        }
+        
+        // 2. Sedan kör vi den befintliga koden
+        super.onDestroyView();
+        binding = null;
     }
 
 }
