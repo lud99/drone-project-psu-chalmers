@@ -100,9 +100,24 @@ class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
     params: AngleCameraParams
 
+class AngleCameraParams(BaseModel):
+    pitch: float
+    yaw: float
+    duration_seconds: Optional[float] = None
 
-# This variable holds the "one of these" logic
-AnyTaskAction = Union[GoToTask, PlayAudioTask, LEDTask, SpotlightTask]
+class AngleCameraTask(BaseModel):
+    action: Literal["angle_camera"] = "angle_camera"
+    params: AngleCameraParams
+
+class HoverParams(BaseModel):
+    duration_seconds: Optional[float] = None
+
+class HoverTask(BaseModel):
+    action: Literal["hover"] = "hover"
+    params: HoverParams
+
+# Uppdatera AnyTaskAction
+AnyTaskAction = Union[GoToTask, PlayAudioTask, LEDTask, SpotlightTask, AngleCameraTask, HoverTask]
 
 
 MsgTypeT = TypeVar("MsgTypeT", bound=str)

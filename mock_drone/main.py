@@ -71,41 +71,49 @@ async def do_task(
         print("Going to a position")
         await asyncio.sleep(5)
         await send_task_complete(ws, drone_id, task_message)
+
     elif isinstance(action, json_schemas.PlayAudioTask):
         print(f"Playing sound for {action.params.duration_seconds}s")
-
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.LEDTask):
         print(f"Activating LED for {action.params.duration_seconds}s")
-
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.SpotlightTask):
-        print(f"Activating spotligt for {action.params.duration_seconds}s")
-
+        print(f"Activating spotlight for {action.params.duration_seconds}s")
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
+
+    elif isinstance(action, json_schemas.AngleCameraTask):
+        print(f"Angling camera pitch={action.params.pitch} yaw={action.params.yaw}")
+        await asyncio.sleep(2)
+        await send_task_complete(ws, drone_id, task_message)
+
+    elif isinstance(action, json_schemas.HoverTask):
+        print(f"Hovering for {action.params.duration_seconds}s")
+        if action.params.duration_seconds:
+            await asyncio.sleep(action.params.duration_seconds)
+        else:
+            await asyncio.sleep(5)
+        await send_task_complete(ws, drone_id, task_message)
 
 
 async def run_drone_client(drone_id: str):
@@ -128,18 +136,23 @@ async def run_drone_client(drone_id: str):
             #         ),
 
             reg_msg = json_schemas.DroneRegistrationMessage(
-                msg_type="drone_registration",
-                drone_type="quadcopter",
-                model="DJI-Mavic-Mock",
-                drone_id=drone_id,
-                capabilities=json_schemas.Capabilities(
-                    camera=None,
-                    led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
-                    spotlight=True,
-                    speaker=json_schemas.SpeakerCapabilities(
-                        audio_files=["hello", "world"]
-                    ),
+            msg_type="drone_registration",
+            drone_type="quadcopter",
+            model="DJI-Mavic-Mock",
+            drone_id=drone_id,
+            capabilities=json_schemas.Capabilities(
+                camera=json_schemas.CameraCapabilities(  # lägg till kamera
+                    aspect_ratio=1.777,
+                    horizontal_fov=84.0,
+                    resolution_height=1080,
+                    resolution_width=1920,
                 ),
+                led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
+                spotlight=True,
+                speaker=json_schemas.SpeakerCapabilities(
+                    audio_files=["horn", "hello"]
+                ),
+            ),
                 telemetry=json_schemas.Telemetry(
                     lat=57.705 + (random.uniform(-0.001, 0.001)),
                     lon=11.938 + (random.uniform(-0.001, 0.001)),
@@ -147,8 +160,8 @@ async def run_drone_client(drone_id: str):
                     heading=random.randint(0, 359),
                     speed=random.uniform(0.0, 5.5),
                     battery_percent=88,
-                ),
-            )
+            ),
+        )
 
             await websocket.send(reg_msg.model_dump_json())
             print(f"Sent registration for {drone_id}")

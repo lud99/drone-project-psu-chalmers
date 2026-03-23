@@ -32,10 +32,10 @@ class Coordinate:
 # Main function to calculate drone locations
 
 
-def calculate_height(area: float) -> float:
+def calculate_height(area: float, aspect_ratio: float = 16 / 9) -> float:
     """Calculates the height that the drone needs to fly at to cover a certain 16:9 area."""
     theta = (82.6 / 2) * (np.pi / 180)
-    x = np.sqrt(area / (16 * 9))
+    x = np.sqrt(area / aspect_ratio)
     y = (16 * x) / 4
     radius = np.sqrt((2 * y) ** 2 + (1.5 * y) ** 2)
     height = radius / np.tan(theta)
@@ -47,10 +47,11 @@ def calculate_height(area: float) -> float:
 
 
 def get_drones_location(
-    coordslist: dict[str, list[Coordinate]],
+    corner_coords: list[Coordinate],
     drone_origin: Coordinate,
     n_drones: int = 2,
     overlap: float = 0.5,
+    aspect_ratio: float = 16 / 9,
 ) -> tuple[list[Coordinate], float]:
     """
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
@@ -75,7 +76,7 @@ def get_drones_location(
     coords = []
 
     # Flatten the list of coordinates into an array
-    for coord_list in coordslist.values():
+    for coord_list in corner_coords.values():
         for coord in coord_list:
             coords.append([coord.lng, coord.lat])
     coords = np.array(coords)
@@ -109,27 +110,18 @@ def get_drones_location(
 
     def min_area_rectangle_of_hull(polygon: list) -> Rectangle:
         """Computes the oriented bounding box that encloses the convex hull of the trajectory points."""
-        # ruff: disable[N806]
-
-        # Initialize the minimum rectangle
         min_rect = Rectangle()
         n = len(polygon)
 
-        # Iterate through each edge of the polygon
         for i0 in range(n):
-            # Get the next vertex in the polygon
             i1 = (i0 + 1) % n
-
-            # Calculate the origin and the two axes of the rectangle
             origin = polygon[i0]
             U0 = normalize(polygon[i1] - origin)
             U1 = perp(U0)
 
-            # Initialize min and max values for the rectangle
             min0, max0 = 0, 0
             max1 = 0
 
-            # Project all points onto the axes and find the min/max
             for j in range(n):
                 D = polygon[j] - origin
                 dot0 = dot(U0, D)
@@ -139,7 +131,6 @@ def get_drones_location(
                 max1 = max(max1, dot1)
             area = (max0 - min0) * max1
 
-            # Update the minimum rectangle if the area is smaller
             if area < min_rect.area:
                 min_rect.center = origin + ((min0 + max0) / 2) * U0 + (max1 / 2) * U1
                 min_rect.axis[0] = U0
@@ -148,7 +139,6 @@ def get_drones_location(
                 min_rect.extent[1] = max1 / 2
                 min_rect.area = area
         return min_rect
-        # ruff: enable[N806]
 
     def compute_convex_hull(points: np.ndarray) -> list:
         """Computes the convex hull of a set of points."""
@@ -173,10 +163,8 @@ def get_drones_location(
         sorted_coords = sorted(coords, key=lambda p: p[0])
         end_coord = sorted_coords[-1]
         direction = end_coord - rect.center
-        # ruff: disable[N806]
         U0 = normalize(direction)
         U1 = perp(U0)
-        # ruff: enable[N806]
         extent_long = np.linalg.norm(direction)
         rect.extent[1] = float(extent_long / 2)
         rect.extent[0] = float(extent_long)
@@ -201,7 +189,6 @@ def get_drones_location(
     total_area = 4 * extent[0] * extent[1]
 
     # Calculate the dimensions of the 16:9 drone squares
-    aspect_ratio = 16 / 9
     height_r = np.sqrt(total_area / (n_drones * aspect_ratio))
     width = height_r * aspect_ratio
 
@@ -213,7 +200,7 @@ def get_drones_location(
         for i in range(int(n_drones))
     ]
 
-    height = calculate_height(width * height_r)
+    height = calculate_height(width * height_r, aspect_ratio)  # skickar aspect_ratio
 
     if height < 30:
         height = 30
@@ -221,7 +208,6 @@ def get_drones_location(
         theta = (82.6 / 2) * (np.pi / 180)
         radius = (height * np.tan(theta)) * 1.4
 
-        aspect_ratio = 16 / 9
         norm_factor = np.sqrt(aspect_ratio**2 + 1)
 
         width = radius * (aspect_ratio / norm_factor)
