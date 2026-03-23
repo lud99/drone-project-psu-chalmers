@@ -15,18 +15,21 @@ import logging
 import math
 from dataclasses import dataclass
 from typing import Optional, Type
-import communication_software.communication_software.common.json_schemas as json_schemas
+import communication_software.common.json_schemas as json_schemas
 
 import redis
 import redis.exceptions
 
-from communication_software.missions_planning.missions import (
+from .missions import (
     Mission,
     Coordinates,
     GotoAndAudio,
     GotoAndBlink,
+    GotoAndIlluminate,
+    GotoAndSurveil,
     GotoOnly,
 )
+from communication_software.missions_planning.drone_specs import DroneSpecs
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +38,39 @@ WEIGHT_BATTERY: float = 0.35  # Battery
 WEIGHT_PROXIMITY: float = 0.2  # Battery
 WEIGHT_HARDWARE: float = 0.45  # Mission specific hardware quality
 
+# Maybe use a simple function that maps total number of pixels to a score instead.
+"""
+a = 26.731
+b = -322.86
+f = lambda num_pixels: a * math.log(num_pixels) + b
+where num_pixels is resolution_width * resolution_height
+if < 0 -> 0
+if > 100 -> 100
+through curvefit
 
-# shared hardware lookup tables
-RESOLUTION_SCORES: dict[tuple[int, int], float] = {
-    (3840, 2160): 100.0,  # 4K
-    (2704, 1520): 85.0,  # 2.7K
-    (1920, 1080): 70.0,  # 1080p
-    (1280, 720): 45.0,  # 720p
-    (854, 480): 20.0,  # 480p
-}
+"""
+
+
+def resolution_score(resolution_width: int, resolution_height: int) -> float:
+    """Maps resolution to a 0-100 score using a logarithmic function.
+    The values (a, b) were obtained by curve fitting width*height for RESOLUTION_SCORES"""
+    num_pixels = resolution_width * resolution_height
+    a = 20.094
+    b = -246.0
+    score = a * math.log(num_pixels) + b
+    return max(0.0, min(score, 100.0))
+
+
+# RESOLUTION_SCORES: dict[tuple[int, int], float] = {
+#     (6016, 3384): 100.0,  # 5.4K
+#     (5120, 2700): 85.0,  # 5.1K
+#     (3840, 2160): 70.0,  # 4K
+#     (2704, 1520): 55.0,  # 2.7K
+#     (1920, 1080): 40.0,  # 1080p
+#     (1280, 720): 30.0,  # 720p
+#     (854, 480): 20.0,  # 480p
+# }
+
 FOV_MAX: float = 120.0  # degrees – ceiling used to normalise FOV to 0–100
 
 DISTANCE_MAX: float = 1000.0  # meters – used to normalise distance to 0–100
@@ -93,16 +120,26 @@ class HardwareProfile:
 
 # GotoAndAudio: speaker is primary; camera quality acts as a tiebreaker
 PROFILE_GOTO_AND_AUDIO = HardwareProfile(
-    speaker=0.70,
-    resolution=0.20,
-    fov=0.10,
+    resolution=0.5,
+    fov=0.5,
 )
 
 # GotoAndBlink: lights are primary; camera quality acts as a tiebreaker
 PROFILE_GOTO_AND_BLINK = HardwareProfile(
-    lights=0.70,
-    resolution=0.20,
-    fov=0.10,
+    resolution=0.5,
+    fov=0.5,
+)
+
+# GotoAndIlluminate: spotlight/lighting subsystem is required
+PROFILE_GOTO_AND_ILLUMINATE = HardwareProfile(
+    resolution=0.5,
+    fov=0.5,
+)
+
+# GotoAndSurveil: camera quality is primary
+PROFILE_GOTO_AND_SURVEIL = HardwareProfile(
+    resolution=0.60,
+    fov=0.40,
 )
 
 # GotoOnly: here there is no special hardware needed, but prefer a better camera if present
@@ -115,6 +152,8 @@ PROFILE_GOTO_ONLY = HardwareProfile(
 HARDWARE_PROFILES: dict[Type[Mission], HardwareProfile] = {
     GotoAndAudio: PROFILE_GOTO_AND_AUDIO,
     GotoAndBlink: PROFILE_GOTO_AND_BLINK,
+    GotoAndIlluminate: PROFILE_GOTO_AND_ILLUMINATE,
+    GotoAndSurveil: PROFILE_GOTO_AND_SURVEIL,
     GotoOnly: PROFILE_GOTO_ONLY,
 }
 
@@ -125,16 +164,14 @@ class DroneCandidate:
     """Bundles everything known about one connected drone at selection time"""
 
     drone_id: str
-    capabilities: json_schemas.Capabilities
+    drone: DroneSpecs
     telemetry: json_schemas.Telemetry
     hardware_score: float  # 0 – 100  (computed)
     total_score: float = 0.0
 
 
 # Step 3 scoring
-def compute_hardware_score(
-    capabilities: json_schemas.Capabilities, mission_type: Type[Mission]
-) -> float:
+def compute_hardware_score(drone: DroneSpecs, mission_type: Type[Mission]) -> float:
     """
     Returns a 0-100 score reflecting how well a drone's hardware suits a
     *specific* mission type.  Only the capabilities that the mission actually
@@ -154,28 +191,24 @@ def compute_hardware_score(
         )
         return 50.0
 
-    # TODO CHANGE THE RESOLUTION FROM STRING
-    resolution_score = 0.0
+    resolution_value = 0.0
     fov_score = 0.0
 
-    if capabilities.camera:
-        resolution_score = RESOLUTION_SCORES.get(
-            (
-                capabilities.camera.resolution_width,
-                capabilities.camera.resolution_height,
-            ),
-            50.0,
+    if drone.camera:
+        resolution_value = resolution_score(
+            drone.camera.resolution_width,
+            drone.camera.resolution_height,
         )
 
-        fov_score = min(capabilities.camera.horizontal_fov / FOV_MAX, 1.0) * 100.0
+        fov_score = min(drone.camera.horizontal_fov / FOV_MAX, 1.0) * 100.0
 
-    speaker_score = 100.0 if capabilities.speaker else 0.0
+    speaker_score = 100.0 if drone.speaker else 0.0
     lights_score = (
-        100.0 if capabilities.spotlight else 0.0
-    )  # TODO Which lights? spotligth or led?
+        100.0 if (drone.spotlight or (drone.led and drone.led.has_any())) else 0.0
+    )
 
     total = (
-        resolution_score * profile.resolution
+        resolution_value * profile.resolution
         + fov_score * profile.fov
         + speaker_score * profile.speaker
         + lights_score * profile.lights
@@ -199,7 +232,8 @@ def compute_total_score(
 
     return round(
         WEIGHT_BATTERY * telemetry.battery_percent
-        + WEIGHT_PROXIMITY * travel_score
+        - WEIGHT_PROXIMITY
+        * travel_score  # Minus since travel_score is proportional to distance
         + WEIGHT_HARDWARE * hardware_score,
         2,
     )
@@ -219,7 +253,9 @@ class DroneSelector:
     """
 
     # Minimum battery level required to even be considered
-    MIN_BATTERY_THRESHOLD: float = 30.0 # At 20 the drone will go home, to send it on a mission 30 is required
+    MIN_BATTERY_THRESHOLD: float = (
+        30.0  # At 20 the drone will go home, to send it on a mission 30 is required
+    )
 
     def __init__(self, redis_host: str = "redis", redis_port: int = 6379):
         self._redis = redis.Redis(
@@ -262,6 +298,7 @@ class DroneSelector:
 
                 telemetry = json_schemas.parse_telemetry(telemetry_json)
                 capabilities = json_schemas.parse_capabilities(capabilities_json)
+                drone = DroneSpecs.from_capabilities(drone_id, capabilities)
 
                 if telemetry.battery_percent < self.MIN_BATTERY_THRESHOLD:
                     logger.info(
@@ -277,7 +314,7 @@ class DroneSelector:
                 candidates.append(
                     DroneCandidate(
                         drone_id=drone_id,
-                        capabilities=capabilities,
+                        drone=drone,
                         telemetry=telemetry,
                         hardware_score=0.0,
                     )
@@ -308,6 +345,7 @@ class DroneSelector:
         candidates: list[DroneCandidate],
         mission_type: Type[Mission],
         coordinates: Coordinates,
+        params: Optional[dict] = None,
     ) -> list[DroneCandidate]:
         """
         Keeps only the drones whose hardware can execute the requested mission type.
@@ -315,8 +353,9 @@ class DroneSelector:
         which would instantiate every mission type just to filter for one.
         """
         capable: list[DroneCandidate] = []
+        params = params or {}
         for candidate in candidates:
-            if mission_type(candidate.capabilities, coordinates).can_execute():
+            if mission_type(candidate.drone, coordinates, **params).can_execute():
                 capable.append(candidate)
             else:
                 logger.info(
@@ -348,7 +387,7 @@ class DroneSelector:
         where hardware_score is computed against the mission's HardwareProfile.
         """
         for c in candidates:
-            c.hardware_score = compute_hardware_score(c.capabilities, mission_type)
+            c.hardware_score = compute_hardware_score(c.drone, mission_type)
             c.total_score = compute_total_score(
                 c.telemetry, c.hardware_score, coordinates
             )
@@ -382,6 +421,7 @@ class DroneSelector:
         self,
         mission_type: Type[Mission],
         coordinates: Coordinates,
+        params: Optional[dict] = None,
     ) -> Optional[Mission]:
         """
         Runs the three-step selection and returns a ready-to-store Mission object
@@ -393,6 +433,30 @@ class DroneSelector:
             The kind of mission to execute, e.g. GotoAndAudio, GotoAndBlink, GotoOnly.
         coordinates : dict
             Target location, e.g. {"lat": 57.705, "lng": 11.938}.
+        params : dict, optional
+            Should contain following data:
+                - For GotoAndAudio:
+                params = {
+                    "audio_type": "alert",      # optional if audio_file provided
+                    "audio_file": None,         # optional if audio_type provided
+                    "duration_seconds": 30,     # optional
+                    "volume": 1.0,              # optional
+                }
+
+                - For GotoAndSurveil:
+                params = {
+                    "duration_seconds": 30,     # optional
+                    "camera_pitch": -90,        # optional
+                    "camera_yaw": 0,            # optional
+                }
+
+                - For GotoAndBlink:
+                params = { "duration_seconds": 30 }    # optional
+
+                - For GotoAndIlluminate:
+                params = { "duration_seconds": 30 }    # optional
+
+                - For GotoOnly: None
 
         Returns
         -------
@@ -402,6 +466,8 @@ class DroneSelector:
             "=== DroneSelector: selecting drone for %s ===", mission_type.__name__
         )
 
+        params = params or {}
+
         # Step 1 – availability
         candidates = self._get_connected_drones()
         if not candidates:
@@ -409,7 +475,7 @@ class DroneSelector:
             return None
 
         # Step 2 – capability
-        capable = self._filter_capable(candidates, mission_type, coordinates)
+        capable = self._filter_capable(candidates, mission_type, coordinates, params)
         if not capable:
             logger.warning(
                 "No drone with the required hardware for %s.", mission_type.__name__
@@ -421,7 +487,7 @@ class DroneSelector:
         chosen = ranked[0]
 
         # Instantiate and return the mission bound to the chosen drone
-        mission = mission_type(chosen.capabilities, coordinates)
+        mission = mission_type(chosen.drone, coordinates, **params)
         logger.info(
             "Selected drone '%s' for mission type '%s'.",
             chosen.drone_id,
@@ -438,6 +504,7 @@ class DroneSelector:
 def select_drone_for_mission(
     mission_type: Type[Mission],
     coordinates: Coordinates,
+    params: Optional[dict] = None,
     redis_host: str = "redis",
     redis_port: int = 6379,
 ) -> Optional[Mission]:
@@ -461,4 +528,4 @@ def select_drone_for_mission(
     ...     print("No suitable drone found.")
     """
     selector = DroneSelector(redis_host=redis_host, redis_port=redis_port)
-    return selector.select(mission_type, coordinates)
+    return selector.select(mission_type, coordinates, params)

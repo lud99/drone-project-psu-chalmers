@@ -22,7 +22,9 @@
     {
         "msg_type": "proposed_missions",
         "missions": [
-            // Array of mission details. refer to "interface/backend_mission_format.jsonc"
+            {
+                
+            }
         ]
     },
     // received
