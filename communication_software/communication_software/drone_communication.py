@@ -567,20 +567,31 @@ class DroneCommunication:
         self, message: json_schemas.TaskEventMessage, connection_id
     ):
         try:
-            if self.task_index < len(self.task_list):
-                action = self.task_list[self.task_index].get(
-                    "task_action",
-                    self.task_list[self.task_index].get("msg_type", "unknown"),
-                )
-                print(
-                    f"Sending task from event: index:{self.task_index}, action:{action}"
-                )
-                await self.connections[connection_id].send(
-                    json.dumps(self.task_list[self.task_index])
-                )
-                self.task_index += 1
-            else:
-                print("No more tasks left in current mock mission")
+            if message.event == "task_complete":
+                next_task_raw = r.lpop(f"mission_queue:{message.mission_id}")
+                if next_task_raw:
+                    next_task = json.loads(next_task_raw)
+                    print(
+                        f"Skickar nästa task index:{next_task['index']}, "
+                        f"action:{next_task['task_action']['action']}"
+                    )
+                    await self.connections[connection_id].send(next_task_raw)
+                else:
+                    print(f"Mission {message.mission_id} klar – väntar 30s innan go_home")
+                    
+                    # Uppdatera status till COMPLETED
+                    from communication_software.missions_planning.mission_registry import MissionRegistry
+                    from communication_software.missions_planning.mission_status import MissionStatus
+                    reg = MissionRegistry()
+                    reg.update_status(message.mission_id, MissionStatus.COMPLETED)
+                    
+                    await asyncio.sleep(30)
+                    go_home = json_schemas.GoHomeMessage(
+                        drone_id=connection_id,
+                        mission_id=message.mission_id,
+                    )
+                    await self.connections[connection_id].send(go_home.model_dump_json())
+                    print(f"go_home skickat till {connection_id}")
         except Exception as e:
             error = f"handle_task_event_error {e}"
             print(error)

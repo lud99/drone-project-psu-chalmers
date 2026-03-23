@@ -4,6 +4,9 @@ import threading
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
 from communication_software.frontend_websocket import run_server
 from communication_software.drone_communication import DroneCommunication
+from communication_software.missions_planning.auto_mission_suggest import (
+    AutoMissionSuggester,
+)
 import rclpy
 
 
@@ -87,17 +90,23 @@ def get_drone_coordinates(atos_communicator):
 
 def start_communication_websocket_server(ip):
     drone_communication = DroneCommunication()
+    auto_mission_suggester = AutoMissionSuggester(
+        redis_host=os.environ.get("REDIS_HOST", "redis"),
+        redis_port=int(os.environ.get("REDIS_PORT", 6379)),
+    )
     try:
         print("Drone Communication server starting, press ctrl + c to exit")
 
         asyncio.run(
             run_comm_server(
                 drone_communication,
+                auto_mission_suggester,
                 ip=ip,
             )
         )
     except KeyboardInterrupt:
         print("\nDrone Communication server interrupted!")
+        auto_mission_suggester.request_stop()
         if (
             drone_communication.redis_listener_task
             and drone_communication.redis_listener_task.is_alive()
@@ -110,11 +119,25 @@ def start_communication_websocket_server(ip):
         print(f"Unexpected error starting server: {e}")
 
 
-async def run_comm_server(drone_communication: DroneCommunication, ip: str):
+async def run_comm_server(
+    drone_communication: DroneCommunication,
+    auto_mission_suggester: AutoMissionSuggester,
+    ip: str,
+):
     loop = asyncio.get_running_loop()
     drone_communication.loop = loop
 
     drone_communication.start_redis_listener_thread()
+
+    threading.Thread(
+        target=auto_mission_suggester.object_listener,
+        daemon=True,
+        name="object-listener",
+    ).start()
+    threading.Thread(
+        target=auto_mission_suggester.area_listener, daemon=True, name="area-listener"
+    ).start()
+    print("AutoMissionSuggester listeners started.")
 
     await drone_communication.start_websocket_server(ip=ip)
 

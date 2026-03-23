@@ -258,13 +258,11 @@ async def set_watch_area(payload: str = Body(...)):
     try:
         message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
-            r.set("watch_area", message.area.model_dump_json())
+            coords = [{"lat": p.lat, "lng": p.lon} for p in message.area.points]
+            r.set("watch_area", json.dumps({"points": coords}))
             return {"msg_type": "response", "error": None}
-
     except Exception as e:
-        print(e)
         return {"msg_type": "response", "error": str(e)}
-
     return {"msg_type": "response", "error": None}
 
 
@@ -389,7 +387,23 @@ def dispatch_mission(mission_id: str):
         return {"error": "Mission not found"}
 
     mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
-    # TODO: Forward to translation layer here
+
+    coords = mission["coordinates"]
+    task_message = json_schemas.TaskMessage(
+        drone_id=mission["drone_id"],
+        mission_id=mission["mission_id"],
+        index=0,
+        task_action=json_schemas.GoToTask(
+            action="go_to",
+            params=json_schemas.GoToParams(
+                lat=coords["lat"],
+                lon=coords["lon"],
+                alt=coords["alt"],
+                heading=coords.get("heading", 0),
+            )
+        )
+    )
+    r.publish("drone_commands", task_message.model_dump_json())
 
     return {"status": "dispatched", "mission": mission}
 
