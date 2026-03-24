@@ -108,6 +108,37 @@ def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
     ]
 
 
+def get_connected_drones_helper():
+    drone_list = json_schemas.FrontendMessages.ConnectedDrones(drones=[])
+
+    try:
+        for drone_id, telem_key, cap_key in get_telemetry_and_capabilities_key_tuples():
+            print(f"Processing drone id {drone_id}: {telem_key} <-> {cap_key}")
+
+            telemetry_str = r.get(telem_key)
+            capabilities_str = r.get(cap_key)
+            if telemetry_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+            if capabilities_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+
+            telemetry = json_schemas.parse_telemetry(telemetry_str)
+            capabilities = json_schemas.parse_capabilities(capabilities_str)
+
+            drone_list.drones.append(
+                json_schemas.DroneInfo(
+                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                )
+            )
+
+        return drone_list.model_dump_json()
+
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
 # WebSocket Endpoints
 
 
@@ -127,6 +158,9 @@ async def flightmanager_websocket(websocket: WebSocket):
                 await websocket.send_text(message["data"])
 
     listener_task = asyncio.create_task(redis_listener())
+
+    # Send connected drones
+    websocket.send(get_connected_drones_helper())
 
     try:
         while True:

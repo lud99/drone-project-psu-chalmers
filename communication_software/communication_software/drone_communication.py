@@ -711,11 +711,10 @@ class DroneCommunication:
                     while True:
                         try:
                             frame = await track.recv()  # receives yuv420p frame
-                            yuv_frame = frame.to_ndarray(
-                                format="yuv420p"
-                            )  # Convert to YUV420p
 
-                            await self.set_frame(connection_id, yuv_frame)
+                            bgr_frame = frame.to_ndarray(format="bgr24")
+
+                            await self.set_frame(connection_id, bgr_frame)
 
                         except Exception as e:
                             print(
