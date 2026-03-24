@@ -482,7 +482,7 @@
         // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        // Hämta användarens position
+        // Retrieve the users position
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -491,7 +491,7 @@
 
                     map.setView([lat, lng], 15);
 
-                    // Lägg till en marker på din position
+                    // Add marker to your position
                     L.marker([lat, lng]).addTo(map)
                         .bindPopup("You are here")
                         .openPopup();
@@ -534,7 +534,7 @@
             }
         }
         loadWatchArea();
-        // Skapa en custom control
+        // Create a custom control
         // -------- POLYGON MODE --------
 
         let polygonMode = false;
@@ -565,7 +565,7 @@
 
                 container.onclick = function () {
 
-                    // Ta bort gammal polygon
+                    // Erase old polygon
                     if (activePolygon) {
                         map.removeLayer(activePolygon);
                         activePolygon = null;
@@ -597,7 +597,7 @@
 
             polygonPoints.push(e.latlng);
 
-            // Skapa polygon när vi har minst 2 punkter
+            // Create a polygon when at least 2 points are chosen
             if (!activePolygon) {
                 activePolygon = L.polygon(polygonPoints, {
                     color: "#ff0000",
@@ -731,7 +731,7 @@
 
         map.addControl(new sendCoordinates());
 
-        //slut      Slut
+        //End of map changes
 
 
         // WebSocket Connections
