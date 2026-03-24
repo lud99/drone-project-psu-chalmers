@@ -136,7 +136,7 @@ def get_connected_drones_helper():
         return drone_list.model_dump_json()
 
     except Exception as e:
-        return {"msg_type": "response", "error": str(e)}
+        return json.dumps({"msg_type": "response", "error": str(e)})
 
 
 # WebSocket Endpoints
@@ -160,7 +160,7 @@ async def flightmanager_websocket(websocket: WebSocket):
     listener_task = asyncio.create_task(redis_listener())
 
     # Send connected drones
-    websocket.send(get_connected_drones_helper())
+    await websocket.send_text(get_connected_drones_helper())
 
     try:
         while True:
