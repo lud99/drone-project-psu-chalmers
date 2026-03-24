@@ -202,7 +202,7 @@
 
         const missions = [
             {
-                name: "Lisas uppdrag",
+                name: "Lisa's mission",
                 tasks: [
                     {
                         "msg_type": "task",
@@ -241,7 +241,7 @@
                         "task": {
                             "action": "led",
                             "params": {
-                                "color": "red",
+                                "type": "rear",
                                 "pattern": "pulse",
                                 "duration_seconds": -1
                             }
@@ -263,8 +263,21 @@
                     {
                         "msg_type": "task",
                         "mission_id": "mission_101",
-                        "drone_id": "AZL-55555",
                         "index": 4,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "angle_camera",
+                            "params": {
+                                "pitch": 45,
+                                "yaw": 0
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 5,
                         "task": {
                             "action": "go_to",
                             "params": {
@@ -278,7 +291,7 @@
                 ]
             },
             {
-                name: "Luddes uppdrag",
+                name: "Ludde's mission",
                 tasks: [
                     {
                         "msg_type": "task",
@@ -336,98 +349,79 @@
             const selectedMission = missions[missionIndex];
             const modalTitle = missionModal.querySelector('.modal-title');
             const modalBody = missionModal.querySelector('#modal-content-area');
-            modalTitle.textContent = `Mission: ${selectedMission.name}`;
+            const droneId = selectedMission.tasks.length > 0 ? selectedMission.tasks[0].drone_id : "Unknown Drone";
+
+            modalTitle.innerHTML = `
+                <div class="d-flex flex-column">
+                    <span class="fs-5">${selectedMission.name}</span>
+                    <span class="badge bg-dark mt-1" style="width: fit-content;">Drone: ${droneId}</span>
+                </div>
+            `;
 
             let fullContent = '';
             allWaypoints = {};
-            createdMap = false
+            const uniqueMapId = `map-overview-${missionIndex}`;
+            allWaypoints[uniqueMapId] = [];
 
-            for (const currentTaskData of selectedMission.tasks) {
+            selectedMission.tasks.forEach((currentTaskData, idx) => {
+                let paramsHtml = '';
+                const action = currentTaskData.task.action;
+                const p = currentTaskData.task.params;
 
-                if (currentTaskData) {
+                if (action === 'go_to') {
+                    const waypointNumber = allWaypoints[uniqueMapId].length + 1;
+                    allWaypoints[uniqueMapId].push({
+                        coords: [p.lat, p.lon],
+                        label: `Waypoint ${waypointNumber}`
+                    });
 
-                    let paramsHtml = '';
-                    const action = currentTaskData.task.action;
-                    const p = currentTaskData.task.params;
-
-                    if (action === 'go_to') {
-                        const uniqueMapId = `map-${currentTaskData.mission_id}`;
-                        if (!allWaypoints[uniqueMapId]) {
-                            allWaypoints[uniqueMapId] = []
-                        }
-                        allWaypoints[uniqueMapId].push({
-                            coords: [p.lat, p.lon]
-                        });
-
-                        if (!createdMap) {
-                            paramsHtml = `
-                            <div class="alert alert-info py-2 mb-1">
-                                <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
-                            </div>
-                            <ul>
-                                <li>Coordinates: ${p.lat}, ${p.lon}</li>
-                                <li>Altitude: ${p.alt}m</li>
-                                </ul>
-                                <div id="${uniqueMapId}" style="height: 200px; width: 100%; border-radius: 8px; background: #eee;"></div>
-                                `;
-                        }
-                        else {
-                            paramsHtml = `
-                            <div class="alert alert-info py-2 mb-1">
-                                <strong>Waypoint ${allWaypoints.length}:</strong> Drone flies here.
-                            </div>
-                            <ul>
-                                <li>Coordinates: ${p.lat}, ${p.lon}</li>
-                                <li>Altitude: ${p.alt}m</li>
-                                </ul>
-                                `;
-                        }
-                        createdMap = true
-                    }
-                    else if (action === 'play_audio') {
-                        paramsHtml = `
-                            <p><i class="bi bi-volume-up"></i> Plays audiofile: <strong>${p.file}</strong></p>
-                            <ul>
-                                <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
-                            </ul>`;
-                    }
-                    else if (action === 'led') {
-                        paramsHtml = `
-                            <p><strong>LED-status:</strong></p>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <div style="width: 20px; height: 20px; border-radius: 50%; background-color: ${p.color}; border: 1px solid #000;"></div>
-                                <span>Color: ${p.color} (${p.pattern})</span>
-                            </div>`;
-                    }
-                    else if (action === 'spotlight') {
-                        paramsHtml = `
-                            <p><i class="bi bi-volume-up"></i> Pattern: <strong>${p.pattern}</strong></p>
-                            <ul>
-                                <li><strong>Duration:</strong> ${p.duration_seconds} seconds</li>
-                            </ul>`;
-                    }
-                    else {
-                        paramsHtml = '<ul>';
-                        for (const [key, value] of Object.entries(p)) {
-                            paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
-                        }
-                        paramsHtml += '</ul>';
-                    }
-
-                    fullContent += `
-                        <div class="task-card mb-4 border-bottom pb-3">
-                            <div class="d-flex justify-content-between">
-                                <strong>Drone: ${currentTaskData.drone_id}</strong>
-                                <span class="badge bg-secondary">${action}</span>
-                            </div>
-                            <div class="mt-2">
-                                ${paramsHtml}
-                            </div>
-                        </div>
-                    `;
+                    paramsHtml = `<strong>Coordinates:</strong> ${p.lat}, ${p.lon}<br><strong>Altitude:</strong> ${p.alt}m`;
                 }
+                else if (action === 'play_audio') {
+                    paramsHtml = `<p><strong>Plays audiofile:</strong> ${p.file} (${p.duration_seconds}s)</p>`;
+                }
+                else if (action === 'led') {
+                    paramsHtml = `<p><strong>Type:</strong> <span style="type:${p.type}"></span> ${p.type} (${p.pattern})</p>`;
+                }
+                else if (action === 'spotlight') {
+                    paramsHtml = `<p><strong>Pattern:</strong> ${p.pattern} (${p.duration_seconds}s)</p>`;
+                }
+                else if (action == 'angle_camera') {
+                    paramsHtml = `<p><strong>Pitch:</strong> ${p.pitch} <br> <strong>Yaw:</strong> ${p.yaw}`
+                }
+                else {
+                    paramsHtml = '<ul>';
+                    for (const [key, value] of Object.entries(p)) {
+                        paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
+                    }
+                    paramsHtml += '</ul>';
+                }
+
+                fullContent += `
+                    <div class="task-card mb-4 border-bottom pb-3">
+                        <div class="d-flex justify-content-between">
+                            <strong class="fs-5">Task ${idx + 1}</strong>
+                            <span class="badge bg-secondary">${action}</span>
+                        </div>
+                        <div class="mt-2">
+                            ${paramsHtml}
+                        </div>
+                    </div>
+                `;
+            });
+
+            let mapHtml = '';
+            if (allWaypoints[uniqueMapId].length > 0) {
+                mapHtml = `
+                    <div class="mb-4">
+                        <h6>Mission Route Overview</h6>
+                        <div id="${uniqueMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
+                    </div>
+                    <hr>
+                `;
             }
-            modalBody.innerHTML = fullContent;
+
+            modalBody.innerHTML = mapHtml + fullContent;
         });
 
         // Creates map for action = go_to
@@ -437,30 +431,49 @@
 
             Object.entries(allWaypoints).forEach(([id, points]) => {
                 const container = document.getElementById(id);
-
                 if (!container || points.length === 0) return;
 
-                const initialCoords = points[0].coords;
-                const map = L.map(id).setView(initialCoords, 15);
-
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap'
-                }).addTo(map);
+                const map = L.map(id).setView(points[0].coords, 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
                 const markerGroup = L.featureGroup();
 
-                points.forEach(({ coords }, idx) => {
-                    console.log(`Adding marker to ${id}:`, coords);
-                    L.marker(coords)
-                        .bindPopup(`Waypoint ${idx + 1}`)
-                        .addTo(markerGroup);
+                points.forEach((point, idx) => {
+                    const marker = L.marker(point.coords).addTo(markerGroup);
+
+                    marker.bindTooltip(point.label, {
+                        permanent: true,
+                        direction: 'right',
+                        offset: [10, 0]
+                    }).openTooltip();
                 });
 
-                markerGroup.addTo(map);
+                if (markers && markers[1]) {
+                    const currentPos = markers[1].getLatLng();
+
+                    const droneMarker = L.circleMarker(currentPos, {
+                        radius: 8,
+                        fillColor: "#ff3300",
+                        color: "#fff",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(markerGroup);
+
+                    droneMarker.bindTooltip("Drone position", {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'drone-pos-label'
+                    }).openTooltip();
+                }
 
                 if (points.length > 1) {
-                    map.fitBounds(markerGroup.getBounds(), { padding: [20, 20] });
+                    const pathCoords = points.map(p => p.coords);
+                    L.polyline(pathCoords, { color: 'blue', weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
                 }
+
+                markerGroup.addTo(map);
+                map.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
 
                 setTimeout(() => { map.invalidateSize(); }, 200);
                 activeMaps.push(map);
