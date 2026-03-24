@@ -341,6 +341,7 @@
         let modalMap = null;
 
         let allWaypoints = [];
+        let activeMissionMapId = "";
         let activeMaps = [];
 
         missionModal.addEventListener('show.bs.modal', function (event) {
@@ -359,9 +360,8 @@
             `;
 
             let fullContent = '';
-            allWaypoints = {};
-            const uniqueMapId = `map-overview-${missionIndex}`;
-            allWaypoints[uniqueMapId] = [];
+            activeMissionMapId = `map-overview-${missionIndex}`;
+            allWaypoints = [];
 
             selectedMission.tasks.forEach((currentTaskData, idx) => {
                 let paramsHtml = '';
@@ -369,8 +369,8 @@
                 const p = currentTaskData.task.params;
 
                 if (action === 'go_to') {
-                    const waypointNumber = allWaypoints[uniqueMapId].length + 1;
-                    allWaypoints[uniqueMapId].push({
+                    const waypointNumber = allWaypoints.length + 1;
+                    allWaypoints.push({
                         coords: [p.lat, p.lon],
                         label: `Waypoint ${waypointNumber}`
                     });
@@ -411,11 +411,11 @@
             });
 
             let mapHtml = '';
-            if (allWaypoints[uniqueMapId].length > 0) {
+            if (allWaypoints.length > 0) {
                 mapHtml = `
                     <div class="mb-4">
                         <h6>Mission Route Overview</h6>
-                        <div id="${uniqueMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
+                        <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
                     </div>
                     <hr>
                 `;
@@ -429,55 +429,53 @@
             activeMaps.forEach(m => m.remove());
             activeMaps = [];
 
-            Object.entries(allWaypoints).forEach(([id, points]) => {
-                const container = document.getElementById(id);
-                if (!container || points.length === 0) return;
+            const container = document.getElementById(activeMissionMapId);
+            if (!container || allWaypoints.length === 0) return;
 
-                const map = L.map(id).setView(points[0].coords, 15);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            const map = L.map(activeMissionMapId).setView(allWaypoints[0].coords, 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-                const markerGroup = L.featureGroup();
+            const markerGroup = L.featureGroup();
 
-                points.forEach((point, idx) => {
-                    const marker = L.marker(point.coords).addTo(markerGroup);
+            allWaypoints.forEach(point => {
+                const marker = L.marker(point.coords).addTo(markerGroup);
 
-                    marker.bindTooltip(point.label, {
-                        permanent: true,
-                        direction: 'right',
-                        offset: [10, 0]
-                    }).openTooltip();
-                });
-
-                if (markers && markers[1]) {
-                    const currentPos = markers[1].getLatLng();
-
-                    const droneMarker = L.circleMarker(currentPos, {
-                        radius: 8,
-                        fillColor: "#ff3300",
-                        color: "#fff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.8
-                    }).addTo(markerGroup);
-
-                    droneMarker.bindTooltip("Drone position", {
-                        permanent: true,
-                        direction: 'top',
-                        className: 'drone-pos-label'
-                    }).openTooltip();
-                }
-
-                if (points.length > 1) {
-                    const pathCoords = points.map(p => p.coords);
-                    L.polyline(pathCoords, { color: 'blue', weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
-                }
-
-                markerGroup.addTo(map);
-                map.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
-
-                setTimeout(() => { map.invalidateSize(); }, 200);
-                activeMaps.push(map);
+                marker.bindTooltip(point.label, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0]
+                }).openTooltip();
             });
+
+            if (markers && markers[1]) {
+                const currentPos = markers[1].getLatLng();
+
+                const droneMarker = L.circleMarker(currentPos, {
+                    radius: 8,
+                    fillColor: "#ff3300",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(markerGroup);
+
+                droneMarker.bindTooltip("Drone position", {
+                    permanent: true,
+                    direction: 'top',
+                    className: 'drone-pos-label'
+                }).openTooltip();
+            }
+
+            if (allWaypoints.length > 1) {
+                const pathCoords = allWaypoints.map(p => p.coords);
+                L.polyline(pathCoords, { color: 'blue', weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
+            }
+
+            markerGroup.addTo(map);
+            map.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
+
+            setTimeout(() => { map.invalidateSize(); }, 200);
+            activeMaps.push(map);
         });
 
         // Initialize Surviellance area map
