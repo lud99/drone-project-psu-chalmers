@@ -1,6 +1,7 @@
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import cv2
 import json
@@ -34,6 +35,16 @@ except redis.exceptions.ConnectionError as e:
 DRONE_EVENT_CHANNEL = "drone_events"
 
 app = FastAPI()
+# 1. Define the domains allowed to access your API
+origins = ["http://localhost:8001"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Allows specific origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 
 # ATOS Simulation
@@ -240,7 +251,7 @@ async def get_active_missions():
 
 
 @app.get("/api/v1/get_watch_area")
-async def get_watch_areas():
+async def get_watch_area():
     try:
         data = r.get("watch_area")
         if not data:
