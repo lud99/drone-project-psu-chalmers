@@ -196,7 +196,8 @@
     <!-- <script src="/misc/leaflet.js"></script> -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
-        const BACKEND_URL = "ws://localhost:8000";
+        const BACKEND_URL_WS = "ws://localhost:8000";
+        const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
         let activePolygon = null;
 
@@ -513,7 +514,7 @@
 
             try {
 
-                const response = await fetch("/api/v1/get_watch_area");
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/get_watch_area`);
                 const data = await response.json();
 
                 if (data.points && data.points.length > 0) {
@@ -691,7 +692,7 @@
                     }));
 
                     try {
-                        const response = await fetch("/api/v1/set_watch_area", {
+                        const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/set_watch_area`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/text"
@@ -720,7 +721,7 @@
 
                     } catch (error) {
                         console.error("Error sending watch area", error);
-                        alert("Failed to send watch area to backend");
+                        alert("Failed to send watch area to backend " + error);
                     }
                 };
                 return container;
@@ -734,8 +735,8 @@
 
 
         // WebSocket Connections
-        const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
-        const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
+        const atosWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/atos`);
+        const flightmanagerWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/flightmanager`);
 
         // Handle Layout Changes
         document.getElementById('layoutSelect').addEventListener('change', function () {
