@@ -481,10 +481,31 @@
         // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        const markers = {
-            1: L.marker([57.705841, 11.938096]).addTo(map),
-            2: L.marker([57.705941, 11.939096]).addTo(map)
-        };
+        // Hämta användarens position
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    map.setView([lat, lng], 15);
+
+                    // Lägg till en marker på din position
+                    L.marker([lat, lng]).addTo(map)
+                        .bindPopup("You are here")
+                        .openPopup();
+                },
+                (error) => {
+                    console.log("Could not fetch your position:", error);
+
+                    // fallback (t.ex. Lindholmen)
+                    map.setView([57.705841, 11.938096], 15);
+                }
+            );
+        } else {
+            console.log("Geolocation is not supported");
+            map.setView([57.705841, 11.938096], 15);
+        }
 
         //  Map changes
         // Save the last polygon that was made when updating the website
@@ -608,9 +629,10 @@
         });
 
 
-        // -------- DOUBLE CLICK TO FINISH --------
 
-        map.on('dblclick', function () {
+        // -------- DOUBLE CLICK TO FINISH --------
+        map.doubleClickZoom.disable();
+        map.on('dblclick', function (e) {
 
             if (!polygonMode) return;
 

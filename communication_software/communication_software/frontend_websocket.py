@@ -242,7 +242,7 @@ async def get_active_missions():
 
 
 @app.get("/api/v1/get_watch_area")
-async def get_watch_areas():
+async def get_watch_area():
     try:
         data = r.get("watch_area")
         if not data:
