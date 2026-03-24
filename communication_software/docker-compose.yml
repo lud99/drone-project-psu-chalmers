@@ -47,7 +47,7 @@ services:
       - "8082:8082"
       - "3000:3000" 
       - "3443:3443"
-      - "55555:55555"
+      - "55556:55555"
       - "443:443"
       - "9090:9090" 
     command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
