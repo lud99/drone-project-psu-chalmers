@@ -1,4 +1,5 @@
 import numpy as np
+from PIL import Image
 import cv2
 import imutils
 import threading
@@ -12,7 +13,6 @@ import asyncio
 import os
 import torch
 import io
-import json
 from typing import Optional
 
 from common.frame_utils import create_error_frame
@@ -143,7 +143,6 @@ async def set_frame(
         print(f"Exception in set_frame: {e}")
 
 
-### MERGE STREAMS ###
 async def stream_drone_frames(drone_id: str):
     """
     Read frames from Redis, decode and yield raw JPEG bytes.
@@ -409,14 +408,12 @@ async def annotate_stream(drone_id: str) -> None:
             frame_array = np.frombuffer(frame_data, dtype=np.uint8)
             pixel_array = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
 
-            (height, width, _channels) = pixel_array.shape
-
-            # Check if decoding fails
             if pixel_array is None:
                 print("[INFO] Decoding of image failed")
-                continue  # Skip if decoding fails
+                continue
 
-            # Get telemetry and specifications
+            (height, width, _channels) = pixel_array.shape
+
             if not capabilities.camera:
                 print("[ERROR] No camera specification present!")
                 continue
@@ -522,42 +519,33 @@ async def insert_dummy_telemetry_and_capabilities(drone_id: str) -> None:
         redis_key_telemetry = f"telemetry_drone{drone_id}"
         redis_key_capabilities = f"capabilities_drone{drone_id}"
 
-        telemetry = dict(
-            [
-                ("lat", 57.6900),
-                ("lon", 11.9800),
-                ("alt", 30),
-                ("heading", 10),
-                ("speed", 5.0),
-                ("battery_percent", 50),
-            ]
+        telemetry = json_schemas.Telemetry(
+            lat=57.705,
+            lon=11.938,
+            alt=120,
+            heading=40,
+            speed=3,
+            battery_percent=88,
         )
 
-        capabilities = dict(
-            [
-                (
-                    "camera",
-                    dict(
-                        [
-                            ("aspect_ratio", 16.0 / 9.0),
-                            ("horizontal_fov", 83.0),
-                            ("resolution_width", 1920),
-                            ("resolution_height", 1080),
-                        ]
-                    ),
-                ),
-                ("led", None),
-                ("spotlight", False),
-                ("speaker", None),
-            ]
+        capabilities = json_schemas.Capabilities(
+            led=None,
+            spotlight=True,
+            speaker=None,
+            camera=json_schemas.CameraCapabilities(
+                aspect_ratio=1.77,
+                horizontal_fov=84.0,
+                resolution_height=1080,
+                resolution_width=1920,
+            ),
         )
 
         expiration = 60
         with r.pipeline() as pipe:
-            pipe.set(redis_key_telemetry, json.dumps(telemetry))
+            pipe.set(redis_key_telemetry, telemetry.model_dump_json())
             pipe.expire(redis_key_telemetry, expiration)
 
-            pipe.set(redis_key_capabilities, json.dumps(capabilities))
+            pipe.set(redis_key_capabilities, capabilities.model_dump_json())
             pipe.expire(redis_key_capabilities, expiration)
 
             pipe.execute()  # Execute both commands together
@@ -593,7 +581,6 @@ async def adding_redis_frame(img, drone_id):
 
 
 async def test_detect_and_annotate_image():
-    from PIL import Image
 
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
@@ -613,8 +600,6 @@ async def test_detect_and_annotate_image():
 
 
 async def test_stream_frame():
-    from PIL import Image
-
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
@@ -629,8 +614,6 @@ async def test_stream_frame():
 
 
 async def test_stream_merge_frame():
-    from PIL import Image
-
     # Load and force RGB
     img = Image.open("./test2.jpg").convert("RGB")
 
@@ -685,6 +668,11 @@ async def main() -> None:
     print("[INFO] Startar drönarvideoprocessorer...")
 
     active_tasks = {}  # Map of drone_id -> asyncio.Task
+
+    img = Image.open("./test2.jpg").convert("RGB")
+
+    await adding_redis_frame(img, "haubits_77")
+        # 1. Start tasks for new drones
 
     while True:
         current_ids = get_connected_drone_ids()

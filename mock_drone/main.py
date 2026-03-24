@@ -133,11 +133,16 @@ async def run_drone_client(drone_id: str):
                 model="DJI-Mavic-Mock",
                 drone_id=drone_id,
                 capabilities=json_schemas.Capabilities(
-                    camera=None,
                     led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
                     spotlight=True,
                     speaker=json_schemas.SpeakerCapabilities(
                         audio_files=["hello", "world"]
+                    ),
+                    camera=json_schemas.CameraCapabilities(
+                        aspect_ratio=1.77,
+                        horizontal_fov=84.0,
+                        resolution_height=1080,
+                        resolution_width=1920,
                     ),
                 ),
                 telemetry=json_schemas.Telemetry(
@@ -206,5 +211,5 @@ async def run_drone_client(drone_id: str):
 if __name__ == "__main__":
     drone_id = DRONE_ID
     if len(sys.argv) > 1:
-        drone_id += "_" + sys.argv[1]
+        drone_id = sys.argv[1]
     asyncio.run(run_drone_client(drone_id))
