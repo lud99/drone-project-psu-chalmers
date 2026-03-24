@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         #map {
-            height: 400px;
+            height: 480px;
             border-radius: 10px;
         }
 
@@ -27,6 +27,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            object-position: center;
         }
 
         .status-card {
@@ -42,8 +43,9 @@
         <h1 class="text-center mb-4">ATOS Drone Platform</h1>
 
         <div class="row">
-            <!-- Video Section -->
+            <!-- Left Side -->
             <div class="col-md-8">
+                <!-- Video Section -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         Live Feed
@@ -59,10 +61,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Control Panel -->
-            <div class="col-md-4">
+                <!-- Control Panel -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         Controls
@@ -72,43 +71,61 @@
                         <div class="mb-3">
                             <h5>Video Layout</h5>
                             <select id="layoutSelect" class="form-select">
-                                <option value="single">Single View</option>
+                                <option value="drone1">Drone 1</option>
+                                <option value="drone2">Drone 2</option>
+                                <option value="single">Merged picture</option>
                                 <option value="sidebyside">Side by Side</option>
-                                <option value="drone1">Drone 1 Only</option>
-                                <option value="drone2">Drone 2 Only</option>
                             </select>
                         </div>
 
                         <!-- Status Display -->
                         <div class="status-card mb-3">
-                            <h5>Drone 1 Status</h5>
-                            <div>Altitude: <span id="alt1">--</span> m</div>
-                            <div>Speed: <span id="speed1">--</span> m/s</div>
-                            <div>Battery: <span id="battery1">--</span>%</div>
-
-                            <div class="drone-controls mt-2">
-                                <button id="armBtn1" data-drone-id="1" data-command="flight_arm"
-                                    class="btn btn-warning btn-sm">Arm</button>
-                                <button id="takeoffBtn1" data-drone-id="1" data-command="flight_take_off"
-                                    class="btn btn-success btn-sm">Take Off</button>
-                                <button id="rthBtn1" data-drone-id="1" data-command="flight_return_to_home"
-                                    class="btn btn-info btn-sm">Return Home</button>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>Drone 1 Status</h5>
+                                    <div>Altitude: <span id="alt1">--</span> m</div>
+                                    <div>Speed: <span id="speed1">--</span> m/s</div>
+                                    <div>Battery: <span id="battery1">--</span>%</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>Drone 1 Specs</h5>
+                                    <div>Drone Type: <span id="dronetype1">--</span></div>
+                                    <div>Camera: <span id="camera1">--</span></div>
+                                    <div>Camera resolution: <span id="res1">--</span></div>
+                                    <div>Speaker: <span id="speaker1">--</span></div>
+                                    <div>Spotlight: <span id="spotlight1">--</span></div>
+                                </div>
+                                <div class="drone-controls mt-2">
+                                    <button id="takeoffBtn1" data-drone-id="1" data-command="flight_take_off"
+                                        class="btn btn-success btn-sm">Take Off</button>
+                                    <button id="rthBtn1" data-drone-id="1" data-command="flight_return_to_home"
+                                        class="btn btn-info btn-sm">Return Home</button>
+                                </div>
                             </div>
                         </div>
                         <div class="status-card mb-3">
-                            <h5>Drone 2 Status</h5>
-                            <div>Altitude: <span id="alt2">--</span> m</div>
-                            <div>Speed: <span id="speed2">--</span> m/s</div>
-                            <div>Battery: <span id="battery2">--</span>%</div>
-                            <div class="drone-controls mt-2">
-                                <button id="armBtn2" data-drone-id="2" data-command="flight_arm"
-                                    class="btn btn-warning btn-sm">Arm</button>
-                                <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
-                                    class="btn btn-success btn-sm">Take Off</button>
-                                <button id="rthBtn2" data-drone-id="2" data-command="flight_return_to_home"
-                                    class="btn btn-info btn-sm">Return Home</button>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5>Drone 2 Status</h5>
+                                    <div>Altitude: <span id="alt2">--</span> m</div>
+                                    <div>Speed: <span id="speed2">--</span> m/s</div>
+                                    <div>Battery: <span id="battery2">--</span>%</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5>Drone 2 Specs</h5>
+                                    <div>Drone Type: <span id="dronetype2">--</span></div>
+                                    <div>Camera: <span id="camera2">--</span></div>
+                                    <div>Camera resolution: <span id="res2">--</span></div>
+                                    <div>Speaker: <span id="speaker2">--</span></div>
+                                    <div>Spotlight: <span id="spotlight2">--</span></div>
+                                </div>
+                                <div class="drone-controls mt-2">
+                                    <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
+                                        class="btn btn-success btn-sm">Take Off</button>
+                                    <button id="rthBtn2" data-drone-id="2" data-command="flight_return_to_home"
+                                        class="btn btn-info btn-sm">Return Home</button>
+                                </div>
                             </div>
-
                         </div>
 
                         <!-- Control Buttons -->
@@ -120,8 +137,6 @@
                             <hr>
                             <h5>All Drone Commands</h5>
                             <button id="armAllBtn" data-command="flight_arm"
-                                class="btn btn-warning all-drone-command-btn">Arm All</button>
-                            <button id="takeoffAllBtn" data-command="flight_take_off"
                                 class="btn btn-success all-drone-command-btn">Take Off All</button>
                             <button id="rthAllBtn" data-command="flight_return_to_home"
                                 class="btn btn-info all-drone-command-btn">Return Home All</button>
@@ -130,14 +145,47 @@
                     </div>
                 </div>
 
+            </div>
+
+            <!-- Right Side -->
+            <div class="col-md-4">
                 <!-- Map Section -->
-                <div class="card">
+                <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
-                        Live Map
+                        Create Surveillance Area
                     </div>
                     <div class="card-body p-0">
                         <div id="map"></div>
                     </div>
+                </div>
+                <!-- Mission planning section -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        Mission Planning
+                    </div>
+                    <div class="card-body">
+                        <div id="mission-list-container" class="row">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mission modal -->
+    <div class="modal fade" id="missionModal" tabindex="-1" aria-labelledby="missionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="missionModalLabel">Mission details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modal-content-area">
+                    Info regarding the mission...
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">Choose Mission</button>
                 </div>
             </div>
         </div>
@@ -152,6 +200,285 @@
         // Initialize Map
         let activePolygon = null;
 
+        const missions = [
+            {
+                name: "Lisa's mission",
+                tasks: [
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 0,
+                        "task": {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.688787,
+                                "lon": 11.978403,
+                                "alt": 25.0,
+                                "heading": 180
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 1,
+                        "task": {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "alarm.mp3",
+                                "volume": 1.0,
+                                "duration_seconds": 60
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "index": 2,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "led",
+                            "params": {
+                                "type": "rear",
+                                "pattern": "pulse",
+                                "duration_seconds": -1
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "index": 3,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "spotlight",
+                            "params": {
+                                "pattern": "steady",
+                                "duration_seconds": 90
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "index": 4,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "angle_camera",
+                            "params": {
+                                "pitch": 45,
+                                "yaw": 0
+                            }
+                        }
+                    },
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_101",
+                        "drone_id": "AZL-55555",
+                        "index": 5,
+                        "task": {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.704512,
+                                "lon": 11.963704,
+                                "alt": 25.0,
+                                "heading": 180
+                            }
+                        }
+                    },
+                ]
+            },
+            {
+                name: "Ludde's mission",
+                tasks: [
+                    {
+                        "msg_type": "task",
+                        "mission_id": "mission_102",
+                        "index": 3,
+                        "drone_id": "AZL-55555",
+                        "task": {
+                            "action": "spotlight",
+                            "params": {
+                                "pattern": "steady",
+                                "duration_seconds": 90
+                            }
+                        }
+                    },
+                ]
+            }
+        ]
+
+        // Creates mission buttons
+        const container = document.getElementById('mission-list-container');
+
+        missions.forEach((mission, index) => {
+            container.innerHTML += `
+                <div class="col-12 mb-2">
+                    <div class="d-flex justify-content-between align-items-center" 
+                        style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
+                        <div>
+                            <strong>Mission ${index + 1}</strong>
+                            <div>${mission.name}</div>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-success btn-sm mission-action-btn" 
+                                    data-mission-index="${index}" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#missionModal">
+                                Show More Info
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Mission display
+        const missionModal = document.getElementById('missionModal');
+        let currentTaskData = null;
+        let modalMap = null;
+
+        let allWaypoints = [];
+        let activeMissionMapId = "";
+        let activeMaps = [];
+
+        missionModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const missionIndex = button.getAttribute('data-mission-index');
+            const selectedMission = missions[missionIndex];
+            const modalTitle = missionModal.querySelector('.modal-title');
+            const modalBody = missionModal.querySelector('#modal-content-area');
+            const droneId = selectedMission.tasks.length > 0 ? selectedMission.tasks[0].drone_id : "Unknown Drone";
+
+            modalTitle.innerHTML = `
+                <div class="d-flex flex-column">
+                    <span class="fs-5">${selectedMission.name}</span>
+                    <span class="badge bg-dark mt-1" style="width: fit-content;">Drone: ${droneId}</span>
+                </div>
+            `;
+
+            let fullContent = '';
+            activeMissionMapId = `map-overview-${missionIndex}`;
+            allWaypoints = [];
+
+            selectedMission.tasks.forEach((currentTaskData, idx) => {
+                let paramsHtml = '';
+                const action = currentTaskData.task.action;
+                const p = currentTaskData.task.params;
+
+                if (action === 'go_to') {
+                    const waypointNumber = allWaypoints.length + 1;
+                    allWaypoints.push({
+                        coords: [p.lat, p.lon],
+                        label: `Waypoint ${waypointNumber}`
+                    });
+
+                    paramsHtml = `<strong>Coordinates:</strong> ${p.lat}, ${p.lon}<br><strong>Altitude:</strong> ${p.alt}m`;
+                }
+                else if (action === 'play_audio') {
+                    paramsHtml = `<p><strong>Plays audiofile:</strong> ${p.file} (${p.duration_seconds}s)</p>`;
+                }
+                else if (action === 'led') {
+                    paramsHtml = `<p><strong>Type:</strong> <span style="type:${p.type}"></span> ${p.type} (${p.pattern})</p>`;
+                }
+                else if (action === 'spotlight') {
+                    paramsHtml = `<p><strong>Pattern:</strong> ${p.pattern} (${p.duration_seconds}s)</p>`;
+                }
+                else if (action == 'angle_camera') {
+                    paramsHtml = `<p><strong>Pitch:</strong> ${p.pitch} <br> <strong>Yaw:</strong> ${p.yaw}`
+                }
+                else {
+                    paramsHtml = '<ul>';
+                    for (const [key, value] of Object.entries(p)) {
+                        paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
+                    }
+                    paramsHtml += '</ul>';
+                }
+
+                fullContent += `
+                    <div class="task-card mb-4 border-bottom pb-3">
+                        <div class="d-flex justify-content-between">
+                            <strong class="fs-5">Task ${idx + 1}</strong>
+                            <span class="badge bg-secondary">${action}</span>
+                        </div>
+                        <div class="mt-2">
+                            ${paramsHtml}
+                        </div>
+                    </div>
+                `;
+            });
+
+            let mapHtml = '';
+            if (allWaypoints.length > 0) {
+                mapHtml = `
+                    <div class="mb-4">
+                        <h6>Mission Route Overview</h6>
+                        <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
+                    </div>
+                    <hr>
+                `;
+            }
+
+            modalBody.innerHTML = mapHtml + fullContent;
+        });
+
+        // Creates map for action = go_to
+        missionModal.addEventListener('shown.bs.modal', function () {
+            activeMaps.forEach(m => m.remove());
+            activeMaps = [];
+
+            const container = document.getElementById(activeMissionMapId);
+            if (!container || allWaypoints.length === 0) return;
+
+            const map = L.map(activeMissionMapId).setView(allWaypoints[0].coords, 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            const markerGroup = L.featureGroup();
+
+            allWaypoints.forEach(point => {
+                const marker = L.marker(point.coords).addTo(markerGroup);
+
+                marker.bindTooltip(point.label, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0]
+                }).openTooltip();
+            });
+
+            if (markers && markers[1]) {
+                const currentPos = markers[1].getLatLng();
+
+                const droneMarker = L.circleMarker(currentPos, {
+                    radius: 8,
+                    fillColor: "#ff3300",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(markerGroup);
+
+                droneMarker.bindTooltip("Drone position", {
+                    permanent: true,
+                    direction: 'top',
+                    className: 'drone-pos-label'
+                }).openTooltip();
+            }
+
+            if (allWaypoints.length > 1) {
+                const pathCoords = allWaypoints.map(p => p.coords);
+                L.polyline(pathCoords, { color: 'blue', weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
+            }
+
+            markerGroup.addTo(map);
+            map.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
+
+            setTimeout(() => { map.invalidateSize(); }, 200);
+            activeMaps.push(map);
+        });
+
+        // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         const markers = {
@@ -391,26 +718,31 @@
         // Handle Layout Changes
         document.getElementById('layoutSelect').addEventListener('change', function () {
             const layout = this.value;
+            const videoContainer = document.getElementById('videoContainer');
             const video1 = document.getElementById('video1');
             const video2 = document.getElementById('video2');
-            const merged = document.getElementById('merged');
+            const merged = document.getElementById('merged')
 
-            if (layout === 'single') {
-                merged.style.display = 'block';
+            if (layout === 'single') {          // Merged
+                merged.style.display = 'block'
                 video1.style.display = 'none';
                 video2.style.display = 'none';
+                videoContainer.style.gridTemplateColumns = '1fr';
             } else if (layout === 'sidebyside') {
-                merged.style.display = 'none';
+                merged.style.display = 'none'
                 video1.style.display = 'block';
                 video2.style.display = 'block';
+                videoContainer.style.gridTemplateColumns = '1fr 1fr'; // Two columns
             } else if (layout === 'drone1') {
-                merged.style.display = 'none';
+                merged.style.display = 'none'
                 video1.style.display = 'block';
                 video2.style.display = 'none';
+                videoContainer.style.gridTemplateColumns = '1fr';
             } else if (layout === 'drone2') {
-                merged.style.display = 'none';
+                merged.style.display = 'none'
                 video1.style.display = 'none';
                 video2.style.display = 'block';
+                videoContainer.style.gridTemplateColumns = '1fr';
             }
         });
 
@@ -419,6 +751,8 @@
         }
 
         // Handle Drone Data
+        const specsLoaded = {};
+
         flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
@@ -434,10 +768,33 @@
 
                 // TODO: This doesn't currently work 
 
-                // Update status
-                document.getElementById(`alt${data.drone_id}`).textContent = data.telemetry.alt.toFixed(1);
-                document.getElementById(`speed${data.drone_id}`).textContent = data.telemetry.speed.toFixed(1);
-                document.getElementById(`battery${data.drone_id}`).textContent = data.telemetry.battery_percent.toFixed(1);
+
+
+                // TODO: This doesn't currently work 
+
+
+
+                // Update specs one time (static data)
+                if (!specsLoaded[data.drone_id]) {
+                    document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
+
+                    const hasCamera = data.capabilities && data.capabilities.camera;
+                    document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
+
+                    if (hasCamera) {
+                        const res = data.capabilities.camera;
+                        document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
+                    } else {
+                        document.getElementById(`res${data.drone_id}`).textContent = "N/A";
+                    }
+
+                    const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
+                    document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+
+                    document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
+
+                    specsLoaded[data.drone_id] = true;
+                };
 
                 // Update map marker
                 markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
