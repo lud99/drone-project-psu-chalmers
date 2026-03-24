@@ -31,7 +31,7 @@ services:
       - OVERLAP=0.5
       - WEBSOCKET_PORT=${WEBSOCKET_PORT}
     # volumes:
-    #   - .:/root/atos_ws/src/communication_software   // removed for macbook
+    #   - .:/root/atos_ws/src/communication_software
     depends_on:
       - atos
       - redis
@@ -91,6 +91,8 @@ services:
     container_name: image_stitching
     environment:
       - REDIS_URL=redis #192.168.1.41 # use redis or localhost for Docker
+      - PYTHONUNBUFFERED=1
+
     build: 
       context: ../image_stitching
     networks:
