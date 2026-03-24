@@ -417,7 +417,7 @@ async def stream_drone_frames(drone_id: str, frame_type: str = ""):
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
-        frame = create_no_camera_frame(
+        frame = create_not_connected_frame(
             np.zeros((480, 640, 3), dtype=np.uint8), drone_id
         )
         if frame_data:
