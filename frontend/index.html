@@ -196,7 +196,8 @@
     <!-- <script src="/misc/leaflet.js"></script> -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
-        const BACKEND_URL = "ws://localhost:8000";
+        const BACKEND_URL_WS = "ws://localhost:8000";
+        const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
         let activePolygon = null;
 
@@ -481,10 +482,31 @@
         // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        const markers = {
-            1: L.marker([57.705841, 11.938096]).addTo(map),
-            2: L.marker([57.705941, 11.939096]).addTo(map)
-        };
+        // Retrieve the users position
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    map.setView([lat, lng], 15);
+
+                    // Add marker to your position
+                    L.marker([lat, lng]).addTo(map)
+                        .bindPopup("You are here")
+                        .openPopup();
+                },
+                (error) => {
+                    console.log("Could not fetch your position:", error);
+
+                    // fallback (t.ex. Lindholmen)
+                    map.setView([57.705841, 11.938096], 15);
+                }
+            );
+        } else {
+            console.log("Geolocation is not supported");
+            map.setView([57.705841, 11.938096], 15);
+        }
 
         //  Map changes
         // Save the last polygon that was made when updating the website
@@ -492,7 +514,7 @@
 
             try {
 
-                const response = await fetch("/api/v1/get_watch_area");
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/get_watch_area`);
                 const data = await response.json();
 
                 if (data.points && data.points.length > 0) {
@@ -512,7 +534,7 @@
             }
         }
         loadWatchArea();
-        // Skapa en custom control
+        // Create a custom control
         // -------- POLYGON MODE --------
 
         let polygonMode = false;
@@ -543,7 +565,7 @@
 
                 container.onclick = function () {
 
-                    // Ta bort gammal polygon
+                    // Erase old polygon
                     if (activePolygon) {
                         map.removeLayer(activePolygon);
                         activePolygon = null;
@@ -575,7 +597,7 @@
 
             polygonPoints.push(e.latlng);
 
-            // Skapa polygon när vi har minst 2 punkter
+            // Create a polygon when at least 2 points are chosen
             if (!activePolygon) {
                 activePolygon = L.polygon(polygonPoints, {
                     color: "#ff0000",
@@ -608,9 +630,10 @@
         });
 
 
-        // -------- DOUBLE CLICK TO FINISH --------
 
-        map.on('dblclick', function () {
+        // -------- DOUBLE CLICK TO FINISH --------
+        map.doubleClickZoom.disable();
+        map.on('dblclick', function (e) {
 
             if (!polygonMode) return;
 
@@ -669,7 +692,7 @@
                     }));
 
                     try {
-                        const response = await fetch("/api/v1/set_watch_area", {
+                        const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/set_watch_area`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/text"
@@ -698,7 +721,7 @@
 
                     } catch (error) {
                         console.error("Error sending watch area", error);
-                        alert("Failed to send watch area to backend");
+                        alert("Failed to send watch area to backend " + error);
                     }
                 };
                 return container;
@@ -708,12 +731,12 @@
 
         map.addControl(new sendCoordinates());
 
-        //slut      Slut
+        //End of map changes
 
 
         // WebSocket Connections
-        const atosWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/atos`);
-        const flightmanagerWS = new WebSocket(`${BACKEND_URL}/api/v1/ws/flightmanager`);
+        const atosWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/atos`);
+        const flightmanagerWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/flightmanager`);
 
         // Handle Layout Changes
         document.getElementById('layoutSelect').addEventListener('change', function () {
