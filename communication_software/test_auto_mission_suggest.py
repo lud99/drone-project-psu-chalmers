@@ -23,6 +23,7 @@ import sys
 import threading
 import os
 from pathlib import Path
+import uuid
 
 import redis
 
@@ -118,6 +119,7 @@ def inject_detection(r: redis.Redis, class_name: str, lat: float, lon: float) ->
         gps_position=(lat, lon),
         class_name=class_name,
         drone_ids=[MOCK_DRONES[0]["id"]],
+        detection_id=str(uuid.uuid4()),
     )
     payload = json_schemas.Detections(root=[detection]).model_dump_json()
     key = "frame_drone_mock_detections"

@@ -1,0 +1,6 @@
+{
+    "alert": ["horn", "siren"],
+    "greeting": ["hello", "hi", "welcome"],
+    "intruder_instructions": ["leave_track", "stay"],
+    "stray_car": ["restart_transponder", "go_home"]
+}

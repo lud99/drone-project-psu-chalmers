@@ -247,27 +247,9 @@ class AutoMissionSuggester:
                     print(f"Failed to parse detections in {key}: {exc}")
                     continue
 
-                raw_detections: list[dict[str, Any]] = []
-                try:
-                    payload = json.loads(raw)
-                    if isinstance(payload, dict):
-                        parsed_root = payload.get("root", [])
-                        if isinstance(parsed_root, list):
-                            raw_detections = [
-                                d for d in parsed_root if isinstance(d, dict)
-                            ]
-                except Exception:
-                    raw_detections = []
-
                 last_processed_by_key[key] = raw
 
-                for i, detection in enumerate(detections.root):
-                    raw_detection = raw_detections[i] if i < len(raw_detections) else {}
-                    detection_id = (
-                        raw_detection.get("detection_id")
-                        or raw_detection.get("id")
-                        or raw_detection.get("tracker_id")
-                    )
+                for detection in detections.root:
                     self.handle_detected_object(
                         {
                             "type": detection.class_name.lower(),
@@ -276,9 +258,7 @@ class AutoMissionSuggester:
                                 "lon": detection.gps_position[1],
                                 "alt": 0,
                             },
-                            "detection_id": str(detection_id)
-                            if detection_id is not None
-                            else None,
+                            "detection_id": detection.detection_id,
                         }
                     )
 

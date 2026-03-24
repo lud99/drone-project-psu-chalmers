@@ -5,7 +5,8 @@
             13.2
         ],
         "class_name": "bicycle",
-        "drone_ids": ["1"]
+        "drone_ids": ["1"],
+        "detection_id": "det-1"
     },
     {
         "gps_position": [
@@ -13,6 +14,7 @@
             13.2
         ],
         "class_name": "vehicle",
-        "drone_ids": ["1", "2"]
+        "drone_ids": ["1", "2"],
+        "detection_id": "det-2"
     }
 ]

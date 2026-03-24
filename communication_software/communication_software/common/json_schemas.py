@@ -14,6 +14,7 @@ class CameraCapabilities(BaseModel):
 class LEDCapabilities(BaseModel):
     types: list[str]  # will likely have to change
 
+
 class SpeakerCapabilities(BaseModel):
     audio_files: list[str]
 
@@ -23,6 +24,7 @@ class Capabilities(BaseModel):
     led: Optional[LEDCapabilities]
     spotlight: bool
     speaker: Optional[SpeakerCapabilities]
+
 
 class Telemetry(BaseModel):
     lat: float
@@ -197,6 +199,7 @@ class SingleDetection(BaseModel):
     gps_position: tuple[float, float]
     class_name: str
     drone_ids: Annotated[list[str], Field(min_length=1)]
+    detection_id: str | None = None
 
 
 class Detections(RootModel):

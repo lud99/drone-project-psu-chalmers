@@ -484,12 +484,17 @@ def detect_and_annotate_image(
         ]
         position_labels = [f"({int(d[0])}, {int(d[1])})" for d in detections.xyxy]
 
-        for class_id, gps_position in zip(detections.class_id, detection_gps_positions):
+        for class_id, gps_position, detection_id in zip(
+            detections.class_id,
+            detection_gps_positions,
+            detections.tracker_id,
+        ):
             detections_complete.root.append(
                 json_schemas.SingleDetection(
                     class_name=model.names[class_id],
                     gps_position=gps_position,
                     drone_ids=drone_ids,
+                    detection_id=str(detection_id),
                 )
             )
 
