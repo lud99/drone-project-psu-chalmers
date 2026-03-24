@@ -90,11 +90,13 @@ class SpotlightTask(BaseModel):
     action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
 
+
 class AngleCameraParams(BaseModel):
     pitch: float
     roll: float
     yaw: float
     duration_seconds: Optional[float] = None
+
 
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
@@ -188,16 +190,22 @@ class PongMessage(DroneMessage):
 
 
 class WebRTCCandidateMessage(DroneMessage):
-    msg_type: Literal["candidate"]
+    msg_type: Literal["candidate"] = "candidate"
     candidate: str
     id: str = "0"
     label: int = 0
 
 
+class WebRTCOfferMessage(DroneMessage):
+    msg_type: Literal["offer"] = "offer"
+    sdp: str
+
+
 class WebRTCAnswerMessage(DroneMessage):
-    msg_type: Literal["answer"]
+    msg_type: Literal["answer"] = "answer"
     sdp: str
     type: Optional[str] = None
+
 
 # Create a Union of all possible messages
 AnyDroneMessage = Annotated[
@@ -213,10 +221,12 @@ AnyDroneMessage = Annotated[
         PingMessage,
         PongMessage,
         WebRTCCandidateMessage,
+        WebRTCOfferMessage,
         WebRTCAnswerMessage,
     ],
     Field(discriminator="msg_type"),
 ]
+
 
 ### Detections schema
 class SingleDetection(BaseModel):
@@ -245,6 +255,7 @@ class DroneInfo(BaseModel):
     drone_id: str
     capabilities: Capabilities
     telemetry: Telemetry
+
 
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):

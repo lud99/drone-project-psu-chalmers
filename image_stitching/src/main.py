@@ -3,7 +3,7 @@ from PIL import Image
 import cv2
 import imutils
 import threading
-from queue import Queue
+from asyncio import Queue
 from ultralytics import YOLO
 import supervision.detection.core as sv
 from annotator import Annotator
@@ -28,8 +28,8 @@ if torch.cuda.is_available():
 else:
     print("[INFO] PyTorch CUDA not detected. YOLO will use CPU.")
 
-# Global YOLO model
-model = YOLO("models/best.pt")
+# Each drone needs a separate model instance to allow for tracking
+model_for_drones: dict[str, YOLO] = dict()
 
 redis_url = os.environ.get("REDIS_URL", "localhost")
 # Redis connection (create a Redis client if it doesn't exist)
@@ -37,6 +37,13 @@ r = redis.StrictRedis(host=redis_url, port=6379, db=0, decode_responses=True)
 
 
 ## ---- HELPER FUNCTIONS ----
+def create_model() -> YOLO:
+    return YOLO("models/best.pt")
+
+
+def create_drone_model(drone_id: str) -> YOLO:
+    model_for_drones[drone_id] = create_model()
+    return model_for_drones[drone_id]
 
 
 async def consume_async_generator(gen, queue, stop_event, drone_id):
@@ -65,11 +72,11 @@ async def consume_async_generator(gen, queue, stop_event, drone_id):
             await asyncio.sleep(0.033)  # wait a bit before the next attempt
             continue
 
-        queue.put((frame, capabilities, telemetry))
-    queue.put(None)  # Signal the end of the stream
+        await queue.put((frame, capabilities, telemetry))
+    await queue.put(None)  # Signal the end of the stream
 
 
-def detect_objects(frame: np.ndarray) -> sv.Detections:
+def detect_objects(frame: np.ndarray, drone_model: YOLO) -> sv.Detections:
     """
     Run YOLO for object detection on a frame.
 
@@ -79,7 +86,7 @@ def detect_objects(frame: np.ndarray) -> sv.Detections:
     Returns:
         sv.Detections: Detected objects.
     """
-    results = model.track(frame, persist=True, conf=0.10, imgsz=448)
+    results = drone_model.track(frame, persist=True, conf=0.10, imgsz=448)
     detections = sv.Detections.from_ultralytics(results[0])
     return detections
 
@@ -272,13 +279,13 @@ async def merge_and_annotate_stream(drone_ids: tuple[str, str]) -> None:
                 left_frame_data,
                 left_capabilities,
                 left_telemetry,
-            ) = await asyncio.to_thread(left_queue.get)
+            ) = await left_queue.get()
 
             (
                 right_frame_data,
                 right_capabilities,
                 right_telemetry,
-            ) = await asyncio.to_thread(right_queue.get)
+            ) = await right_queue.get()
 
             if left_frame_data is None or right_frame_data is None:
                 print("[INFO] Slut på videoström.")
@@ -356,7 +363,8 @@ async def merge_and_annotate_stream(drone_ids: tuple[str, str]) -> None:
                 print("[ERROR] Altidude mismatch!")
                 continue
 
-            (annotated_frame, detections) = detect_and_annotate_image(
+            (annotated_frame, detections) = await asyncio.to_thread(
+                detect_and_annotate_image,
                 stitched_frame,
                 [left_location, right_location],
                 left_fov,
@@ -397,7 +405,7 @@ async def annotate_stream(drone_id: str) -> None:
 
     try:
         while True:
-            frame_data, capabilities, telemetry = await asyncio.to_thread(queue.get)
+            frame_data, capabilities, telemetry = await queue.get()
 
             if frame_data is None:
                 print("[INFO] End of videostream")
@@ -423,8 +431,14 @@ async def annotate_stream(drone_id: str) -> None:
             alt = telemetry.alt
             location = (telemetry.lat, telemetry.lon)
 
-            (annotated_frame, detections) = detect_and_annotate_image(
-                pixel_array, [location], fov, alt, (width, height), [drone_id]
+            (annotated_frame, detections) = await asyncio.to_thread(
+                detect_and_annotate_image,
+                pixel_array,
+                [location],
+                fov,
+                alt,
+                (width, height),
+                [drone_id],
             )
 
             # Send the results to redis
@@ -442,7 +456,8 @@ def detect_and_annotate_image(
     image_size: tuple[int, int],
     drone_ids: list[str],
 ) -> tuple[np.ndarray, json_schemas.Detections]:
-    detections = detect_objects(pixel_array)
+    model: YOLO = model_for_drones[drone_ids[0]]
+    detections = detect_objects(pixel_array, drone_model=model)
 
     detections_complete = json_schemas.Detections(root=[])
 
@@ -588,6 +603,8 @@ async def test_detect_and_annotate_image():
     # Convert to NumPy
     pixel_array = np.array(img, dtype=np.uint8)
 
+    model = create_drone_model("1")
+
     (annotated_frame, detections) = detect_and_annotate_image(
         pixel_array, [(57.6900, 11.9800)], 83, 30, img.size, ["1"]
     )
@@ -665,14 +682,11 @@ def get_connected_drone_ids() -> list[str]:
 
 
 async def main() -> None:
-    print("[INFO] Startar drönarvideoprocessorer...")
+    print("[INFO] Starting drone video processor")
 
     active_tasks = {}  # Map of drone_id -> asyncio.Task
 
-    img = Image.open("./test2.jpg").convert("RGB")
-
-    await adding_redis_frame(img, "haubits_77")
-        # 1. Start tasks for new drones
+    # 1. Start tasks for new drones
 
     while True:
         current_ids = get_connected_drone_ids()
@@ -681,6 +695,7 @@ async def main() -> None:
         for d_id in current_ids:
             if d_id not in active_tasks or active_tasks[d_id].done():
                 print(f"[NEW] Starting listener for drone {d_id}")
+                create_drone_model(d_id)
                 # Create the task and store it
                 active_tasks[d_id] = asyncio.create_task(annotate_stream(d_id))
 
@@ -689,6 +704,7 @@ async def main() -> None:
             if d_id not in current_ids:
                 print(f"[REMOVED] Stopping listener for drone {d_id}")
                 active_tasks[d_id].cancel()
+                del model_for_drones[d_id]
                 del active_tasks[d_id]
 
         await asyncio.sleep(1)  # Poll for new drones every 5 seconds

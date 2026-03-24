@@ -4,13 +4,23 @@ import sys
 import time
 from websockets import connect
 import websockets
+import cv2
+from aiortc import (
+    RTCPeerConnection,
+    RTCSessionDescription,
+    VideoStreamTrack,
+    RTCIceCandidate,
+)
+from av import VideoFrame
 
 import communication_software.communication_software.common.json_schemas as json_schemas
+
 
 # Configuration
 SERVER_WS_URL = "ws://localhost:14500"
 DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
+VIDEO_PATH = "videos/Mock drone.mp4"
 
 
 async def send_telemetry(websocket, drone_id: str):
@@ -108,7 +118,39 @@ async def do_task(
             await send_task_complete(ws, drone_id, task_message)
 
 
+class VideoFileTrack(VideoStreamTrack):
+    """
+    A Custom Track that reads frames from an MP4 file.
+    """
+
+    def __init__(self, path):
+        super().__init__()
+        self.cap = cv2.VideoCapture(path)
+
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()
+
+        grabbed, frame = self.cap.read()
+        if not grabbed:
+            # Loop the video if it ends
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            grabbed, frame = self.cap.read()
+
+        # Convert BGR (OpenCV) to RGB for WebRTC
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        new_frame = VideoFrame.from_ndarray(frame, format="rgb24")
+        new_frame.pts = pts
+        new_frame.time_base = time_base
+        return new_frame
+
+
 async def run_drone_client(drone_id: str):
+    pc = RTCPeerConnection()
+
+    # Add the video track to the PeerConnection
+    video_track = VideoFileTrack(VIDEO_PATH)
+    pc.addTrack(video_track)
+
     try:
         wait_event: asyncio.Event = asyncio.Event()
         async with connect(SERVER_WS_URL) as websocket:
@@ -119,13 +161,6 @@ async def run_drone_client(drone_id: str):
             # Test that drone id is new connection id
 
             # TODO Add Camera support
-
-            # cameraCapabilities(
-            #             aspect_ratio=1.77,
-            #             horizontal_fov=84.0,
-            #             resolution_height=1080,
-            #             resolution_width=1920,
-            #         ),
 
             reg_msg = json_schemas.DroneRegistrationMessage(
                 msg_type="drone_registration",
@@ -169,6 +204,36 @@ async def run_drone_client(drone_id: str):
                     message = json_schemas.parse_drone_message(str(raw_message))
                     print(f"Received message: {message.msg_type}")
 
+                    # Handle Signaling
+                    msg_data = json_schemas.parse_drone_message(str(raw_message))
+
+                    # Handle Offer from Server
+                    if msg_data.msg_type == "offer":
+                        print("Received Offer, creating Answer...")
+                        offer = RTCSessionDescription(sdp=msg_data.sdp, type="offer")
+                        await pc.setRemoteDescription(offer)
+
+                        answer = await pc.createAnswer()
+                        await pc.setLocalDescription(answer)
+
+                        # Send Answer back
+                        answer_msg = json_schemas.WebRTCAnswerMessage(
+                            msg_type="answer",
+                            sdp=pc.localDescription.sdp,
+                            # drone_id=drone_id,
+                        )
+                        await websocket.send(answer_msg.model_dump_json())
+
+                    # Handle ICE Candidates from Server
+                    elif msg_data.msg_type == "candidate":
+                        print("Received ICE Candidate")
+                        # Note: You may need to parse the candidate string based on your schema
+                        # This assumes a standard candidate string
+                        candidate = RTCIceCandidate(
+                            sdpMid=0, sdpMLineIndex=0, candidate=msg_data.candidate
+                        )
+                        await pc.addIceCandidate(candidate)
+
                     if isinstance(message, json_schemas.TaskMessage):
                         wait_event = asyncio.Event()
                         asyncio.create_task(
@@ -206,10 +271,11 @@ async def run_drone_client(drone_id: str):
 
     except Exception as e:
         print(f"Client error: {e}")
+    finally:
+        await pc.close()
 
 
 if __name__ == "__main__":
-    drone_id = DRONE_ID
-    if len(sys.argv) > 1:
-        drone_id = sys.argv[1]
+    drone_id = sys.argv[1] if len(sys.argv) > 1 else DRONE_ID
+    asyncio.run(run_drone_client(drone_id))
     asyncio.run(run_drone_client(drone_id))
