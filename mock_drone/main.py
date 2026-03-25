@@ -12,6 +12,7 @@ from aiortc import (
     RTCIceCandidate,
 )
 from av import VideoFrame
+from typing import Optional
 
 import communication_software.communication_software.common.json_schemas as json_schemas
 
@@ -20,7 +21,7 @@ import communication_software.communication_software.common.json_schemas as json
 SERVER_WS_URL = "ws://localhost:14500"
 DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
-VIDEO_PATH = "videos/Mock drone.mp4"
+VIDEO_PATH = "mock_drone/test_video_2024.mp4"
 
 
 async def send_telemetry(websocket, drone_id: str):
@@ -144,11 +145,11 @@ class VideoFileTrack(VideoStreamTrack):
         return new_frame
 
 
-async def run_drone_client(drone_id: str):
+async def run_drone_client(drone_id: str, video_path: Optional[str]):
     pc = RTCPeerConnection()
 
     # Add the video track to the PeerConnection
-    video_track = VideoFileTrack(VIDEO_PATH)
+    video_track = VideoFileTrack(video_path)
     pc.addTrack(video_track)
 
     try:
@@ -159,8 +160,6 @@ async def run_drone_client(drone_id: str):
             await asyncio.sleep(2)
 
             # Test that drone id is new connection id
-
-            # TODO Add Camera support
 
             reg_msg = json_schemas.DroneRegistrationMessage(
                 msg_type="drone_registration",
@@ -277,5 +276,6 @@ async def run_drone_client(drone_id: str):
 
 if __name__ == "__main__":
     drone_id = sys.argv[1] if len(sys.argv) > 1 else DRONE_ID
-    asyncio.run(run_drone_client(drone_id))
-    asyncio.run(run_drone_client(drone_id))
+    video_path = sys.argv[2] if len(sys.argv) > 2 else VIDEO_PATH
+
+    asyncio.run(run_drone_client(drone_id, video_path))
