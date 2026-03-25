@@ -1,6 +1,7 @@
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import cv2
 import json
@@ -34,6 +35,16 @@ except redis.exceptions.ConnectionError as e:
 DRONE_EVENT_CHANNEL = "drone_events"
 
 app = FastAPI()
+# 1. Define the domains allowed to access your API
+origins = ["http://localhost:8001"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Allows specific origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 
 # ATOS Simulation
@@ -97,6 +108,37 @@ def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
     ]
 
 
+def get_connected_drones_helper():
+    drone_list = json_schemas.FrontendMessages.ConnectedDrones(drones=[])
+
+    try:
+        for drone_id, telem_key, cap_key in get_telemetry_and_capabilities_key_tuples():
+            print(f"Processing drone id {drone_id}: {telem_key} <-> {cap_key}")
+
+            telemetry_str = r.get(telem_key)
+            capabilities_str = r.get(cap_key)
+            if telemetry_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+            if capabilities_str is None:
+                print(f"Telemetry not found for drone {drone_id}")
+                raise Exception(f"Telemetry not found for drone {drone_id}")
+
+            telemetry = json_schemas.parse_telemetry(telemetry_str)
+            capabilities = json_schemas.parse_capabilities(capabilities_str)
+
+            drone_list.drones.append(
+                json_schemas.DroneInfo(
+                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                )
+            )
+
+        return drone_list.model_dump_json()
+
+    except Exception as e:
+        return json.dumps({"msg_type": "response", "error": str(e)})
+
+
 # WebSocket Endpoints
 
 
@@ -116,6 +158,9 @@ async def flightmanager_websocket(websocket: WebSocket):
                 await websocket.send_text(message["data"])
 
     listener_task = asyncio.create_task(redis_listener())
+
+    # Send connected drones
+    await websocket.send_text(get_connected_drones_helper())
 
     try:
         while True:
@@ -242,7 +287,7 @@ async def get_active_missions():
 
 
 @app.get("/api/v1/get_watch_area")
-async def get_watch_areas():
+async def get_watch_area():
     try:
         data = r.get("watch_area")
         if not data:
@@ -372,6 +417,9 @@ async def stream_drone_frames(drone_id: str, frame_type: str = ""):
     while True:
         # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
+        frame = create_no_camera_frame(
+            np.zeros((480, 640, 3), dtype=np.uint8), drone_id
+        )
         if frame_data:
             # Might need to adjust this if you're using base64 or another format.
             frame_array = np.frombuffer(frame_data.encode("latin1"), dtype=np.uint8)
