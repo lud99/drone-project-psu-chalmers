@@ -40,7 +40,7 @@ class Telemetry(BaseModel):
 
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed", "task_aborted"]
-TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
+TaskTypes = Literal["go_to", "led", "spotlight", "play_audio", "all"]
 
 
 # Specific task definitions
@@ -90,11 +90,13 @@ class SpotlightTask(BaseModel):
     action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
 
+
 class AngleCameraParams(BaseModel):
     pitch: float
     roll: float
     yaw: float
     duration_seconds: Optional[float] = None
+
 
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
@@ -214,6 +216,7 @@ class WebRTCAnswerMessage(DroneMessage):
     sdp: str
     type: Optional[str] = None
 
+
 # Create a Union of all possible messages
 AnyDroneMessage = Annotated[
     Union[
@@ -232,6 +235,7 @@ AnyDroneMessage = Annotated[
     ],
     Field(discriminator="msg_type"),
 ]
+
 
 ### Detections schema
 class SingleDetection(BaseModel):
@@ -260,6 +264,7 @@ class DroneInfo(BaseModel):
     drone_id: str
     capabilities: Capabilities
     telemetry: Telemetry
+
 
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):
