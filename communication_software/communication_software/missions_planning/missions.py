@@ -221,7 +221,7 @@ class GotoAndSurveil(Mission):
         tasks = [
             {"action": "go_to", "params": self.coordinates.as_dict()},
             {"action": "angle_camera", "params": self.get_parameters()},
-            {"action": "hover", "params": {"duration_seconds": self.duration_seconds}},
+            #{"action": "hover", "params": {"duration_seconds": self.duration_seconds}},
         ]
         if self.duration_seconds is not None:
             tasks.append({"action": "go_home", "enabled": RETURN_HOME})
