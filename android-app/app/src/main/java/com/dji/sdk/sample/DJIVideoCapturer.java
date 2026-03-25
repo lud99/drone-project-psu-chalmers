@@ -1,6 +1,7 @@
 package com.dji.sdk.sample;
 
 import org.webrtc.CapturerObserver;
+import org.webrtc.JavaI420Buffer;
 import org.webrtc.NV12Buffer;
 import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.VideoCapturer;
@@ -45,27 +46,47 @@ public class DJIVideoCapturer implements VideoCapturer {
             @Override
             public void onYuvDataReceived(MediaFormat mediaFormat, ByteBuffer videoBuffer, int dataSize, int width, int height) {
                 if (videoBuffer != null) {
-                    try {
-                        //Convert to NV12Buffer and create a VideoFrame
-                        long timestampNS = TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime());
-                        NV12Buffer buffer = new NV12Buffer(
-                                width,
-                                height,
-                                mediaFormat.getInteger(MediaFormat.KEY_STRIDE),
-                                mediaFormat.getInteger(MediaFormat.KEY_SLICE_HEIGHT),
-                                videoBuffer,
-                                null
-                        );
-                        VideoFrame videoFrame = new VideoFrame(buffer, 0, timestampNS);
-    
-                        // Feed the video frame to all observers
-                        for (CapturerObserver obs : observers) {
-                            obs.onFrameCaptured(videoFrame);
-                        }
-                        videoFrame.release();
-                    } catch (Exception e) {
-                        e.printStackTrace(); // Improved error logging can be added here
+                    int stride = mediaFormat.getInteger(MediaFormat.KEY_STRIDE);
+                    int sliceHeight = mediaFormat.getInteger(MediaFormat.KEY_SLICE_HEIGHT);
+
+                    // Calculate plane sizes including padding
+                    int ySize = stride * sliceHeight;
+                    int uvStride = stride / 2;
+                    int uvSliceHeight = sliceHeight / 2;
+                    int uSize = uvStride * uvSliceHeight;
+
+                    // Y Plane: Starts at 0
+                    videoBuffer.position(0);
+                    ByteBuffer yBuffer = videoBuffer.slice();
+                    yBuffer.limit(ySize);
+
+                    // U Plane: Starts after the full Y slice
+                    videoBuffer.position(ySize);
+                    ByteBuffer uBuffer = videoBuffer.slice();
+                    uBuffer.limit(uSize);
+
+                    // V Plane: Starts after the full U slice
+                    videoBuffer.position(ySize + uSize);
+                    ByteBuffer vBuffer = videoBuffer.slice();
+                    vBuffer.limit(uSize);
+
+                    // Wrap with JavaI420Buffer which handles the strides for you
+                    VideoFrame.I420Buffer i420Buffer = JavaI420Buffer.wrap(
+                        width, height, 
+                        yBuffer, stride, 
+                        uBuffer, uvStride, 
+                        vBuffer, uvStride, 
+                        null
+                    );
+
+                    long timestampNS = TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime());
+                    VideoFrame videoFrame = new VideoFrame(i420Buffer, 0, timestampNS);
+
+                    for (CapturerObserver obs : observers) {
+                        obs.onFrameCaptured(videoFrame);
                     }
+                    
+                    videoFrame.release();
                 }
             }
         });

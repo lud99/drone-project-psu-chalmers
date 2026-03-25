@@ -423,6 +423,11 @@ class DroneCommunication:
 
         r.delete(f"telemetry_drone{connection_id}")
         r.delete(f"capabilities_drone{connection_id}")
+        r.delete(f"frame_drone_merged")
+        r.delete(f"frame_drone{connection_id}")
+        r.delete(f"frame_drone{connection_id}_annotated")
+        r.delete(f"frame_drone{connection_id}_detections")
+        r.delete(f"frame_drone{connection_id}_detections")
 
         print(f"Connection {connection_id} removed.")
 
@@ -461,9 +466,7 @@ class DroneCommunication:
         # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
             r.set(
-                f"telemetry_drone{connection_id}",
-                message.telemetry.model_dump_json(),
-                ex=60,
+                f"telemetry_drone{connection_id}", message.telemetry.model_dump_json()
             )
 
             r.publish(DRONE_EVENT_CHANNEL, message.model_dump_json())
@@ -653,21 +656,22 @@ class DroneCommunication:
                 json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
             )
 
-    ###WEBBRTC###
-
-    async def send_message(self, connection_id, message):
+    async def send_message(
+        self, connection_id: str, message: json_schemas.AnyDroneMessage
+    ):
         """ "Sends a message to the WebSocket connection."""
         filter_types = []  # Enter keywords to filter out from logs
-        if message.get("msg_type") not in filter_types:
+        if message.msg_type not in filter_types:
             print(
                 f"[DroneStream] Sending message: {message} to connection ID: {connection_id}"
             )
         try:
-            await self.connections[connection_id].send(json.dumps(message))
+            await self.connections[connection_id].send(message.model_dump_json())
         except websockets.exceptions.ConnectionClosed:
             print(f"Connection {connection_id} closed, cleaning up.")
             self.cleanup_connection(connection_id)
 
+    ###WEBBRTC###
     async def start_drone_stream(self, connection_id):
         """Initiates the WebRTC stream with the drone."""
         try:
@@ -675,7 +679,8 @@ class DroneCommunication:
             print(f"[DroneStream] WebRTC offer created: {offer.sdp}")
             await self.peer_connections[connection_id].setLocalDescription(offer)
             await self.send_message(
-                connection_id, {"msg_type": "offer", "sdp": offer.sdp}
+                connection_id,
+                json_schemas.WebRTCOfferMessage(sdp=offer.sdp),
             )
 
         except Exception as e:
@@ -693,10 +698,9 @@ class DroneCommunication:
                 if event.candidate:
                     await self.send_message(
                         connection_id,
-                        {
-                            "msg_type": "candidate",
-                            "candidate": event.candidate.to_sdp(),
-                        },
+                        json_schemas.WebRTCCandidateMessage(
+                            candidate=event.candidate.to_sdp()
+                        ),
                     )
                 else:
                     print("[DroneStream] End of ICE candidates")
@@ -710,11 +714,10 @@ class DroneCommunication:
                     while True:
                         try:
                             frame = await track.recv()  # receives yuv420p frame
-                            yuv_frame = frame.to_ndarray(
-                                format="yuv420p"
-                            )  # Convert to YUV420p
 
-                            await self.set_frame(connection_id, yuv_frame)
+                            bgr_frame = frame.to_ndarray(format="bgr24")
+
+                            await self.set_frame(connection_id, bgr_frame)
 
                         except Exception as e:
                             print(
