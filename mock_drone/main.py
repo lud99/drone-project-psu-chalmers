@@ -148,9 +148,11 @@ class VideoFileTrack(VideoStreamTrack):
 async def run_drone_client(drone_id: str, video_path: Optional[str]):
     pc = RTCPeerConnection()
 
-    # Add the video track to the PeerConnection
-    video_track = VideoFileTrack(video_path)
-    pc.addTrack(video_track)
+    if video_path:
+        print(f"Streaming video from path {video_path}")
+        # Add the video track to the PeerConnection
+        video_track = VideoFileTrack(video_path)
+        pc.addTrack(video_track)
 
     try:
         wait_event: asyncio.Event = asyncio.Event()
@@ -208,7 +210,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
 
                     # Handle Offer from Server
                     if msg_data.msg_type == "offer":
-                        print("Received Offer, creating Answer...")
+                        print("Received Offer, sending Answer")
                         offer = RTCSessionDescription(sdp=msg_data.sdp, type="offer")
                         await pc.setRemoteDescription(offer)
 
@@ -232,6 +234,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                             sdpMid=0, sdpMLineIndex=0, candidate=msg_data.candidate
                         )
                         await pc.addIceCandidate(candidate)
+                        print("Received RTC candidate")
 
                     if isinstance(message, json_schemas.TaskMessage):
                         wait_event = asyncio.Event()
