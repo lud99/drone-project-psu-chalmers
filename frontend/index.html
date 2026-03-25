@@ -77,55 +77,8 @@
                                 <option value="sidebyside">Side by Side</option>
                             </select>
                         </div>
-
-                        <!-- Status Display -->
-                        <div class="status-card mb-3">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h5>Drone 1 Status</h5>
-                                    <div>Altitude: <span id="alt1">--</span> m</div>
-                                    <div>Speed: <span id="speed1">--</span> m/s</div>
-                                    <div>Battery: <span id="battery1">--</span>%</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <h5>Drone 1 Specs</h5>
-                                    <div>Drone Type: <span id="dronetype1">--</span></div>
-                                    <div>Camera: <span id="camera1">--</span></div>
-                                    <div>Camera resolution: <span id="res1">--</span></div>
-                                    <div>Speaker: <span id="speaker1">--</span></div>
-                                    <div>Spotlight: <span id="spotlight1">--</span></div>
-                                </div>
-                                <div class="drone-controls mt-2">
-                                    <button id="takeoffBtn1" data-drone-id="1" data-command="flight_take_off"
-                                        class="btn btn-success btn-sm">Take Off</button>
-                                    <button id="rthBtn1" data-drone-id="1" data-command="flight_return_to_home"
-                                        class="btn btn-info btn-sm">Return Home</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="status-card mb-3">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <h5>Drone 2 Status</h5>
-                                    <div>Altitude: <span id="alt2">--</span> m</div>
-                                    <div>Speed: <span id="speed2">--</span> m/s</div>
-                                    <div>Battery: <span id="battery2">--</span>%</div>
-                                </div>
-                                <div class="col-md-6">
-                                    <h5>Drone 2 Specs</h5>
-                                    <div>Drone Type: <span id="dronetype2">--</span></div>
-                                    <div>Camera: <span id="camera2">--</span></div>
-                                    <div>Camera resolution: <span id="res2">--</span></div>
-                                    <div>Speaker: <span id="speaker2">--</span></div>
-                                    <div>Spotlight: <span id="spotlight2">--</span></div>
-                                </div>
-                                <div class="drone-controls mt-2">
-                                    <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
-                                        class="btn btn-success btn-sm">Take Off</button>
-                                    <button id="rthBtn2" data-drone-id="2" data-command="flight_return_to_home"
-                                        class="btn btn-info btn-sm">Return Home</button>
-                                </div>
-                            </div>
+                        <!-- Connecter Drones -->
+                        <div id="drone-status-container">
                         </div>
 
                         <!-- Control Buttons -->
@@ -141,7 +94,6 @@
                             <button id="rthAllBtn" data-command="flight_return_to_home"
                                 class="btn btn-info all-drone-command-btn">Return Home All</button>
                         </div>
-
                     </div>
                 </div>
 
@@ -310,6 +262,57 @@
             }
         ]
 
+        // Create drone cards for connected drones
+        function createDroneStatusCard(droneId) {
+            console.log("Försöker skapa kort för:", droneId);
+            const container = document.getElementById('drone-status-container');
+            console.log("Container hittad:", container);
+
+            if (document.getElementById(`alt${droneId}`)) return;
+
+            const cardHtml = `
+                <div class="status-card mb-3" id="card-${droneId}">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Drone ${droneId} Status</h5>
+                            <div>Altitude: <span id="alt${droneId}">--</span> m</div>
+                            <div>Speed: <span id="speed${droneId}">--</span> m/s</div>
+                            <div>Battery: <span id="battery${droneId}">--</span>%</div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Drone ${droneId} Specs</h5>
+                            <div>Drone Type: <span id="dronetype${droneId}">--</span></div>
+                            <div>Camera: <span id="camera${droneId}">--</span></div>
+                            <div>Camera resolution: <span id="res${droneId}">--</span></div>
+                            <div>Speaker: <span id="speaker${droneId}">--</span></div>
+                            <div>Spotlight: <span id="spotlight${droneId}">--</span></div>
+                        </div>
+                        <div class="drone-controls mt-2">
+                            <button data-drone-id="${droneId}" data-command="flight_take_off"
+                                class="btn btn-success btn-sm drone-command-btn">Take Off</button>
+                            <button data-drone-id="${droneId}" data-command="flight_return_to_home"
+                                class="btn btn-info btn-sm drone-command-btn">Return Home</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', cardHtml);
+
+            setupNewButtons(droneId);
+        }
+
+        function setupNewButtons(droneId) {
+            const card = document.getElementById(`card-${droneId}`);
+            card.querySelectorAll('.drone-command-btn').forEach(button => {
+                button.onclick = function () {
+                    const cmd = this.getAttribute('data-command');
+                    sendFlightCommand(droneId, cmd);
+                };
+            });
+        }
+
+
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
 
@@ -343,6 +346,7 @@
         let allWaypoints = [];
         let activeMissionMapId = "";
         let activeMaps = [];
+        let droneId = null;
 
         missionModal.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
@@ -350,7 +354,7 @@
             const selectedMission = missions[missionIndex];
             const modalTitle = missionModal.querySelector('.modal-title');
             const modalBody = missionModal.querySelector('#modal-content-area');
-            const droneId = selectedMission.tasks.length > 0 ? selectedMission.tasks[0].drone_id : "Unknown Drone";
+            droneId = selectedMission.tasks.length > 0 ? selectedMission.tasks[0].drone_id : "Unknown Drone";
 
             modalTitle.innerHTML = `
                 <div class="d-flex flex-column">
@@ -424,6 +428,7 @@
             modalBody.innerHTML = mapHtml + fullContent;
         });
 
+        const lastDronePositions = {};
         // Creates map for action = go_to
         missionModal.addEventListener('shown.bs.modal', function () {
             activeMaps.forEach(m => m.remove());
@@ -447,9 +452,9 @@
                 }).openTooltip();
             });
 
-            if (markers && markers[1]) {
-                const currentPos = markers[1].getLatLng();
+            const currentPos = lastDronePositions[droneId];
 
+            if (currentPos) {
                 const droneMarker = L.circleMarker(currentPos, {
                     radius: 8,
                     fillColor: "#ff3300",
@@ -458,6 +463,7 @@
                     opacity: 1,
                     fillOpacity: 0.8
                 }).addTo(markerGroup);
+
 
                 droneMarker.bindTooltip("Drone position", {
                     permanent: true,
@@ -746,58 +752,80 @@
             }
         });
 
-        flightmanagerWS.onmessage = (event) => {
-            console.log(JSON.parse(event.data));
-        }
-
         // Handle Drone Data
         const specsLoaded = {};
 
-        flightmanagerWS.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        function handleDroneUpdate(data) {
+            const droneId = data.drone_id;
+            if (!droneId) return;
 
-            console.log(data);
-
-            if (data.msg_type == "error") {
-                alert(data.error)
+            if (!document.getElementById(`card-${droneId}`)) {
+                createDroneStatusCard(droneId);
             }
 
-            // TODO: Handle all the message types here
+            // Handle static data
+            if (data.capabilities && !specsLoaded[droneId]) {
+                const typeElem = document.getElementById(`dronetype${droneId}`);
+                if (typeElem) {
+                    typeElem.textContent = (data.drone_type || "") + " " + (data.model || "");
 
-            if (data.msg_type == "telemetry") {
-
-                // TODO: This doesn't currently work 
-
-
-
-                // TODO: This doesn't currently work 
-
-
-
-                // Update specs one time (static data)
-                if (!specsLoaded[data.drone_id]) {
-                    document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
-
-                    const hasCamera = data.capabilities && data.capabilities.camera;
-                    document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
+                    const hasCamera = data.capabilities.camera;
+                    document.getElementById(`camera${droneId}`).textContent = hasCamera ? "Yes" : "No";
 
                     if (hasCamera) {
                         const res = data.capabilities.camera;
-                        document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
+                        document.getElementById(`res${droneId}`).textContent = res.resolution_width + "x" + res.resolution_height;
                     } else {
-                        document.getElementById(`res${data.drone_id}`).textContent = "N/A";
+                        document.getElementById(`res${droneId}`).textContent = "N/A";
                     }
 
-                    const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
-                    document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+                    const hasSpeaker = data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
+                    document.getElementById(`speaker${droneId}`).textContent = hasSpeaker ? "Yes" : "No";
 
-                    document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
+                    document.getElementById(`spotlight${droneId}`).textContent = data.capabilities.spotlight ? "Yes" : "No";
 
-                    specsLoaded[data.drone_id] = true;
-                };
+                    specsLoaded[droneId] = true;
+                }
+            }
 
-                // Update map marker
-                markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
+            // Handle Dynamic data
+            if (data.telemetry) {
+                const t = data.telemetry;
+
+                lastDronePositions[droneId] = [t.lat, t.lon];
+
+                const altElem = document.getElementById(`alt${droneId}`);
+                if (altElem) {
+                    altElem.textContent = t.alt.toFixed(1);
+                    document.getElementById(`speed${droneId}`).textContent = t.speed.toFixed(1);
+                    document.getElementById(`battery${droneId}`).textContent = t.battery_percent;
+                }
+
+                if (markers[droneId]) {
+                    markers[droneId].setLatLng([t.lat, t.lon]);
+                } else {
+                    markers[droneId] = L.marker([t.lat, t.lon]).addTo(map);
+                }
+            }
+        }
+
+        flightmanagerWS.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log("Mottaget:", data);
+
+            if (data.msg_type === "error") {
+                alert(data.error);
+                return;
+            }
+
+            if (data.msg_type === "connected_drones") {
+                data.drones.forEach(drone => {
+                    handleDroneUpdate(drone);
+                });
+            }
+
+            else if (data.drone_id) {
+                handleDroneUpdate(data);
             }
         };
 
@@ -833,17 +861,7 @@
             }
         }
 
-        document.querySelectorAll('.drone-controls button').forEach(button => {
-            button.addEventListener('click', function () {
-                const droneId = this.getAttribute('data-drone-id');
-                const command = this.getAttribute('data-command');
-                if (droneId && command) {
-                    sendFlightCommand(droneId, command);
-                } else {
-                    console.error("Button is missing data-drone-id or data-command attribute:", this);
-                }
-            });
-        });
+        // Update this for more drones than 1 and 2
         document.querySelectorAll('.all-drone-command-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const command = this.getAttribute('data-command');

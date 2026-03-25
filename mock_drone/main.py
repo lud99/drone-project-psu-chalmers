@@ -206,5 +206,5 @@ async def run_drone_client(drone_id: str):
 if __name__ == "__main__":
     drone_id = DRONE_ID
     if len(sys.argv) > 1:
-        drone_id += "_" + sys.argv[1]
+        drone_id = sys.argv[1]
     asyncio.run(run_drone_client(drone_id))
