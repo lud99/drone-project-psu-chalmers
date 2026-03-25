@@ -3,7 +3,7 @@ from PIL import Image
 import cv2
 import imutils
 import threading
-from asyncio import Queue
+from asyncio import Queue, QueueEmpty
 from ultralytics import YOLO
 import supervision.detection.core as sv
 from annotator import Annotator
@@ -31,6 +31,11 @@ else:
 # Each drone needs a separate model instance to allow for tracking
 model_for_drones: dict[str, YOLO] = dict()
 
+# Enable if running on slow computer, disable if you want fluid motion
+ONLY_DETECT_LATEST_FRAME = True
+
+queue_max_size = 1 if ONLY_DETECT_LATEST_FRAME else 9999
+
 redis_url = os.environ.get("REDIS_URL", "localhost")
 # Redis connection (create a Redis client if it doesn't exist)
 r = redis.StrictRedis(host=redis_url, port=6379, db=0, decode_responses=True)
@@ -43,6 +48,7 @@ def create_model() -> YOLO:
 
 def create_drone_model(drone_id: str) -> YOLO:
     model_for_drones[drone_id] = create_model()
+    print(model_for_drones[drone_id].names)
     return model_for_drones[drone_id]
 
 
@@ -71,6 +77,13 @@ async def consume_async_generator(gen, queue, stop_event, drone_id):
             print(f"Telemetry for drone {drone_id} not found, not doing detection")
             await asyncio.sleep(0.033)  # wait a bit before the next attempt
             continue
+
+        # The new logic inside consume_async_generator:
+        if queue.full():
+            try:
+                queue.get_nowait()  # Throw away the stale frame
+            except QueueEmpty:
+                pass
 
         await queue.put((frame, capabilities, telemetry))
     await queue.put(None)  # Signal the end of the stream
@@ -253,7 +266,10 @@ async def merge_and_annotate_stream(drone_ids: tuple[str, str]) -> None:
     id1, id2 = drone_ids
 
     # Create queues for frames
-    left_queue, right_queue = Queue(), Queue()
+    left_queue, right_queue = (
+        Queue(maxsize=queue_max_size),
+        Queue(maxsize=queue_max_size),
+    )
     stop_event = threading.Event()
 
     # Create async generators to consume drone streams
@@ -392,7 +408,7 @@ async def annotate_stream(drone_id: str) -> None:
     """
 
     # Create queues for frames
-    queue = Queue()
+    queue = Queue(maxsize=queue_max_size)
     stop_event = threading.Event()
 
     # Create async generators to consume drone streams

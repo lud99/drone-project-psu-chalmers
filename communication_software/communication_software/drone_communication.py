@@ -423,6 +423,11 @@ class DroneCommunication:
 
         r.delete(f"telemetry_drone{connection_id}")
         r.delete(f"capabilities_drone{connection_id}")
+        r.delete(f"frame_drone_merged")
+        r.delete(f"frame_drone{connection_id}")
+        r.delete(f"frame_drone{connection_id}_annotated")
+        r.delete(f"frame_drone{connection_id}_detections")
+        r.delete(f"frame_drone{connection_id}_detections")
 
         print(f"Connection {connection_id} removed.")
 
@@ -461,9 +466,7 @@ class DroneCommunication:
         # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
             r.set(
-                f"telemetry_drone{connection_id}",
-                message.telemetry.model_dump_json(),
-                ex=60,
+                f"telemetry_drone{connection_id}", message.telemetry.model_dump_json()
             )
 
             r.publish(DRONE_EVENT_CHANNEL, message.model_dump_json())
