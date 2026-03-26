@@ -9,7 +9,7 @@ class Telemetry:
     lat: Optional[float] = None
     lon: Optional[float] = None
     alt: Optional[float] = None
-    heading: Optional[float] = None
+    heading: Optional[int] = None
     speed: Optional[float] = None
     battery_percent: Optional[int] = None
     mode: Optional[str] = None
@@ -19,8 +19,10 @@ class Telemetry:
     timestamp: float = 0.0
 
     def to_backend_message(self) -> Dict[str, Any]:
-        payload = asdict(self)
+        payload = {k: v for k, v in asdict(self).items() if v is not None}
         payload["msg_type"] = "telemetry"
-        if not payload["timestamp"]:
+
+        if "timestamp" not in payload or not payload["timestamp"]:
             payload["timestamp"] = time.time()
+
         return payload

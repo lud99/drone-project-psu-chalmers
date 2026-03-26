@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 import time
+import asyncio
 
 from mavlink_client.mavlink_connection import MavlinkConnectionManager
 from mavlink_client.telemetry_manager import TelemetryManager
@@ -243,11 +244,14 @@ class MavlinkAdapter:
         now = time.time()
 
         if msg_type == "GLOBAL_POSITION_INT":
+            raw_heading = getattr(msg, "hdg", 65535)
+            heading = None if raw_heading == 65535 else int(
+                round(raw_heading / 100.0))
+
             self.telemetry_manager.update(
                 lat=msg.lat / 1e7,
                 lon=msg.lon / 1e7,
-                heading=(msg.hdg / 100.0) if getattr(msg,
-                                                     "hdg", 65535) != 65535 else None,
+                heading=heading,
                 speed=((msg.vx ** 2 + msg.vy ** 2 + msg.vz ** 2) ** 0.5) / 100.0,
                 timestamp=now,
             )
@@ -267,8 +271,11 @@ class MavlinkAdapter:
                 )
 
         elif msg_type == "VFR_HUD":
+            raw_heading = getattr(msg, "heading", None)
+            heading = None if raw_heading is None else int(round(raw_heading))
+
             self.telemetry_manager.update(
-                heading=getattr(msg, "heading", None),
+                heading=heading,
                 speed=getattr(msg, "groundspeed", None),
                 timestamp=now,
             )

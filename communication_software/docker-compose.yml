@@ -79,8 +79,8 @@ services:
       dockerfile: ../frontend/Dockerfile
     depends_on:
       - backend
-    volumes:
-      - ../frontend:/usr/share/nginx/html
+    # volumes:
+    #   - ../frontend:/usr/share/nginx/html # commented out
     networks:
       - atos-net
     ports:

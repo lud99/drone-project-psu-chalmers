@@ -95,7 +95,8 @@ class DroneCommunication:
             self.redis_listener_stop_event.set()
             if self.redis_listener_task and self.redis_listener_task.is_alive():
                 print("Waiting for Redis listener thread to finish...")
-                self.redis_listener_task.join(timeout=5)  # Wait briefly for cleanup
+                self.redis_listener_task.join(
+                    timeout=5)  # Wait briefly for cleanup
                 if self.redis_listener_task.is_alive():
                     print("Warning: Redis listener thread did not stop gracefully.")
             print("WebSocket server stopped.")
@@ -113,7 +114,8 @@ class DroneCommunication:
 
     def redis_command_listener(self, redis_client, channel, stop_event):
         """Listens for messages on the specified Redis channel in a blocking loop."""
-        print(f"[REDIS THREAD] Listener thread started for channel '{channel}'.")
+        print(
+            f"[REDIS THREAD] Listener thread started for channel '{channel}'.")
         pubsub = None
         listener_redis_conn = None
 
@@ -133,13 +135,15 @@ class DroneCommunication:
                     port=redis_client.connection_pool.connection_kwargs.get(
                         "port", 6379
                     ),
-                    db=redis_client.connection_pool.connection_kwargs.get("db", 0),
+                    db=redis_client.connection_pool.connection_kwargs.get(
+                        "db", 0),
                     decode_responses=True,
                     socket_connect_timeout=5,  # Add timeout
                     socket_keepalive=True,  # Add keepalive
                 )
                 listener_redis_conn.ping()  # Verify connection
-                pubsub = listener_redis_conn.pubsub(ignore_subscribe_messages=True)
+                pubsub = listener_redis_conn.pubsub(
+                    ignore_subscribe_messages=True)
                 pubsub.subscribe(channel)
                 print(
                     f"[REDIS THREAD] Subscribed successfully to '{channel}'. Waiting..."
@@ -153,7 +157,8 @@ class DroneCommunication:
                         break  # Exit inner listen loop
 
                     if message and message.get("type") == "message":
-                        print(f"[REDIS THREAD] Received message: {message['data']}")
+                        print(
+                            f"[REDIS THREAD] Received message: {message['data']}")
                         coro = self.process_redis_command(message["data"])
                         asyncio.run_coroutine_threadsafe(coro, self.loop)
 
@@ -181,7 +186,8 @@ class DroneCommunication:
                     continue  # Continue the outer while loop to retry connection
 
             except redis.exceptions.ConnectionError as e:
-                print(f"[REDIS THREAD] Connection error: {e}. Retrying in 5 seconds...")
+                print(
+                    f"[REDIS THREAD] Connection error: {e}. Retrying in 5 seconds...")
                 if pubsub:
                     pubsub.close()  # Use close() for pubsub
                 if listener_redis_conn:
@@ -288,7 +294,8 @@ class DroneCommunication:
             # Log unexpected errors more informatively
             import traceback
 
-            print(f"[PROCESS CMD] ERROR: Unexpected error processing command: {e}")
+            print(
+                f"[PROCESS CMD] ERROR: Unexpected error processing command: {e}")
             print(traceback.format_exc())
 
     async def webs_server(self, ws: WebSocketServerProtocol) -> None:
@@ -349,7 +356,8 @@ class DroneCommunication:
                 print(f"Unhandled `msg_type`: {message.msg_type}")
 
         except Exception as e:
-            print(f"Error processing message from {connection_id}: {frame} {e}")
+            print(
+                f"Error processing message from {connection_id}: {frame} {e}")
 
         return None
 
@@ -407,15 +415,17 @@ class DroneCommunication:
         self.redis_listener_task.start()
         print("Started Redis listener thread.")
 
+    # modified: Aarya
     def handle_telemetry_message(
         self, message: json_schemas.TelemetryMessage, connection_id
     ):
-        # For debugginig
-        # lat = data.get("latitude")
-        # long = data.get("longitude")
-        # altitude = data.get("altitude")
-        # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
+            if connection_id.startswith("NON_droneid_"):
+                print(
+                    f"Ignoring telemetry from unregistered connection {connection_id}"
+                )
+                return
+
             r.set(
                 f"telemetry_drone{connection_id}",
                 message.telemetry.model_dump_json(),
@@ -435,7 +445,8 @@ class DroneCommunication:
     ) -> Optional[str]:
         try:
             if message.drone_id in self.connections:
-                print(f"Drone id {message.drone_id} is already connected or used!!")
+                print(
+                    f"Drone id {message.drone_id} is already connected or used!!")
                 await ws.close()
                 return None
 
@@ -443,7 +454,11 @@ class DroneCommunication:
             self.connections.pop(connection_id)
             self.connections[message.drone_id] = ws
 
-            print(f"Moved websocket id from {connection_id} -> {message.drone_id}")
+            print(
+                f"Moved websocket id from {connection_id} -> {message.drone_id}")
+
+            r.delete(f"telemetry_drone{connection_id}")
+            r.delete(f"capabilities_drone{connection_id}")
 
             r.set(
                 f"capabilities_drone{message.drone_id}",
@@ -510,7 +525,8 @@ class DroneCommunication:
         )
 
         await self.peer_connections[connection_id].addIceCandidate(rtc_candidate)
-        print(f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}")
+        print(
+            f"[RTC] Added ICE candidate from {connection_id}: {candidate_sdp}")
 
     async def handle_webrct_answer_message(
         self, message: json_schemas.WebRTCAnswerMessage, connection_id
@@ -533,7 +549,7 @@ class DroneCommunication:
             )
         print(f"Received SDP answer from {connection_id}: {message}")
 
-    ###WEBBRTC###
+    ### WEBBRTC###
 
     async def send_message(self, connection_id, message):
         """ "Sends a message to the WebSocket connection."""
@@ -640,7 +656,7 @@ class DroneCommunication:
     #     except KeyError as e:
     #         print(f"[Stream Manager] Error: {e}")
 
-    ##THIS IS THE FUNCTION THAT HANDLES THE VIDEO STREAM##
+    ## THIS IS THE FUNCTION THAT HANDLES THE VIDEO STREAM##
     async def set_frame(self, connection_id: str, img: np.ndarray):
         try:
             # Convert the image to a buffer (JPEG format)

@@ -2,6 +2,7 @@ import asyncio
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import cv2
 from datetime import datetime
@@ -10,7 +11,6 @@ import redis.exceptions
 import numpy as np
 from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.missions_planning.mission_status import MissionStatus
-
 
 from typing import Optional
 
@@ -23,13 +23,24 @@ from communication_software.common.frame_utils import (
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
-    r.ping()  # Check if the connection is successful
+    r.ping()
     print("Successfully connected to Redis!")
 except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis: {e}")
-    exit()  # Exit if we can't connect
+    exit()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ATOS Simulation
@@ -59,20 +70,16 @@ atos = ATOSController()
 
 
 def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
-    # 1. Collect all relevant keys
     patterns = ["telemetry_drone*", "capabilities_drone*"]
     all_keys = []
     for p in patterns:
         all_keys.extend(r.scan_iter(match=p))
 
-    # 2. Group keys by the ID
     drone_groups: dict[str, dict[str, Optional[str]]] = {}
 
     for key in all_keys:
-        # Decode if keys come back as bytes
         key_str = key.decode("utf-8") if isinstance(key, bytes) else key
 
-        # Extract drone id
         drone_id: str = key_str.replace("telemetry_drone", "").replace(
             "capabilities_drone", ""
         )
@@ -85,15 +92,13 @@ def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
         elif "capabilities" in key_str:
             drone_groups[drone_id]["capabilities"] = key_str
 
-    # 3. Create the list of tuples
     return [
         (drone_id, data["telemetry"], data["capabilities"])
         for drone_id, data in drone_groups.items()
-        if data["telemetry"] and data["capabilities"]  # Only include if both exist
+        if data["telemetry"] and data["capabilities"]
     ]
 
 
-# WebSocket Endpoints
 @app.websocket("/api/v1/ws/drone")
 async def drone_websocket(websocket: WebSocket):
     await websocket.accept()
@@ -102,17 +107,12 @@ async def drone_websocket(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             print(f"Message received: {data}")
-
-            # TODO implement ws messages here
-            # not sure what messages should be websocket
-
     except WebSocketDisconnect:
         print("Drone client disconnected")
     except Exception as e:
         print(f"Unexpected error in drone_websocket main loop: {e}")
     finally:
         print("Closing drone websocket connection.")
-        # FastAPI handles closing the connection, but you can add specific cleanup here if needed.
 
 
 @app.websocket("/api/v1/ws/atos")
@@ -140,8 +140,6 @@ async def atos_websocket(websocket: WebSocket):
 
 
 COMMAND_CHANNEL = "drone_commands"
-
-### POST routes
 
 
 @app.post("/api/v1/accept_mission")
@@ -184,13 +182,9 @@ async def set_watch_area(payload: str = Body(...)):
     return {"msg_type": "response", "error": None}
 
 
-### GET routes
-
-
 @app.get("/api/v1/proposed_missions")
 async def get_proposed_missions():
     try:
-        # todo: get from redis
         return json_schemas.FrontendMessages.ProposedMissions(missions=[dict()])
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
@@ -198,13 +192,11 @@ async def get_proposed_missions():
 
 @app.get("/api/v1/active_missions")
 async def get_active_missions():
-    # Logic to fetch active missions
     pass
 
 
 @app.get("/api/v1/get_watch_areas")
 async def get_watch_areas():
-    # Logic to fetch watch areas
     pass
 
 
@@ -253,7 +245,8 @@ async def get_telemetry(drone_id: str):
         return json_schemas.FrontendMessages.TelemetryUpdate(
             msg_type="telemetry",
             drone_id=drone_id,
-            telemetry=json_schemas.parse_telemetry(r.get(f"telemetry_drone{drone_id}")),
+            telemetry=json_schemas.parse_telemetry(
+                r.get(f"telemetry_drone{drone_id}")),
         ).model_dump_json()
 
     except Exception as e:
@@ -366,7 +359,6 @@ async def merged_feed():
     )
 
 
-## Connect missions to the API/frontend
 mission_registry = MissionRegistry()
 
 
@@ -382,7 +374,6 @@ def dispatch_mission(mission_id: str):
         return {"error": "Mission not found"}
 
     mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
-    # TODO: Forward to translation layer here
 
     return {"status": "dispatched", "mission": mission}
 
@@ -403,41 +394,37 @@ def run_server(atos_communicator):
     )
 
 
-# Video Frames Generation Based on Drone ID
 async def stream_drone_frames(drone_id: str, frame_type: str = ""):
 
     redis_key = f"frame_drone{drone_id}${frame_type}"
     while True:
-        # RTC or capture process is storing a frame in Redis.
         frame_data = await asyncio.to_thread(r.get, redis_key)
         if frame_data:
-            # Might need to adjust this if you're using base64 or another format.
-            frame_array = np.frombuffer(frame_data.encode("latin1"), dtype=np.uint8)
+            frame_array = np.frombuffer(
+                frame_data.encode("latin1"), dtype=np.uint8)
             frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
             if frame is None:
-                # If decoding fails, fall back to a dummy image.
                 frame = create_error_frame(
-                    np.zeros((480, 640, 3), dtype=np.uint8), drone_id, "invalid frame"
+                    np.zeros((480, 640, 3),
+                             dtype=np.uint8), drone_id, "invalid frame"
                 )
 
         else:
-            # No frame found in Redis, so generate a dummy frame.
             frame = create_not_connected_frame(
                 np.zeros((480, 640, 3), dtype=np.uint8), drone_id
             )
 
-        # Encode frame as JPEG
         ret, buffer = cv2.imencode(".jpg", frame)
         if not ret:
-            # If encoding fails, continue to try on the next iteration.
             await asyncio.sleep(0.033)
             continue
 
         yield (
             b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
         )
-        await asyncio.sleep(0.033)  # Approximately 30 frames per second
+        await asyncio.sleep(0.033)
 
 
 if __name__ == "__main__":
-    uvicorn.run("frontend_websocket:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("frontend_websocket:app",
+                host="0.0.0.0", port=8000, reload=True)

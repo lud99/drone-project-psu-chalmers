@@ -198,6 +198,11 @@
     <script>
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
+
+        // Handle Drone Data
+        const specsLoaded = {};
+        const markers = {};
+
         // Initialize Map
         let activePolygon = null;
 
@@ -482,6 +487,9 @@
         // Initialize Surviellance area map
         const map = L.map('map').setView([57.705841, 11.938096], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        markers["1"] = L.marker([57.705841, 11.938096]).addTo(map).bindPopup("Drone 1");
+        markers["2"] = L.marker([57.705841, 11.938096]).addTo(map).bindPopup("Drone 2");
+
         // Retrieve the users position
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -533,7 +541,7 @@
                 console.error("Failed to load watch area:", error);
             }
         }
-        loadWatchArea();
+        // loadWatchArea();  // Commented out temporarily
         // Create a custom control
         // -------- POLYGON MODE --------
 
@@ -695,7 +703,7 @@
                         const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/set_watch_area`, {
                             method: "POST",
                             headers: {
-                                "Content-Type": "application/text"
+                                "Content-Type": "application/json" // text->json
                             },
                             body: JSON.stringify({
                                 msg_type: "set_watch_area",
@@ -773,73 +781,138 @@
         //     console.log(JSON.parse(event.data));
         // }
 
-        // Handle Drone Data
-        const specsLoaded = {};
-        // edited: Aarya
-        flightmanagerWS.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            console.log(data);
+    
+        function normalizeDroneId(rawDroneId) {
+            if (rawDroneId == null) return "1";
+            const str = String(rawDroneId).trim();
 
-            if (data.msg_type === "telemetry") {
-                const rawDroneId = String(data.drone_id);
-                const uiDroneId = rawDroneId.replace("drone", "");
+            if (str === "drone1") return "1";
+            if (str === "drone2") return "2";
 
-                const setText = (id, value) => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.textContent = value;
-                    }
-                };
-
-                setText(`alt${uiDroneId}`, data.telemetry?.alt ?? "--");
-                setText(`speed${uiDroneId}`, data.telemetry?.speed ?? "--");
-                setText(`battery${uiDroneId}`, data.telemetry?.battery_percent ?? "--");
-
-                if (!specsLoaded[uiDroneId]) {
-                    setText(`dronetype${uiDroneId}`, `${data.drone_type ?? "--"} ${data.model ?? ""}`.trim());
-
-                    const hasCamera = data.capabilities && data.capabilities.camera;
-                    setText(`camera${uiDroneId}`, hasCamera ? "Yes" : "No");
-
-                    if (hasCamera) {
-                        const res = data.capabilities.camera;
-                        setText(`res${uiDroneId}`, `${res.resolution_width}x${res.resolution_height}`);
-                    } else {
-                        setText(`res${uiDroneId}`, "N/A");
-                    }
-
-                    const hasSpeaker =
-                        data.capabilities &&
-                        data.capabilities.speaker &&
-                        data.capabilities.speaker.audio_files &&
-                        data.capabilities.speaker.audio_files.length > 0;
-
-                    setText(`speaker${uiDroneId}`, hasSpeaker ? "Yes" : "No");
-                    setText(`spotlight${uiDroneId}`, data.capabilities?.spotlight ? "Yes" : "No");
-
-                    specsLoaded[uiDroneId] = true;
-                }
-
-                if (
-                    typeof markers !== "undefined" &&
-                    markers[uiDroneId] &&
-                    data.telemetry?.lat != null &&
-                    data.telemetry?.lon != null
-                ) {
-                    markers[uiDroneId].setLatLng([data.telemetry.lat, data.telemetry.lon]);
-                }
+            if (str.startsWith("drone")) {
+                return str.replace("drone", "");
             }
-        };
-        // Control Handlers
+
+            return str;
+        }
+
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = value ?? "--";
+        }
+
+        function pickAltitude(t) {
+            return t.alt ?? t.altitude ?? t.relative_alt ?? "--";
+        }
+
+        function pickSpeed(t) {
+            return t.speed ?? t.ground_speed ?? t.velocity ?? "--";
+        }
+
+        function pickBattery(t) {
+            return t.battery_percent ?? t.battery ?? t.battery_remaining ?? "--";
+        }
+
+        function pickLat(t) {
+            return t.lat ?? t.latitude ?? null;
+        }
+
+        function pickLon(t) {
+            return t.lon ?? t.longitude ?? null;
+        }
+
+        async function fetchConnectedDronesTelemetry() {
+            try {
+                const response = await fetch("http://localhost:8000/api/v1/connected_drones");
+                const raw = await response.text();
+
+                let data;
+                try {
+                    data = JSON.parse(raw);
+
+                    if (typeof data === "string") {
+                        data = JSON.parse(data);
+                    }
+                } catch (e) {
+                    console.error("connected_drones did not return valid JSON:", raw);
+                    return;
+                }
+
+                const drones = data.drones || [];
+                console.log("connected_drones:", drones);
+
+                drones.forEach((drone) => {
+                    const telemetry = drone.telemetry || {};
+                    const droneIdRaw = drone.drone_id ?? telemetry.drone_id ?? "1";
+
+                    let uiDroneId = normalizeDroneId(droneIdRaw);
+                    if (uiDroneId === "drone1") uiDroneId = "1";
+                    if (uiDroneId === "drone2") uiDroneId = "2";
+                    if (uiDroneId === "NON_droneid_0") uiDroneId = "1";
+                    if (uiDroneId === "NON_droneid_1") uiDroneId = "2";
+
+                    const altitude = pickAltitude(telemetry);
+                    const speed = pickSpeed(telemetry);
+                    const battery = pickBattery(telemetry);
+                    const lat = pickLat(telemetry);
+                    const lon = pickLon(telemetry);
+
+                    setText(`alt${uiDroneId}`, altitude);
+                    setText(`speed${uiDroneId}`, speed);
+                    setText(`battery${uiDroneId}`, battery);
+
+                    if (!specsLoaded[uiDroneId]) {
+                        setText(
+                            `dronetype${uiDroneId}`,
+                            `${drone.drone_type ?? telemetry.drone_type ?? "--"} ${drone.model ?? telemetry.model ?? ""}`.trim()
+                        );
+
+                        const cameraCaps = drone.capabilities?.camera ?? telemetry.capabilities?.camera;
+                        setText(`camera${uiDroneId}`, cameraCaps ? "Yes" : "No");
+
+                        if (cameraCaps && cameraCaps.resolution_width && cameraCaps.resolution_height) {
+                            setText(`res${uiDroneId}`, `${cameraCaps.resolution_width}x${cameraCaps.resolution_height}`);
+                        } else {
+                            setText(`res${uiDroneId}`, "N/A");
+                        }
+
+                        const speakerCaps = drone.capabilities?.speaker ?? telemetry.capabilities?.speaker;
+                        setText(`speaker${uiDroneId}`, speakerCaps ? "Yes" : "No");
+
+                        const spotlightCaps = drone.capabilities?.spotlight ?? telemetry.capabilities?.spotlight;
+                        setText(`spotlight${uiDroneId}`, spotlightCaps ? "Yes" : "No");
+
+                        specsLoaded[uiDroneId] = true;
+                    }
+
+                    if (markers[uiDroneId] && lat != null && lon != null) {
+                        markers[uiDroneId].setLatLng([lat, lon]);
+                    }
+                });
+            } catch (error) {
+                console.error("Telemetry polling failed:", error);
+            }
+        }
+        setInterval(fetchConnectedDronesTelemetry, 1000);
+        fetchConnectedDronesTelemetry();
+
         document.getElementById('startBtn').addEventListener('click', () => {
-            atosWS.send(JSON.stringify({ command: 'start' }));
+            if (atosWS.readyState === WebSocket.OPEN) {
+                atosWS.send(JSON.stringify({ command: 'start' }));
+            } else {
+                alert("ATOS WebSocket is not connected.");
+            }
         });
 
         document.getElementById('stopBtn').addEventListener('click', () => {
-            atosWS.send(JSON.stringify({ command: 'stop' }));
+            if (atosWS.readyState === WebSocket.OPEN) {
+                atosWS.send(JSON.stringify({ command: 'stop' }));
+            } else {
+                alert("ATOS WebSocket is not connected.");
+            }
         });
 
-        // Handle ATOS Status
         atosWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
             const statusElement = document.getElementById('atosStatus');
@@ -850,7 +923,7 @@
         function sendFlightCommand(droneId, command) {
             if (flightmanagerWS.readyState === WebSocket.OPEN) {
                 const message = {
-                    drone_id: parseInt(droneId, 10),
+                    drone_id: String(droneId),
                     command: command
                 };
                 const jsonMessage = JSON.stringify(message);
@@ -858,7 +931,7 @@
                 console.log(`Sent command to flightmanagerWS: ${jsonMessage}`);
             } else {
                 console.error("FlightManager WebSocket is not open. Cannot send command:", command, "for drone", droneId);
-                alert("FlightManager connection is not active. Cannot send command."); // User feedback
+                alert("FlightManager connection is not active. Cannot send command.");
             }
         }
 
@@ -866,6 +939,7 @@
             button.addEventListener('click', function () {
                 const droneId = this.getAttribute('data-drone-id');
                 const command = this.getAttribute('data-command');
+
                 if (droneId && command) {
                     sendFlightCommand(droneId, command);
                 } else {
@@ -873,15 +947,15 @@
                 }
             });
         });
+
         document.querySelectorAll('.all-drone-command-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const command = this.getAttribute('data-command');
+
                 if (command) {
                     console.log(`Sending command '${command}' to all drones.`);
-                    sendFlightCommand(1, command);
-                    sendFlightCommand(2, command);
-                    // Add more drone IDs here if needed in the future
-                    // sendFlightCommand(3, command);
+                    sendFlightCommand("1", command);
+                    sendFlightCommand("2", command);
                 } else {
                     console.error("All-drone command button is missing data-command attribute:", this);
                 }

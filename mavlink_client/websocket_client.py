@@ -1,8 +1,9 @@
 from __future__ import annotations
-import asyncio
+
 import json
+from typing import Callable, Awaitable, Dict, Any
+
 import websockets
-from typing import Callable, Awaitable, Optional, Dict, Any
 
 
 class BackendWebSocketClient:
@@ -25,7 +26,19 @@ class BackendWebSocketClient:
             raise RuntimeError("WebSocket not connected")
         await self.websocket.send(json.dumps(payload))
 
-    async def receive_loop(self, handler: Callable[[Dict[str, Any]], Awaitable[None]]) -> None:
+    async def register_drone(self, drone_id: str) -> None:
+        await self.send_json(
+            {
+                "msg_type": "drone_registration",
+                "drone_id": drone_id,
+            }
+        )
+        print(f"[WS] Registered drone: {drone_id}")
+
+    async def receive_loop(
+        self,
+        handler: Callable[[Dict[str, Any]], Awaitable[None]],
+    ) -> None:
         if not self.websocket:
             raise RuntimeError("WebSocket not connected")
 

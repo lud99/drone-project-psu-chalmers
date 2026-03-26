@@ -52,6 +52,22 @@ async def safe_cancel(task: Optional[asyncio.Task]) -> None:
     await asyncio.gather(task, return_exceptions=True)
 
 
+def telemetry_dict(snapshot: Any) -> dict[str, Any]:
+    return {
+        "lat": snapshot.lat,
+        "lon": snapshot.lon,
+        "alt": snapshot.alt,
+        "heading": snapshot.heading,
+        "speed": snapshot.speed,
+        "battery_percent": snapshot.battery_percent,
+        "mode": snapshot.mode,
+        "armed": snapshot.armed,
+        "gps_fix_type": snapshot.gps_fix_type,
+        "satellites_visible": snapshot.satellites_visible,
+        "timestamp": getattr(snapshot, "timestamp", None),
+    }
+
+
 async def main() -> None:
     print("ENTERED ASYNC MAIN")
 
@@ -91,21 +107,18 @@ async def main() -> None:
 
             mission_executor = MissionExecutor(adapter, config)
 
-            print("[BOOT] Real MAVLink connection ready. Waiting for commands.")
-            print("[TEST] Starting automatic takeoff in 3 seconds...")
-            await asyncio.sleep(3)
+            print("[BOOT] Real MAVLink connection ready. Telemetry-only mode enabled.")
+            print("[BOOT] No automatic takeoff will be executed.")
 
-            try:
-                mission_executor.arm_and_takeoff(2.0)
-                print("[TEST] Takeoff command executed")
-            except Exception as e:
-                print(f"[TEST ERROR] {e}")
+            if adapter is not None:
+                adapter.poll_telemetry()
 
         command_handler = CommandHandler(mission_executor, telemetry_manager)
 
         try:
             print(f"[WS] Connecting to backend at {config.backend_ws_url}")
             await ws_client.connect()
+            # await ws_client.register_drone(config.drone_id)
             backend_connected = True
             print(f"[WS] Connected to backend at {config.backend_ws_url}")
         except Exception as e:
@@ -114,8 +127,9 @@ async def main() -> None:
                 f"[WS] Backend not available, continuing without websocket: {e}")
 
         if backend_connected:
+            initial_snapshot = telemetry_manager.snapshot()
             register_payload = {
-                "msg_type": "register",
+                "msg_type": "drone_registration",
                 "drone_id": config.drone_id,
                 "drone_type": config.drone_type,
                 "model": config.model,
@@ -124,10 +138,13 @@ async def main() -> None:
                     "led": None,
                     "spotlight": False,
                     "speaker": False,
-                    "maxSpeed": int(config.max_speed_m_s),
+                    "max_speed": int(config.max_speed_m_s),
                 },
+                "telemetry": telemetry_dict(initial_snapshot),
             }
+            print("[DEBUG REGISTER PAYLOAD]", register_payload)
             await ws_client.send_json(register_payload)
+            print("[WS] Register payload sent")
 
         async def telemetry_loop() -> None:
             while True:
@@ -140,9 +157,15 @@ async def main() -> None:
                             adapter.poll_telemetry()
 
                     snapshot = telemetry_manager.snapshot()
+                    payload = {
+                        "msg_type": "telemetry",
+                        "drone_id": config.drone_id,
+                        "telemetry": telemetry_dict(snapshot),
+                    }
 
                     if backend_connected:
-                        await ws_client.send_json(snapshot.to_backend_message())
+                        print("[DEBUG TELEMETRY PAYLOAD]", payload)
+                        await ws_client.send_json(payload)
                     else:
                         if snapshot.lat is not None or snapshot.mode is not None:
                             print(
@@ -161,18 +184,18 @@ async def main() -> None:
 
         async def heartbeat_loop() -> None:
             while True:
-                try:
-                    if backend_connected:
-                        await ws_client.send_json(
-                            {
-                                "msg_type": "ping",
-                                "drone_id": config.drone_id,
-                            }
-                        )
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    print(f"[HEARTBEAT] {e}")
+                # try:
+                #     if backend_connected:
+                #         await ws_client.send_json(
+                #             {
+                #                 "msg_type": "ping",
+                #                 "drone_id": config.drone_id,
+                #             }
+                #         )
+                # except asyncio.CancelledError:
+                #     raise
+                # except Exception as e:
+                #     print(f"[HEARTBEAT] {e}")
 
                 await asyncio.sleep(config.heartbeat_interval_sec)
 
@@ -212,22 +235,7 @@ async def main() -> None:
 
     except KeyboardInterrupt:
         print("\n[SAFETY] KeyboardInterrupt received")
-
-        if not config.use_mock_drone and adapter is not None:
-            try:
-                print("[SAFETY] Sending LAND")
-                adapter.land()
-                await asyncio.sleep(2)
-            except Exception as e:
-                print(f"[SAFETY] LAND failed: {e}")
-
-            try:
-                print("[SAFETY] Sending DISARM")
-                adapter.disarm()
-                await asyncio.sleep(1)
-            except Exception as e:
-                print(f"[SAFETY] DISARM failed: {e}")
-
+        print("[SAFETY] Telemetry-only session stopped by user")
         raise
 
     finally:
