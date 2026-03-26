@@ -22,14 +22,12 @@ import redis.exceptions
 
 from .missions import (
     Mission,
-    Coordinates,
     GotoAndAudio,
     GotoAndBlink,
     GotoAndIlluminate,
     GotoAndSurveil,
     GotoOnly,
 )
-from communication_software.missions_planning.drone_specs import DroneSpecs
 
 logger = logging.getLogger(__name__)
 
@@ -165,14 +163,16 @@ class DroneCandidate:
     """Bundles everything known about one connected drone at selection time"""
 
     drone_id: str
-    drone: DroneSpecs
+    capabilities: json_schemas.Capabilities
     telemetry: json_schemas.Telemetry
     hardware_score: float  # 0 – 100  (computed)
     total_score: float = 0.0
 
 
 # Step 3 scoring
-def compute_hardware_score(drone: DroneSpecs, mission_type: Type[Mission]) -> float:
+def compute_hardware_score(
+    capabilities: json_schemas.Capabilities, mission_type: Type[Mission]
+) -> float:
     """
     Returns a 0-100 score reflecting how well a drone's hardware suits a
     *specific* mission type.  Only the capabilities that the mission actually
@@ -195,18 +195,16 @@ def compute_hardware_score(drone: DroneSpecs, mission_type: Type[Mission]) -> fl
     resolution_value = 0.0
     fov_score = 0.0
 
-    if drone.camera:
+    if capabilities.camera:
         resolution_value = resolution_score(
-            drone.camera.resolution_width,
-            drone.camera.resolution_height,
+            capabilities.camera.resolution_width,
+            capabilities.camera.resolution_height,
         )
 
-        fov_score = min(drone.camera.horizontal_fov / FOV_MAX, 1.0) * 100.0
+        fov_score = min(capabilities.camera.horizontal_fov / FOV_MAX, 1.0) * 100.0
 
-    speaker_score = 100.0 if drone.speaker else 0.0
-    lights_score = (
-        100.0 if (drone.spotlight or (drone.led and drone.led.has_any())) else 0.0
-    )
+    speaker_score = 100.0 if capabilities.speaker else 0.0
+    lights_score = 100.0 if (capabilities.spotlight or capabilities.led) else 0.0
 
     total = (
         resolution_value * profile.resolution
@@ -220,7 +218,7 @@ def compute_hardware_score(drone: DroneSpecs, mission_type: Type[Mission]) -> fl
 def compute_total_score(
     telemetry: json_schemas.Telemetry,
     hardware_score: float,
-    coordinates: Coordinates,
+    coordinates: json_schemas.GoToParams,
 ) -> float:
     """Weighted combination of battery level and hardware quality (both 0-100)."""
 
@@ -299,7 +297,6 @@ class DroneSelector:
 
                 telemetry = json_schemas.parse_telemetry(telemetry_json)
                 capabilities = json_schemas.parse_capabilities(capabilities_json)
-                drone = DroneSpecs.from_capabilities(drone_id, capabilities)
 
                 if telemetry.battery_percent < self.MIN_BATTERY_THRESHOLD:
                     logger.info(
@@ -315,7 +312,7 @@ class DroneSelector:
                 candidates.append(
                     DroneCandidate(
                         drone_id=drone_id,
-                        drone=drone,
+                        capabilities=capabilities,
                         telemetry=telemetry,
                         hardware_score=0.0,
                     )
@@ -334,7 +331,7 @@ class DroneSelector:
                 )
 
         logger.info(
-            "Step 1 – %d drone(s) connected and above battery threshold.",
+            "Step 1 - %d drone(s) connected and above battery threshold.",
             len(candidates),
         )
         return candidates
@@ -345,7 +342,7 @@ class DroneSelector:
         self,
         candidates: list[DroneCandidate],
         mission_type: Type[Mission],
-        coordinates: Coordinates,
+        coordinates: json_schemas.GoToParams,
         params: Optional[dict] = None,
     ) -> list[DroneCandidate]:
         """
@@ -356,7 +353,9 @@ class DroneSelector:
         capable: list[DroneCandidate] = []
         params = params or {}
         for candidate in candidates:
-            if mission_type(candidate.drone, coordinates, **params).can_execute():
+            if mission_type(
+                candidate.drone_id, candidate.capabilities, coordinates, **params
+            ).can_execute():
                 capable.append(candidate)
             else:
                 logger.info(
@@ -378,7 +377,7 @@ class DroneSelector:
         self,
         candidates: list[DroneCandidate],
         mission_type: Type[Mission],
-        coordinates: Coordinates,
+        coordinates: json_schemas.GoToParams,
     ) -> list[DroneCandidate]:
         """
         Scores each candidate using only the hardware dimensions that matter
@@ -388,7 +387,7 @@ class DroneSelector:
         where hardware_score is computed against the mission's HardwareProfile.
         """
         for c in candidates:
-            c.hardware_score = compute_hardware_score(c.drone, mission_type)
+            c.hardware_score = compute_hardware_score(c.capabilities, mission_type)
             c.total_score = compute_total_score(
                 c.telemetry, c.hardware_score, coordinates
             )
@@ -421,7 +420,7 @@ class DroneSelector:
     def select(
         self,
         mission_type: Type[Mission],
-        coordinates: Coordinates,
+        coordinates: json_schemas.GoToParams,
         params: Optional[dict] = None,
     ) -> Optional[Mission]:
         """
@@ -488,7 +487,9 @@ class DroneSelector:
         chosen = ranked[0]
 
         # Instantiate and return the mission bound to the chosen drone
-        mission = mission_type(chosen.drone, coordinates, **params)
+        mission = mission_type(
+            chosen.drone_id, chosen.capabilities, coordinates, **params
+        )
         logger.info(
             "Selected drone '%s' for mission type '%s'.",
             chosen.drone_id,
@@ -504,7 +505,7 @@ class DroneSelector:
 
 def select_drone_for_mission(
     mission_type: Type[Mission],
-    coordinates: Coordinates,
+    coordinates: json_schemas.GoToParams,
     params: Optional[dict] = None,
     redis_host: str = "redis",
     redis_port: int = 6379,
@@ -521,7 +522,7 @@ def select_drone_for_mission(
     >>>
     >>> mission = select_drone_for_mission(
     ...     mission_type=GotoAndAudio,
-    ...     coordinates=Coordinates(lat=57.705841, lon=11.938096, alt=20, heading=0),
+    ...     coordinates=json_schemas.GoToParams(lat=57.705841, lon=11.938096, alt=20, heading=0),
     ... )
     >>> if mission:
     ...     mission_registry.store(mission)

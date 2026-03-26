@@ -233,6 +233,37 @@ async def accept_mission(payload: str = Body(...)):
     return {"msg_type": "response", "error": None}
 
 
+@app.post("/api/v1/missions/dispatch/{mission_id}")
+def dispatch_mission(mission_id: str):
+    try:
+        mission = mission_registry.get(mission_id)
+        if not mission:
+            return {"error": "Mission not found"}
+
+        coords = json_schemas.GoToParams.model_validate_json(mission["coordinates"])
+        task_message = json_schemas.TaskMessage(
+            drone_id=mission["drone_id"],
+            mission_id=mission["mission_id"],
+            index=0,
+            task_action=json_schemas.GoToTask(
+                action="go_to",
+                params=json_schemas.GoToParams(
+                    lat=coords.lat,
+                    lon=coords.lon,
+                    alt=coords.alt,
+                    heading=coords.heading,
+                ),
+            ),
+        )
+        r.publish("drone_commands", task_message.model_dump_json())
+
+        mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
+
+        return {"status": "dispatched", "mission": mission}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
 @app.post("/api/v1/reject_missions")
 async def reject_missions(payload: str = Body(...)):
     try:
@@ -282,6 +313,11 @@ async def get_proposed_missions():
 async def get_active_missions():
     # Logic to fetch active missions
     pass
+
+
+@app.get("/api/v1/missions")
+def get_missions():
+    return mission_registry.get_all()
 
 
 @app.get("/api/v1/get_watch_area")
@@ -373,39 +409,6 @@ async def merged_feed():
 
 ## Connect missions to the API/frontend
 mission_registry = MissionRegistry()
-
-
-@app.get("/api/v1/missions")
-def get_missions():
-    return mission_registry.get_all()
-
-
-@app.post("/api/v1/missions/dispatch/{mission_id}")
-def dispatch_mission(mission_id: str):
-    mission = mission_registry.get(mission_id)
-    if not mission:
-        return {"error": "Mission not found"}
-
-    mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
-
-    coords = mission["coordinates"]
-    task_message = json_schemas.TaskMessage(
-        drone_id=mission["drone_id"],
-        mission_id=mission["mission_id"],
-        index=0,
-        task_action=json_schemas.GoToTask(
-            action="go_to",
-            params=json_schemas.GoToParams(
-                lat=coords["lat"],
-                lon=coords["lon"],
-                alt=coords["alt"],
-                heading=coords.get("heading", 0),
-            )
-        )
-    )
-    r.publish("drone_commands", task_message.model_dump_json())
-
-    return {"status": "dispatched", "mission": mission}
 
 
 @app.get("/api/v1/health")

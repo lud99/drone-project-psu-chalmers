@@ -17,6 +17,9 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
+from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.missions_planning.mission_status import MissionStatus
+
 
 try:
     r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
@@ -39,12 +42,13 @@ ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
 
+mission_registry = MissionRegistry()
+
 
 class DroneCommunication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
         self.connection_counter = 0
-        # self.drone_coordinates = []  # List of drone coordinates
 
         self.loop = None
         self.redis_listener_stop_event = threading.Event()
@@ -126,14 +130,6 @@ class DroneCommunication:
             sender.stop()
             multicast_thread.join()
             print("Stopped multicast sender thread")
-
-    # def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
-    #     """Transforms coordinates into required format."""
-    #     lat = str(coordinates.lat)[:9]
-    #     lng = str(coordinates.lng)[:9]
-    #     alt = str(coordinates.alt)[:3]
-    #     new_angle = str(angle)
-    #     return (lat, lng, alt, new_angle)
 
     def redis_command_listener(self, redis_client, channel, stop_event):
         """Listens for messages on the specified Redis channel in a blocking loop."""
@@ -577,21 +573,39 @@ class DroneCommunication:
                     )
                     await self.connections[connection_id].send(next_task_raw)
                 else:
-                    print(f"Mission {message.mission_id} klar – väntar 30s innan go_home")
-                    
-                    # Uppdatera status till COMPLETED
-                    from communication_software.missions_planning.mission_registry import MissionRegistry
-                    from communication_software.missions_planning.mission_status import MissionStatus
-                    reg = MissionRegistry()
-                    reg.update_status(message.mission_id, MissionStatus.COMPLETED)
-                    
+                    print(
+                        f"Mission {message.mission_id} done - waiting 30s before go_home"
+                    )
+
+                    # Update mission status to be completed
+                    mission_registry.update_status(
+                        message.mission_id, MissionStatus.COMPLETED
+                    )
+
                     await asyncio.sleep(30)
                     go_home = json_schemas.GoHomeMessage(
                         drone_id=connection_id,
                         mission_id=message.mission_id,
                     )
-                    await self.connections[connection_id].send(go_home.model_dump_json())
-                    print(f"go_home skickat till {connection_id}")
+                    await self.connections[connection_id].send(
+                        go_home.model_dump_json()
+                    )
+                    print(f"go_home sent to {connection_id}")
+            elif message.event == "task_failed":
+                error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
+                print(error)
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+                )
+            else:
+                error = f"Unhandled task event '{message.event}' for drone {message.drone_id} with error '{message.message}'"
+                print(error)
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+                )
+
         except Exception as e:
             error = f"handle_task_event_error {e}"
             print(error)

@@ -15,7 +15,6 @@ from .missions import (
     GotoAndIlluminate,
     GotoAndSurveil,
     GotoOnly,
-    Coordinates,
     Mission,
 )
 from .drone_selector import select_drone_for_mission
@@ -94,7 +93,9 @@ class AutoMissionSuggester:
 
         return normalized_points
 
-    def _get_area_surveil_coordinates(self, points: list[dict[str, float]]) -> Coordinates:
+    def _get_area_surveil_coordinates(
+        self, points: list[dict[str, float]]
+    ) -> Coordinate:
         hull_points = [Coordinate(lat=p["lat"], lng=p["lon"]) for p in points]
         center_lat = sum(p["lat"] for p in points) / len(points)
         center_lon = sum(p["lon"] for p in points) / len(points)
@@ -106,7 +107,7 @@ class AutoMissionSuggester:
             n_drones=1,
         )
         best = fly_to_coords[0]
-        return Coordinates(lat=best.lat, lon=best.lng, alt=best.alt, heading=angle)
+        return Coordinate(lat=best.lat, lon=best.lng, alt=best.alt, heading=angle)
 
     @staticmethod
     def _distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -215,7 +216,9 @@ class AutoMissionSuggester:
                     )
 
                     if drone_busy:
-                        print(f"[area_listener] Drönare {drone_id} är redan aktiv – ignorerar")
+                        print(
+                            f"[area_listener] Drönare {drone_id} är redan aktiv – ignorerar"
+                        )
                         last_area_payload = raw_watch_area
                         self._sleep_with_stop_check(1.0)
                         continue
@@ -237,6 +240,7 @@ class AutoMissionSuggester:
                 print(f"area_listener failed: {exc}")
 
             self._sleep_with_stop_check(1.0)
+
     def object_listener(self):
         """
         Continuously polls Redis for new detection snapshots and dispatches
@@ -303,7 +307,7 @@ class AutoMissionSuggester:
 
     def get_offset_coordinates_for_drone(
         self, drone_id: str, object_coords: dict, offset_meters: float | int
-    ) -> Coordinates:
+    ) -> json_schemas.GoToParams:
         """
         Retrieve current coordinates of drone from Redis and calculate a target
         point that is `offset_meters` before the detected object and above it.
@@ -327,7 +331,7 @@ class AutoMissionSuggester:
         dist = math.sqrt(dx**2 + dy**2)
 
         if dist <= 1e-6:
-            return Coordinates(
+            return json_schemas.GoToParams(
                 lat=lat_object,
                 lon=lon_object,
                 alt=max(alt_drone, object_coords.get("alt", 0)) + offset_meters,
@@ -340,18 +344,20 @@ class AutoMissionSuggester:
         lat_new = lat_drone + travel * (lat_object - lat_drone)
         lon_new = lon_drone + travel * (lon_object - lon_drone)
         alt_new = alt_drone + offset_meters
-        return Coordinates(lat=lat_new, lon=lon_new, alt=alt_new, heading=None)
+        return json_schemas.GoToParams(
+            lat=lat_new, lon=lon_new, alt=alt_new, heading=None
+        )
 
     def get_coordinates_above_for_drone(
         self, object_coords: dict, offset_meters: float | int
-    ) -> Coordinates:
+    ) -> json_schemas.GoToParams:
         """
         Calculate new coordinates for the drone that are directly above the object
         """
         lat = object_coords["lat"]
         lon = object_coords["lon"]
         alt = object_coords.get("alt", 0) + offset_meters
-        return Coordinates(lat=lat, lon=lon, alt=alt, heading=None)
+        return json_schemas.GoToParams(lat=lat, lon=lon, alt=alt, heading=None)
 
     def send_object_notification(self, object_type: str, coordinates: dict) -> None:
         """
@@ -403,7 +409,7 @@ class AutoMissionSuggester:
                 try:
                     mission = select_drone_for_mission(
                         mission_type=mission_type,
-                        coordinates=Coordinates(**coordinates),
+                        coordinates=json_schemas.GoToParams(**coordinates),
                         params=params,
                         redis_host=self._redis_host,
                         redis_port=self._redis_port,
@@ -456,7 +462,7 @@ class AutoMissionSuggester:
                 try:
                     mission = select_drone_for_mission(
                         mission_type=mission_type,
-                        coordinates=Coordinates(**coordinates),
+                        coordinates=json_schemas.GoToParams(**coordinates),
                         params=params,
                         redis_host=self._redis_host,
                         redis_port=self._redis_port,
@@ -492,8 +498,10 @@ class AutoMissionSuggester:
             )
 
     def send_proposed_missions(self, missions: list[Mission]) -> None:
-    
-        registry = MissionRegistry(redis_host=self._redis_host, redis_port=self._redis_port)
+
+        registry = MissionRegistry(
+            redis_host=self._redis_host, redis_port=self._redis_port
+        )
         for mission in missions:
             registry.store(mission)
 

@@ -12,7 +12,7 @@ class CameraCapabilities(BaseModel):
 
 
 class LEDCapabilities(BaseModel):
-    types: list[str]  # will likely have to change
+    types: Annotated[list[str], Field(min_length=1)]
 
 
 class SpeakerCapabilities(BaseModel):
@@ -48,7 +48,7 @@ class GoToParams(BaseModel):
     lat: float
     lon: float
     alt: float
-    heading: int
+    heading: int = 0
 
 
 class PlayAudioParams(BaseModel):
@@ -59,7 +59,6 @@ class PlayAudioParams(BaseModel):
 
 class LEDParams(BaseModel):
     type: str
-    pattern: str
     duration_seconds: Optional[float]
 
 
@@ -67,6 +66,25 @@ class SpotlightParams(BaseModel):
     pattern: str
     duration_seconds: Optional[float]
 
+
+class AngleCameraParams(BaseModel):
+    pitch: float
+    yaw: float
+    duration_seconds: Optional[float] = None
+
+
+class HoverParams(BaseModel):
+    duration_seconds: Optional[float] = None
+
+
+AnyParams = Union[
+    GoToParams,
+    PlayAudioParams,
+    LEDParams,
+    SpotlightParams,
+    AngleCameraParams,
+    HoverParams,
+]
 
 # The specific Task types
 
@@ -91,35 +109,30 @@ class SpotlightTask(BaseModel):
     params: SpotlightParams
 
 
-class AngleCameraParams(BaseModel):
-    pitch: float
-    roll: float
-    yaw: float
-    duration_seconds: Optional[float] = None
-
-
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
     params: AngleCameraParams
 
-class AngleCameraParams(BaseModel):
-    pitch: float
-    yaw: float
-    duration_seconds: Optional[float] = None
-
-class AngleCameraTask(BaseModel):
-    action: Literal["angle_camera"] = "angle_camera"
-    params: AngleCameraParams
-
-class HoverParams(BaseModel):
-    duration_seconds: Optional[float] = None
 
 class HoverTask(BaseModel):
     action: Literal["hover"] = "hover"
     params: HoverParams
 
+
+class GoHomeTask(BaseModel):
+    action: Literal["go_home"] = "go_home"
+
+
 # Uppdatera AnyTaskAction
-AnyTaskAction = Union[GoToTask, PlayAudioTask, LEDTask, SpotlightTask, AngleCameraTask, HoverTask]
+AnyTaskAction = Union[
+    GoToTask,
+    PlayAudioTask,
+    LEDTask,
+    SpotlightTask,
+    AngleCameraTask,
+    HoverTask,
+    GoHomeTask,
+]
 
 
 MsgTypeT = TypeVar("MsgTypeT", bound=str)
