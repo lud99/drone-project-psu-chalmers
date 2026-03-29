@@ -1,4 +1,5 @@
 import redis
+import os
 import json
 from .mission_status import MissionStatus
 
@@ -7,8 +8,14 @@ from communication_software.missions_planning.missions import Mission
 
 
 class MissionRegistry:
-    def __init__(self, redis_host: str = "redis", redis_port: int = 6379):
-        self.r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+    def __init__(
+        self,
+    ):
+        self.r = redis.Redis(
+            host=os.environ.get("REDIS_URL"),
+            port=os.environ.get("REDIS_PORT"),
+            decode_responses=True,
+        )
 
     def store(self, mission: Mission):
         # tasks = mission.get_tasks()
@@ -36,11 +43,11 @@ class MissionRegistry:
         )
 
     def get(self, mission_id: str):
-        data = self.r.get(f"mission_{mission_id}")
+        data = self.r.get(f"mission_{mission_id}_state")
         return json.loads(data) if data else None
 
     def get_all(self) -> list:
-        keys = self.r.keys("mission_*")
+        keys = self.r.keys("mission_*_state")
         missions = []
         for key in keys:
             data = self.r.get(key)
@@ -52,8 +59,9 @@ class MissionRegistry:
         mission = self.get(mission_id)
         if mission:
             mission["status"] = status.value
-            self.r.set(f"mission_{mission_id}", json.dumps(mission))
+            self.r.set(f"mission_{mission_id}_state", json.dumps(mission))
 
     def remove(self, mission_id: str):
+        self.r.delete(f"mission_{mission_id}_state")
         self.r.delete(f"mission_{mission_id}_active_task")
         self.r.delete(f"mission_{mission_id}_task_queue")

@@ -4,11 +4,11 @@ import uuid
 from typing import Optional
 
 import communication_software.common.json_schemas as json_schemas
-from communication_software.communication_software.missions_planning.mission_status import (
+from communication_software.missions_planning.mission_status import (
     MissionStatus,
 )
 
-from communication_software.communication_software.missions_planning.drone_capability_helpers import (
+from communication_software.missions_planning.drone_capability_helpers import (
     SpeakerHelper,
     LEDHelper,
 )
@@ -159,7 +159,7 @@ class GotoAndAudio(Mission):
             audio_file = self.get_audio_file()
         except NoAudioFileError:
             audio_file = "N/A"
-        return f"GoTo and play Audio file: {audio_file}"
+        return f"[drone {self.drone_id}] GoTo and play Audio file: {audio_file}"
 
 
 class GotoAndBlink(Mission):
@@ -195,7 +195,7 @@ class GotoAndBlink(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return f"GoTo and Blink with LED type: beacon for {self.duration_seconds}s"
+        return f"[drone {self.drone_id}] GoTo and Blink with LED type: beacon for {self.duration_seconds}s"
 
 
 class GotoAndSurveil(Mission):
@@ -235,7 +235,7 @@ class GotoAndSurveil(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return f"GoTo and Surveil for {self.duration_seconds}s"
+        return f"[drone {self.drone_id}] GoTo and Surveil for {self.duration_seconds}s"
 
 
 class GotoAndIlluminate(Mission):
@@ -267,7 +267,9 @@ class GotoAndIlluminate(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return f"GoTo and Spotlight for {self.duration_seconds}s"
+        return (
+            f"[drone {self.drone_id}] GoTo and Spotlight for {self.duration_seconds}s"
+        )
 
 
 class GotoOnly(Mission):
@@ -283,4 +285,4 @@ class GotoOnly(Mission):
         ]
 
     def __repr__(self) -> str:
-        return f"GoTo, lat:{self.coordinates.lat:.6f}, lon:{self.coordinates.lon:.6f} alt:{self.coordinates.alt}"
+        return f"[drone {self.drone_id}] GoTo, lat:{self.coordinates.lat:.6f}, lon:{self.coordinates.lon:.6f} alt:{self.coordinates.alt}"

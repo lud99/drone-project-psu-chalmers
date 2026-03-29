@@ -48,7 +48,7 @@ class GoToParams(BaseModel):
     lat: float
     lon: float
     alt: float
-    heading: int = 0
+    heading: Optional[int] = None
 
 
 class PlayAudioParams(BaseModel):
@@ -259,8 +259,10 @@ AnyDroneMessage = Annotated[
 ### Detections schema
 class SingleDetection(BaseModel):
     gps_position: tuple[float, float]
-    class_name: str
+    object_type: str
+    detection_id: int
     drone_ids: Annotated[list[str], Field(min_length=1)]
+    timestamp: int
 
 
 class Detections(RootModel):

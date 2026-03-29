@@ -9,6 +9,6 @@
 | watch_area  | Points | polygon area the drone should monitor | 
 | mission_{mission_id}_active_task  | AnyTaskAction | Currently executing task| 
 | mission_{mission_id}_task_queue  | AnyTaskAction | Queue of remaining tasks for a mission | 
-| mission_{mission_id}  | Mission | Internal mission state | 
+| mission_{mission_id}_state  | Mission | Internal mission state | 
 
 For schemas, see ```json_schemas.py``` and ```missions.py```

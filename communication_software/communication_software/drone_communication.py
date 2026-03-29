@@ -22,13 +22,23 @@ from communication_software.missions_planning.mission_status import MissionStatu
 
 
 try:
-    r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r = redis.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
     r.ping()
     r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
     print("Successfully connected to Redis (Drone Communication Server)!")
 except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis (Drone Communication Server): {e}")
     exit()
+
+import communication_software.missions_planning.mission_testing as mission_testing
+
+mission_testing.run_tests()
+
 
 COMMAND_CHANNEL = "drone_commands"
 DRONE_EVENT_CHANNEL = "drone_events"

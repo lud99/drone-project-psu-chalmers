@@ -289,7 +289,7 @@ async def set_watch_area(payload: str = Body(...)):
     try:
         message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
-            coords = [{"lat": p.lat, "lng": p.lon} for p in message.area.points]
+            coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
             r.set("watch_area", json.dumps({"points": coords}))
             return {"msg_type": "response", "error": None}
     except Exception as e:

@@ -6,7 +6,6 @@ import json
 import threading
 from typing import Any
 import redis
-import websockets
 import communication_software.common.json_schemas as json_schemas
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
 from .missions import (
@@ -28,26 +27,24 @@ class AutoMissionSuggester:
     """This class listens for updates in object detection
     and suggests missions based on the detected objects."""
 
-    def __init__(self, redis_host: str, redis_port: int):
+    def __init__(self):
         """
         Starts a listener for updates in object detection.
         """
-        self._redis_host = redis_host
-        self._redis_port = redis_port
         self._frontend_ws_url = os.environ.get(
             "PROPOSED_MISSIONS_WS_URL",
             "ws://localhost:8000/api/v1/ws/drone",
         )
         self._redis = redis.Redis(
-            host=redis_host,
-            port=redis_port,
+            host=os.environ.get("REDIS_URL"),
+            port=os.environ.get("REDIS_PORT"),
             db=0,
             decode_responses=True,
         )
         self._cooldown_seconds = COOLDOWN_SECONDS
         self._dedupe_distance_meters = DEDUP_DISTANCE_METERS
         self._recent_detection_ids: dict[str, float] = {}
-        self._recent_detection_events: list[dict[str, float | str]] = []
+        self._recent_detection_events: list[json_schemas.SingleDetection] = []
         self._stop_event = threading.Event()
 
     def request_stop(self) -> None:
@@ -86,7 +83,7 @@ class AutoMissionSuggester:
             if not isinstance(point, dict):
                 continue
             lat = point.get("lat")
-            lon = point.get("lon", point.get("lng"))
+            lon = point.get("lon")
             if lat is None or lon is None:
                 continue
             normalized_points.append({"lat": float(lat), "lon": float(lon)})
@@ -117,12 +114,7 @@ class AutoMissionSuggester:
         dx = (lon2 - lon1) * m_per_deg * math.cos(math.radians(lat1))
         return math.sqrt(dx**2 + dy**2)
 
-    def _should_skip_detection(
-        self,
-        object_type: str,
-        coordinates: dict,
-        detection_id: str | None,
-    ) -> bool:
+    def _should_skip_detection(self, detection: json_schemas.SingleDetection) -> bool:
         now = time.time()
         cutoff = now - self._cooldown_seconds
 
@@ -132,41 +124,36 @@ class AutoMissionSuggester:
         self._recent_detection_events = [
             event
             for event in self._recent_detection_events
-            if float(event["ts"]) >= cutoff
+            if float(event.timestamp) >= cutoff
         ]
 
-        if detection_id:
-            id_key = f"{object_type}:{detection_id}"
+        if detection.detection_id:
+            id_key = f"{detection.object_type}:{detection.detection_id}"
             if id_key in self._recent_detection_ids:
                 return True
 
-        lat = coordinates.get("lat")
-        lon = coordinates.get("lon")
-        if lat is not None and lon is not None:
-            for event in self._recent_detection_events:
-                if event["type"] != object_type:
-                    continue
-                distance = self._distance_meters(
-                    float(lat),
-                    float(lon),
-                    float(event["lat"]),
-                    float(event["lon"]),
-                )
-                if distance <= self._dedupe_distance_meters:
-                    return True
+        lat = detection.gps_position[0]
+        lon = detection.gps_position[1]
 
-        if detection_id:
-            self._recent_detection_ids[f"{object_type}:{detection_id}"] = now
-
-        if lat is not None and lon is not None:
-            self._recent_detection_events.append(
-                {
-                    "type": object_type,
-                    "lat": float(lat),
-                    "lon": float(lon),
-                    "ts": now,
-                }
+        for event in self._recent_detection_events:
+            if event.object_type != detection.object_type:
+                continue
+            distance = self._distance_meters(
+                float(lat),
+                float(lon),
+                float(event.gps_position[0]),
+                float(event.gps_position[1]),
             )
+            if distance <= self._dedupe_distance_meters:
+                return True
+
+        if detection.detection_id:
+            self._recent_detection_ids[
+                f"{detection.object_type}:{detection.detection_id}"
+            ] = now
+
+            self._recent_detection_events.append(detection)
+
         return False
 
     def area_listener(self):
@@ -197,16 +184,11 @@ class AutoMissionSuggester:
                     mission_type=GotoAndSurveil,
                     coordinates=coordinates,
                     params={"duration_seconds": None},
-                    redis_host=self._redis_host,
-                    redis_port=self._redis_port,
                 )
 
                 if surveil_mission:
                     drone_id = surveil_mission.drone.drone_id
-                    registry = MissionRegistry(
-                        redis_host=self._redis_host,
-                        redis_port=self._redis_port,
-                    )
+                    registry = MissionRegistry()
 
                     # Kolla om just denna drönare redan har en DISPATCHED mission
                     all_missions = registry.get_all()
@@ -223,14 +205,14 @@ class AutoMissionSuggester:
                         self._sleep_with_stop_check(1.0)
                         continue
 
-                    print("[area_listener] GotoAndSurveil – dispatchar automatiskt")
+                    print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
                     registry.store(surveil_mission)
                     first_task_raw = self._redis.lpop(
-                        f"mission_queue:{surveil_mission.mission_id}"
+                        f"mission_{surveil_mission.mission_id}_task_queue"
                     )
                     if first_task_raw:
                         self._redis.publish("drone_commands", first_task_raw)
-                        print(f"[area_listener] Första task skickad")
+                        print(f"[area_listener] First task sent")
                 else:
                     print("[area_listener] Ingen drönare med kamera tillgänglig")
                     self.send_mission_unavailable("GotoAndSurveil", coordinates)
@@ -264,40 +246,22 @@ class AutoMissionSuggester:
                     print(f"Failed to parse detections in {key}: {exc}")
                     continue
 
-                raw_detections: list[dict[str, Any]] = []
-                try:
-                    payload = json.loads(raw)
-                    if isinstance(payload, dict):
-                        parsed_root = payload.get("root", [])
-                        if isinstance(parsed_root, list):
-                            raw_detections = [
-                                d for d in parsed_root if isinstance(d, dict)
-                            ]
-                except Exception:
-                    raw_detections = []
-
                 last_processed_by_key[key] = raw
 
                 for i, detection in enumerate(detections.root):
-                    raw_detection = raw_detections[i] if i < len(raw_detections) else {}
-                    detection_id = (
-                        raw_detection.get("detection_id")
-                        or raw_detection.get("id")
-                        or raw_detection.get("tracker_id")
-                    )
-                    self.handle_detected_object(
-                        {
-                            "type": detection.class_name.lower(),
-                            "coordinates": {
-                                "lat": detection.gps_position[0],
-                                "lon": detection.gps_position[1],
-                                "alt": 0,
-                            },
-                            "detection_id": (
-                                str(detection_id) if detection_id is not None else None
-                            ),
-                        }
-                    )
+                    self.handle_detected_object(detection)
+                    #     {
+                    #         "type": detection.class_name.lower(),
+                    #         "coordinates": {
+                    #             "lat": detection.gps_position[0],
+                    #             "lon": detection.gps_position[1],
+                    #             "alt": 0,
+                    #         },
+                    #         "detection_id": (
+                    #             str(detection_id) if detection_id is not None else None
+                    #         ),
+                    #     }
+                    # )
 
             self._sleep_with_stop_check(0.5)
 
@@ -306,7 +270,10 @@ class AutoMissionSuggester:
         return False
 
     def get_offset_coordinates_for_drone(
-        self, drone_id: str, object_coords: dict, offset_meters: float | int
+        self,
+        drone_id: str,
+        object_coords: tuple[float, float],
+        offset_meters: float | int,
     ) -> json_schemas.GoToParams:
         """
         Retrieve current coordinates of drone from Redis and calculate a target
@@ -348,43 +315,42 @@ class AutoMissionSuggester:
             lat=lat_new, lon=lon_new, alt=alt_new, heading=None
         )
 
+        # TODO: This won't work as we can't get altitude from detection
+
     def get_coordinates_above_for_drone(
-        self, object_coords: dict, offset_meters: float | int
+        self, object_coords: tuple[float, float], offset_meters: float | int
     ) -> json_schemas.GoToParams:
         """
         Calculate new coordinates for the drone that are directly above the object
         """
-        lat = object_coords["lat"]
-        lon = object_coords["lon"]
-        alt = object_coords.get("alt", 0) + offset_meters
+        lat = object_coords[0]
+        lon = object_coords[1]
+        alt = 0 + offset_meters
         return json_schemas.GoToParams(lat=lat, lon=lon, alt=alt, heading=None)
 
-    def send_object_notification(self, object_type: str, coordinates: dict) -> None:
+    def send_object_notification(
+        self, object_type: str, coordinates: tuple[float, float]
+    ) -> None:
         """
         Sends a notification to the frontend about a detected object.
         """
         pass
 
-    def handle_detected_object(self, message) -> None:
+    def handle_detected_object(self, detection: json_schemas.SingleDetection) -> None:
         """
         Handles a new message from the Redis channel.
         Parses the message and sends a mission suggestion to the backend.
         """
-        object_type = message.get("type", "").lower()
-        coordinates = message.get("coordinates")
-        detection_id = message.get("detection_id")
-        if not coordinates:
+
+        if self._should_skip_detection(detection):
             return
 
-        if self._should_skip_detection(object_type, coordinates, detection_id):
-            return
+        if detection.object_type == "person":
+            self.handle_detected_person(detection.gps_position)
+        elif detection.object_type in ["vehicle", "car", "truck", "bus"]:
+            self.handle_detected_vehicle(detection.gps_position)
 
-        if object_type == "person":
-            self.handle_detected_person(coordinates)
-        elif object_type in ["vehicle", "car", "truck", "bus"]:
-            self.handle_detected_vehicle(coordinates)
-
-    def handle_detected_person(self, coordinates: dict) -> None:
+    def handle_detected_person(self, coordinates: tuple[float, float]) -> None:
         """
         Handles a detected person message.
         Tries missions in priority order and selects the first one with an available drone.
@@ -409,10 +375,10 @@ class AutoMissionSuggester:
                 try:
                     mission = select_drone_for_mission(
                         mission_type=mission_type,
-                        coordinates=json_schemas.GoToParams(**coordinates),
+                        coordinates=json_schemas.GoToParams(
+                            lat=coordinates[0], lon=coordinates[1], alt=0
+                        ),
                         params=params,
-                        redis_host=self._redis_host,
-                        redis_port=self._redis_port,
                     )
                 except Exception as exc:
                     print(
@@ -425,11 +391,12 @@ class AutoMissionSuggester:
                     offset_missions = [GotoAndAudio, GotoAndIlluminate, GotoAndSurveil]
                     if mission_type in offset_missions:
                         new_coordinates = self.get_offset_coordinates_for_drone(
-                            drone_id=mission.drone.drone_id,
+                            drone_id=mission.drone_id,
                             object_coords=coordinates,
                             offset_meters=3,
                         )
                     else:
+                        # TODO: This won't work as we can't get altitude from detection
                         new_coordinates = self.get_coordinates_above_for_drone(
                             object_coords=coordinates, offset_meters=3
                         )
@@ -443,7 +410,7 @@ class AutoMissionSuggester:
             print(f"No drone available for any mission at {coordinates}")
             self.send_object_notification(object_type="person", coordinates=coordinates)
 
-    def handle_detected_vehicle(self, coordinates: dict) -> None:
+    def handle_detected_vehicle(self, coordinates: tuple[float, float]) -> None:
         """
         Handles a detected vehicle message.
         Parses the message and sends a mission suggestion to the frontend.
@@ -462,10 +429,10 @@ class AutoMissionSuggester:
                 try:
                     mission = select_drone_for_mission(
                         mission_type=mission_type,
-                        coordinates=json_schemas.GoToParams(**coordinates),
+                        coordinates=json_schemas.GoToParams(
+                            lat=coordinates[0], lon=coordinates[1], alt=0
+                        ),
                         params=params,
-                        redis_host=self._redis_host,
-                        redis_port=self._redis_port,
                     )
                 except Exception as exc:
                     print(
@@ -478,7 +445,7 @@ class AutoMissionSuggester:
                     if mission_type in offset_missions:
                         offset = 10 if mission_type == GotoAndSurveil else 5
                         new_coordinates = self.get_offset_coordinates_for_drone(
-                            drone_id=mission.drone.drone_id,
+                            drone_id=mission.drone_id,
                             object_coords=coordinates,
                             offset_meters=offset,
                         )
@@ -499,9 +466,7 @@ class AutoMissionSuggester:
 
     def send_proposed_missions(self, missions: list[Mission]) -> None:
 
-        registry = MissionRegistry(
-            redis_host=self._redis_host, redis_port=self._redis_port
-        )
+        registry = MissionRegistry()
         for mission in missions:
             registry.store(mission)
 
@@ -527,7 +492,9 @@ class AutoMissionSuggester:
 
     async def _send_proposed_missions_ws(self, payload: str) -> None:
         try:
-            async with websockets.connect(self._frontend_ws_url) as ws:
-                await ws.send(payload)
+            pass
+        # TODO implpement with a redis publish
+        # async with websockets.connect(self._frontend_ws_url) as ws:
+        #   await ws.send(payload)
         except Exception as exc:
             print(f"Failed to send proposed missions over websocket: {exc}")
