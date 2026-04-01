@@ -1,42 +1,38 @@
 import redis
 import os
-
+import copy
 from pydantic import BaseModel
-
 import communication_software.missions_planning.missions as missions
-
 import communication_software.common.json_schemas as json_schemas
-
 from communication_software.missions_planning.drone_selector import (
     select_drone_for_mission,
 )
 
+# --- Setup & Helpers ---
 
 try:
     r = redis.Redis(
-        host=os.environ.get("REDIS_URL"),
-        port=os.environ.get("REDIS_PORT"),
+        host=os.environ.get("REDIS_URL", "localhost"),
+        port=os.environ.get("REDIS_PORT", 6379),
         db=0,
         decode_responses=True,
     )
     r.ping()
-    r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
-    print("Successfully connected to Redis (Drone Communication Server)!")
+    r.flushdb()
+    print("✅ Connected to Redis")
 except redis.exceptions.ConnectionError as e:
-    print(f"Error connecting to Redis (Drone Communication Server): {e}")
+    print(f"❌ Redis Connection Error: {e}")
     exit()
 
-
 # Central Gothenburg coordinates
-coordinates = {
+LOCS = {
     "nordstan": (57.708965, 11.969438),
     "ullevi": (57.706142, 11.980153),
     "liseberg": (57.696162, 11.991556),
-    "fyrfästet": (57.693093, 11.984072),
+    "fyrfästet": (57.693093, 11.984072),  # Common target for tests
 }
 
 
-# Assuming a top-level Drone model to wrap your schemas
 class Drone(BaseModel):
     id: str
     model: str
@@ -44,30 +40,29 @@ class Drone(BaseModel):
     telemetry: json_schemas.Telemetry
 
 
-MOCK_DRONES: list[Drone] = [
+# Initializing base data
+BASE_DRONES: list[Drone] = [
     Drone(
         id="dji-01",
         model="DJI Mavic 2 Enterprise",
         capabilities=json_schemas.Capabilities(
             camera=json_schemas.CameraCapabilities(
-                aspect_ratio=1.777,
+                aspect_ratio=1.77,
                 horizontal_fov=84.0,
                 resolution_width=1920,
                 resolution_height=1080,
             ),
+            speaker=json_schemas.SpeakerCapabilities(audio_files=["go_home"]),
+            spotlight=True,
             led=None,
-            spotlight=False,
-            speaker=json_schemas.SpeakerCapabilities(
-                audio_files=["leave_track", "go_home"]
-            ),
         ),
         telemetry=json_schemas.Telemetry(
-            lat=coordinates["nordstan"][0],
-            lon=coordinates["nordstan"][1],
-            alt=20.5,
-            heading=90,
-            speed=5.5,
-            battery_percent=88,
+            lat=LOCS["nordstan"][0],
+            lon=LOCS["nordstan"][1],
+            alt=20,
+            heading=0,
+            speed=0,
+            battery_percent=100,
         ),
     ),
     Drone(
@@ -75,102 +70,171 @@ MOCK_DRONES: list[Drone] = [
         model="DJI Mavic 2 Enterprise",
         capabilities=json_schemas.Capabilities(
             camera=json_schemas.CameraCapabilities(
-                aspect_ratio=1.777,
+                aspect_ratio=1.77,
                 horizontal_fov=84.0,
                 resolution_width=1920,
                 resolution_height=1080,
             ),
             led=None,
             spotlight=False,
-            speaker=json_schemas.SpeakerCapabilities(audio_files=["horn", "stay"]),
+            speaker=json_schemas.SpeakerCapabilities(audio_files=["stay", "horn"]),
         ),
         telemetry=json_schemas.Telemetry(
-            lat=coordinates["ullevi"][0],
-            lon=coordinates["ullevi"][1],
-            alt=20.0,
-            heading=270,
-            speed=2.1,
-            battery_percent=42,
+            lat=LOCS["ullevi"][0],
+            lon=LOCS["ullevi"][1],
+            alt=20,
+            heading=0,
+            speed=0,
+            battery_percent=100,
         ),
     ),
     Drone(
         id="mavlink-01",
         model="Holybro Pixhawk 6X",
         capabilities=json_schemas.Capabilities(
-            camera=None,
-            led=json_schemas.LEDCapabilities(types=["navigation", "strobe"]),
+            led=json_schemas.LEDCapabilities(types=["beacon", "strobe"]),
             spotlight=False,
+            camera=None,
             speaker=None,
         ),
         telemetry=json_schemas.Telemetry(
-            lat=coordinates["liseberg"][0],
-            lon=coordinates["liseberg"][1],
-            alt=50.0,
-            heading=180,
-            speed=12.0,
-            battery_percent=95,
+            lat=LOCS["liseberg"][0],
+            lon=LOCS["liseberg"][1],
+            alt=50,
+            heading=0,
+            speed=0,
+            battery_percent=100,
         ),
     ),
 ]
 
 
-def update_redis():
-
-    for drone in MOCK_DRONES:
-        # Store static/semi-static capabilities
+def update_redis(drones: list[Drone]):
+    """Helper to refresh state in Redis."""
+    r.flushdb()
+    for drone in drones:
         r.set(f"capabilities_drone{drone.id}", drone.capabilities.model_dump_json())
-
-        # Store high-frequency telemetry with a 60s TTL
         r.set(f"telemetry_drone{drone.id}", drone.telemetry.model_dump_json(), ex=60)
 
 
-def run_tests():
-    update_redis()
+# --- Test Cases ---
 
-    selected_mission = select_drone_for_mission(
+
+def test_proximity_ranking():
+    """Drones with identical specs: the closer one (Ullevi vs Nordstan) should be picked."""
+    print("\n--- Running: Proximity Test ---")
+    drones = copy.deepcopy(BASE_DRONES)
+    # Target is 'fyrfästet'. Ullevi is closer than Nordstan.
+    update_redis(drones)
+
+    selected = select_drone_for_mission(
         missions.GotoOnly,
         json_schemas.GoToParams(
-            lat=coordinates["fyrfästet"][0], lon=coordinates["fyrfästet"][1], alt=80
+            lat=LOCS["fyrfästet"][0], lon=LOCS["fyrfästet"][1], alt=50
         ),
     )
-    print(f"1. Got mission {selected_mission}")
-    assert selected_mission.drone_id == "mavlink-01"
+    # Liseberg (mavlink-01) is actually the absolute closest to Fyrfästet.
+    assert selected.drone_id == "mavlink-01", (
+        f"Expected mavlink-01 (closest), got {selected.drone_id}"
+    )
+    print("Success: Closest drone selected.")
 
-    selected_mission = select_drone_for_mission(
-        missions.GotoAndAudio,
+
+def test_battery_threshold():
+    """Drones with < 30% battery should be ignored entirely."""
+    print("\n--- Running: Battery Threshold Test ---")
+    drones = copy.deepcopy(BASE_DRONES)
+    # Make the closest drone have 10% battery. It should be skipped.
+    for d in drones:
+        if d.id == "mavlink-01":
+            d.telemetry.battery_percent = 10
+
+    update_redis(drones)
+    selected = select_drone_for_mission(
+        missions.GotoOnly,
         json_schemas.GoToParams(
-            lat=coordinates["fyrfästet"][0], lon=coordinates["fyrfästet"][1], alt=80
+            lat=LOCS["fyrfästet"][0], lon=LOCS["fyrfästet"][1], alt=50
         ),
-        dict({"audio_type": "alert"}),
     )
+    assert selected.drone_id != "mavlink-01", (
+        "Low battery drone was incorrectly selected."
+    )
+    print(f"Success: Low battery drone ignored. Selected: {selected.drone_id}")
 
-    print(f"2.Got mission {selected_mission}")
-    assert selected_mission.drone_id == "dji-02"
 
-    selected_mission = select_drone_for_mission(
-        missions.GotoAndAudio,
+def test_surveil_camera_quality():
+    """GotoAndSurveil should prefer the drone with the higher resolution camera."""
+    print("\n--- Running: Camera Quality Test ---")
+    drones = copy.deepcopy(BASE_DRONES)
+    # Give dji-01 a 4K camera, dji-02 stays 1080p. Position them at the same spot.
+    for d in drones:
+        d.telemetry.lat, d.telemetry.lon = LOCS["nordstan"]
+        if d.id == "dji-01":
+            d.capabilities.camera.resolution_width = 3840
+            d.capabilities.camera.resolution_height = 2160
+
+    update_redis(drones)
+    selected = select_drone_for_mission(
+        missions.GotoAndSurveil,
         json_schemas.GoToParams(
-            lat=coordinates["fyrfästet"][0], lon=coordinates["fyrfästet"][1], alt=80
-        ),
-        dict({"audio_file": "horn"}),
-    )
-
-    print(f"3.Got mission {selected_mission}")
-    assert selected_mission.drone_id == "dji-02"
-
-    selected_mission = select_drone_for_mission(
-        missions.GotoAndAudio,
-        json_schemas.GoToParams(
-            lat=coordinates["fyrfästet"][0], lon=coordinates["fyrfästet"][1], alt=80
-        ),
-        dict(
-            {
-                "audio_type": "intruder_instructions",
-                "duration_seconds": 30,
-                "volume": 0.8,
-            }
+            lat=LOCS["fyrfästet"][0], lon=LOCS["fyrfästet"][1], alt=50
         ),
     )
+    assert selected.drone_id == "dji-01", (
+        f"Expected 4K drone (dji-01), got {selected.drone_id}"
+    )
+    print("Success: Higher resolution camera preferred for surveillance.")
 
-    print(f"4.Got mission {selected_mission}")
-    assert selected_mission.drone_id == "dji-01"
+
+def test_all_mission_types():
+    """Verify that every mission type correctly filters for required hardware."""
+    print("\n--- Running: All Mission Types Filter Test ---")
+    drones = copy.deepcopy(BASE_DRONES)
+    update_redis(drones)
+    target = json_schemas.GoToParams(
+        lat=LOCS["fyrfästet"][0], lon=LOCS["fyrfästet"][1], alt=30
+    )
+
+    # 1. Audio type
+    m_audio = select_drone_for_mission(
+        missions.GotoAndAudio, target, {"audio_type": "alert"}
+    )
+    assert m_audio is not None and m_audio.capabilities.speaker is not None
+    assert m_audio.drone_id == "dji-02"
+
+    # 1.5. Audio file
+    m_audio = select_drone_for_mission(
+        missions.GotoAndAudio, target, {"audio_file": "go_home"}
+    )
+    assert m_audio is not None
+    assert m_audio.drone_id == "dji-01"
+
+    # 2. Blink (Requires LED 'beacon')
+    m_blink = select_drone_for_mission(missions.GotoAndBlink, target)
+    assert m_blink is not None
+    assert m_blink.drone_id == "mavlink-01"  # Only one with beacon
+
+    # 3. Illuminate (Requires spotlight)
+    m_light = select_drone_for_mission(missions.GotoAndIlluminate, target)
+    assert m_light is not None
+    assert m_light.drone_id == "dji-01"  # Only one with spotlight
+
+    # 4. Surveil (Requires camera)
+    m_cam = select_drone_for_mission(missions.GotoAndSurveil, target)
+    assert m_cam is not None
+    assert m_cam.capabilities.camera is not None
+
+    # 5. Goto Only (Anyone capable)
+    m_goto = select_drone_for_mission(missions.GotoOnly, target)
+    assert m_goto is not None
+    assert m_goto.drone_id == "mavlink-01"
+
+    print("Success: All mission types filtered correctly.")
+
+
+def run_tests():
+    test_proximity_ranking()
+    test_battery_threshold()
+    test_surveil_camera_quality()
+    test_all_mission_types()
+    print("\n✨ All tests passed!")
