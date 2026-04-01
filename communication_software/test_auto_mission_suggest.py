@@ -232,10 +232,7 @@ def main() -> None:
     clear_test_keys(r)
     seed_mock_drones(r)
 
-    suggester = AutoMissionSuggester(
-        redis_host=args.redis_host,
-        redis_port=args.redis_port,
-    )
+    suggester = AutoMissionSuggester()
     make_logging_suggester(suggester)
 
     object_thread = threading.Thread(

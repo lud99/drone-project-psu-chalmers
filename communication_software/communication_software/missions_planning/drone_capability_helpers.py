@@ -91,9 +91,7 @@ class SpeakerHelper:
 
     def has_file(self, audio_file: str) -> bool:
         """Returns True if the speaker has the specified audio file."""
-        return any(
-            audio_file.audio_file == audio_file for audio_file in self.audio_files
-        )
+        return any(f.audio_file == audio_file for f in self.audio_files)
 
 
 class LEDHelper:

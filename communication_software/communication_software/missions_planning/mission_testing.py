@@ -82,7 +82,7 @@ MOCK_DRONES: list[Drone] = [
             ),
             led=None,
             spotlight=False,
-            speaker=json_schemas.SpeakerCapabilities(audio_files=["horn"]),
+            speaker=json_schemas.SpeakerCapabilities(audio_files=["horn", "stay"]),
         ),
         telemetry=json_schemas.Telemetry(
             lat=coordinates["ullevi"][0],
@@ -133,7 +133,8 @@ def run_tests():
             lat=coordinates["fyrfästet"][0], lon=coordinates["fyrfästet"][1], alt=80
         ),
     )
-    print(f"Got mission {selected_mission}")
+    print(f"1. Got mission {selected_mission}")
+    assert selected_mission.drone_id == "mavlink-01"
 
     selected_mission = select_drone_for_mission(
         missions.GotoAndAudio,
@@ -143,7 +144,8 @@ def run_tests():
         dict({"audio_type": "alert"}),
     )
 
-    print(f"Got mission {selected_mission}")
+    print(f"2.Got mission {selected_mission}")
+    assert selected_mission.drone_id == "dji-02"
 
     selected_mission = select_drone_for_mission(
         missions.GotoAndAudio,
@@ -153,7 +155,8 @@ def run_tests():
         dict({"audio_file": "horn"}),
     )
 
-    print(f"Got mission {selected_mission}")
+    print(f"3.Got mission {selected_mission}")
+    assert selected_mission.drone_id == "dji-02"
 
     selected_mission = select_drone_for_mission(
         missions.GotoAndAudio,
@@ -169,4 +172,5 @@ def run_tests():
         ),
     )
 
-    print(f"Got mission {selected_mission}")
+    print(f"4.Got mission {selected_mission}")
+    assert selected_mission.drone_id == "dji-01"

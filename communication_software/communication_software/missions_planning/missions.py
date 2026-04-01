@@ -115,6 +115,9 @@ class GotoAndAudio(Mission):
         if self.capabilities.speaker is None:
             return False
 
+        print(f"hi {self.audio_file}, {self.audio_type}")
+        print(self.drone_id, self.capabilities.speaker.audio_files)
+
         if self.audio_file:
             return self.speaker_helper.has_file(self.audio_file)
         if self.audio_type:

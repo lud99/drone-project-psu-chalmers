@@ -208,20 +208,27 @@ def compute_hardware_score(
     speaker_score = 100.0 if capabilities.speaker else 0.0
     lights_score = 100.0 if (capabilities.spotlight or capabilities.led) else 0.0
 
-    total_hardware_sum = (
-        resolution_value + fov_score + speaker_score + lights_score
-    ) / 400.0
-
     total = (
         resolution_value * profile.resolution
         + fov_score * profile.fov
         + speaker_score * profile.speaker
         + lights_score * profile.lights
     )
-    print(f"[{drone_id}] total score {total}, {total_hardware_sum}")
 
-    if total_hardware_sum < 0.1:
-        total = profile.no_hardware
+    # This solution is a bit scuffed, but it seems to work fine for our limited use cases
+    total_unweighted = (
+        resolution_value + fov_score + speaker_score + lights_score
+    ) / 4.0
+
+    # Account for no_hardware factor
+    total_no_hardware = (-total_unweighted) + 100
+
+    # lerp between the total score and the reducing score. if no_hardware is 1, then total_no_hardware is used
+    total_with_reduction = total + profile.no_hardware * (total_no_hardware - total)
+
+    print(
+        f"[{drone_id}] total score wo reduction {total}, {total_with_reduction}, {total_unweighted}"
+    )
 
     return round(total, 2)
 
@@ -501,7 +508,7 @@ class DroneSelector:
         # Step 3 – ranking (hardware scored against this mission's profile)
         ranked = self._rank(capable, mission_type, coordinates)
         chosen = ranked[0]
-        print(ranked)
+        print(r.drone_id for r in ranked)
 
         # Instantiate and return the mission bound to the chosen drone
         mission = mission_type(

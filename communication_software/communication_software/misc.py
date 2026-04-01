@@ -90,10 +90,7 @@ def get_drone_coordinates(atos_communicator):
 
 def start_communication_websocket_server(ip):
     drone_communication = DroneCommunication()
-    auto_mission_suggester = AutoMissionSuggester(
-        redis_host=os.environ.get("REDIS_HOST", "redis"),
-        redis_port=int(os.environ.get("REDIS_PORT", 6379)),
-    )
+    auto_mission_suggester = AutoMissionSuggester()
     try:
         print("Drone Communication server starting, press ctrl + c to exit")
 
