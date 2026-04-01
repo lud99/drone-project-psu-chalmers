@@ -1,11 +1,11 @@
 import math
 import time
 import os
-import asyncio
 import json
 import threading
 from typing import Any
 import redis
+from communication_software.missions_planning.mission_status import MissionStatus
 import communication_software.common.json_schemas as json_schemas
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
 from .missions import (
@@ -17,10 +17,12 @@ from .missions import (
     Mission,
 )
 from .drone_selector import select_drone_for_mission
+from communication_software.constants import DRONE_EVENT_CHANNEL
 from communication_software.missions_planning.mission_registry import MissionRegistry
 
 COOLDOWN_SECONDS = 60.0
 DEDUP_DISTANCE_METERS = 10.0
+GROUND_ALTITUDE = 0.0
 
 
 class AutoMissionSuggester:
@@ -92,19 +94,21 @@ class AutoMissionSuggester:
 
     def _get_area_surveil_coordinates(
         self, points: list[dict[str, float]]
-    ) -> Coordinate:
+    ) -> json_schemas.GoToParams:
         hull_points = [Coordinate(lat=p["lat"], lng=p["lon"]) for p in points]
         center_lat = sum(p["lat"] for p in points) / len(points)
         center_lon = sum(p["lon"] for p in points) / len(points)
         origin = Coordinate(lat=center_lat, lng=center_lon, alt=30)
 
         fly_to_coords, angle = get_drones_location(
-            corner_coords={"area": hull_points},  # ändrad från coordslist
+            corner_coords=hull_points,
             drone_origin=origin,
             n_drones=1,
         )
         best = fly_to_coords[0]
-        return Coordinate(lat=best.lat, lon=best.lng, alt=best.alt, heading=angle)
+        return json_schemas.GoToParams(
+            lat=best.lat, lon=best.lng, alt=best.alt, heading=int(angle)
+        )
 
     @staticmethod
     def _distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -187,19 +191,20 @@ class AutoMissionSuggester:
                 )
 
                 if surveil_mission:
-                    drone_id = surveil_mission.drone.drone_id
+                    drone_id = surveil_mission.drone_id
                     registry = MissionRegistry()
 
                     # Kolla om just denna drönare redan har en DISPATCHED mission
                     all_missions = registry.get_all()
                     drone_busy = any(
-                        m["drone_id"] == drone_id and m["status"] == "DISPATCHED"
+                        m["drone_id"] == drone_id
+                        and m["status"] == MissionStatus.DISPATCHED
                         for m in all_missions
                     )
 
                     if drone_busy:
                         print(
-                            f"[area_listener] Drönare {drone_id} är redan aktiv – ignorerar"
+                            f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
                         )
                         last_area_payload = raw_watch_area
                         self._sleep_with_stop_check(1.0)
@@ -288,8 +293,8 @@ class AutoMissionSuggester:
         lon_drone = telemetry.lon
         alt_drone = telemetry.alt
 
-        lat_object = object_coords["lat"]
-        lon_object = object_coords["lon"]
+        lat_object = object_coords[0]
+        lon_object = object_coords[1]
 
         # Planar approximation in meters for short distances.
         m_per_deg = 111111.0
@@ -301,7 +306,7 @@ class AutoMissionSuggester:
             return json_schemas.GoToParams(
                 lat=lat_object,
                 lon=lon_object,
-                alt=max(alt_drone, object_coords.get("alt", 0)) + offset_meters,
+                alt=max(alt_drone, GROUND_ALTITUDE + offset_meters),
                 heading=None,
             )
 
@@ -325,7 +330,7 @@ class AutoMissionSuggester:
         """
         lat = object_coords[0]
         lon = object_coords[1]
-        alt = 0 + offset_meters
+        alt = GROUND_ALTITUDE + offset_meters
         return json_schemas.GoToParams(lat=lat, lon=lon, alt=alt, heading=None)
 
     def send_object_notification(
@@ -475,26 +480,26 @@ class AutoMissionSuggester:
         )
         payload = proposed_payload.model_dump_json()
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(self._send_proposed_missions_ws(payload))
-            return
+        self._send_proposed_missions_ws(payload)
 
-        loop.create_task(self._send_proposed_missions_ws(payload))
-
-    def send_mission_unavailable(self, mission_type: str, coordinates: dict) -> None:
+    def send_mission_unavailable(
+        self, mission_type: str, coordinates: json_schemas.GoToParams
+    ) -> None:
         """
         Sends a notification to the frontend that no drone is available for a suggested mission.
         """
-        # TODO: Implement this method to notify frontend that area mission is not available
-        pass
-
-    async def _send_proposed_missions_ws(self, payload: str) -> None:
         try:
-            pass
-        # TODO implpement with a redis publish
-        # async with websockets.connect(self._frontend_ws_url) as ws:
-        #   await ws.send(payload)
+            self._redis.publish(
+                DRONE_EVENT_CHANNEL,
+                json_schemas.FrontendMessages.NoProposedMissions(
+                    mission_type=mission_type, coordinates=coordinates
+                ).model_dump_json(),
+            )
         except Exception as exc:
-            print(f"Failed to send proposed missions over websocket: {exc}")
+            print(f"Failed to send proposed missions over redis: {exc}")
+
+    def _send_proposed_missions_ws(self, payload: str) -> None:
+        try:
+            self._redis.publish(DRONE_EVENT_CHANNEL, payload)
+        except Exception as exc:
+            print(f"Failed to send proposed missions over redis: {exc}")

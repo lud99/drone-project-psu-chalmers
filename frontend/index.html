@@ -140,6 +140,7 @@
                                 class="btn btn-success all-drone-command-btn">Take Off All</button>
                             <button id="rthAllBtn" data-command="flight_return_to_home"
                                 class="btn btn-info all-drone-command-btn">Return Home All</button>
+                            <button id="sendDetection">Send test detection</button>
                         </div>
 
                     </div>
@@ -874,6 +875,49 @@
                 }
             });
         });
+
+        document.querySelector("#sendDetection").onclick = async (event) => {
+            try {
+                const fyrfästet = [57.693093, 11.984072];
+
+                const response = await fetch("/api/v1/set_detections", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/text"
+                    },
+
+                    body: JSON.stringify(
+                        [
+                            {
+                                drone_ids: ["haubits_77"],
+                                gps_position: fyrfästet,
+                                object_type: "car",
+                                detection_id: 2,
+                                timestamp: new Date().getMilliseconds()
+                            }
+                        ]
+                    )
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result)
+
+                if (!result.error) {
+                    alert("Coordinates sent ok");
+                }
+                else {
+                    alert("Error: " + result.error);
+                }
+
+            } catch (error) {
+                console.error("Error sending detections", error);
+                alert("Failed to send detections to backend");
+            }
+        }
 
     </script>
 </body>

@@ -15,6 +15,8 @@ from communication_software.missions_planning.mission_status import MissionStatu
 
 from typing import Optional
 
+from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
+
 import communication_software.common.json_schemas as json_schemas
 
 from communication_software.common.frame_utils import (
@@ -32,7 +34,6 @@ except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis: {e}")
     exit()  # Exit if we can't connect
 
-DRONE_EVENT_CHANNEL = "drone_events"
 
 app = FastAPI()
 # 1. Define the domains allowed to access your API
@@ -218,8 +219,6 @@ async def atos_websocket(websocket: WebSocket):
         print("ATOS client disconnected")
 
 
-COMMAND_CHANNEL = "drone_commands"
-
 ### POST routes
 
 
@@ -255,7 +254,7 @@ def dispatch_mission(mission_id: str):
                 ),
             ),
         )
-        r.publish("drone_commands", task_message.model_dump_json())
+        r.publish(DRONE_COMMANDS_CHANNEL, task_message.model_dump_json())
 
         mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
 
@@ -292,6 +291,20 @@ async def set_watch_area(payload: str = Body(...)):
             coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
             r.set("watch_area", json.dumps({"points": coords}))
             return {"msg_type": "response", "error": None}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/set_detections")
+async def set_detections(payload: str = Body(...)):
+    try:
+        detections = json_schemas.parse_detections(payload).root
+
+        for _detection in detections:
+            redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
+            r.set(redis_key_detections, payload)
+
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
     return {"msg_type": "response", "error": None}

@@ -21,6 +21,8 @@ import communication_software.communication_software.common.json_schemas as json
 SERVER_WS_URL = "ws://localhost:14500"
 DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
+
+liseberg = (57.696162, 11.991556)
 VIDEO_PATH = "mock_drone/test_video_2024.mp4"
 
 
@@ -29,8 +31,8 @@ async def send_telemetry(websocket, drone_id: str):
     while True:
         # Create the Telemetry sub-model
         current_telemetry = json_schemas.Telemetry(
-            lat=57.705 + (random.uniform(-0.001, 0.001)),
-            lon=11.938 + (random.uniform(-0.001, 0.001)),
+            lat=liseberg[0] + (random.uniform(-0.001, 0.001)),
+            lon=liseberg[1] + (random.uniform(-0.001, 0.001)),
             alt=random.uniform(110, 120),
             heading=random.randint(0, 359),
             speed=random.uniform(0.0, 5.5),

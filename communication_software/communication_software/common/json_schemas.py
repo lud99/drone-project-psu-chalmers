@@ -262,7 +262,7 @@ class SingleDetection(BaseModel):
     object_type: str
     detection_id: int
     drone_ids: Annotated[list[str], Field(min_length=1)]
-    timestamp: int
+    timestamp: int  # in milliseconds
 
 
 class Detections(RootModel):
@@ -311,6 +311,11 @@ class FrontendMessages:
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
         missions: list[dict]
+
+    class NoProposedMissions(FrontendMessage):
+        msg_type: Literal["no_proposed_missions"] = "no_proposed_missions"
+        mission_type: str
+        coordinates: GoToParams
 
     class ActiveMissions(FrontendMessage):
         msg_type: Literal["active_missions"] = "active_missions"

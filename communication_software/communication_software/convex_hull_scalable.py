@@ -57,7 +57,7 @@ def get_drones_location(
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
 
     Args:
-        coordslist (dict): Dictionary of trajectory coordinates for each vehicle.
+        corner_coords (dict): Dictionary of trajectory coordinates for each vehicle.
         drone_origin (Coordinate): The origin coordinate of the test.
         n_drones (int): Number of drones to be used in the test.
         overlap (float): The overlap percentage between the drones.
@@ -73,13 +73,9 @@ def get_drones_location(
     # Proximity error if more than 2 drones and overlap is greater than 0.9
     if n_drones >= 2 and overlap >= 0.9:
         raise ProximityError()
-    coords = []
 
     # Flatten the list of coordinates into an array
-    for coord_list in corner_coords.values():
-        for coord in coord_list:
-            coords.append([coord.lng, coord.lat])
-    coords = np.array(coords)
+    coords = np.array(corner_coords)
 
     # Class to represent a rectangle
     class Rectangle:

@@ -75,13 +75,14 @@ class Mission(ABC):
         }
 
     def to_dict(self) -> dict:
+        task_json = [task.model_dump_json() for task in self.get_tasks()]
         return {
             "mission_id": self.mission_id,
             "drone_id": self.drone_id,
             "mission_type": self.__class__.__name__,
             "status": self.status.value,
             "coordinates": self.coordinates.model_dump_json(),
-            "tasks": self.get_tasks(),
+            "tasks": task_json,
         }
 
 
@@ -114,9 +115,6 @@ class GotoAndAudio(Mission):
     def can_execute(self) -> bool:
         if self.capabilities.speaker is None:
             return False
-
-        print(f"hi {self.audio_file}, {self.audio_type}")
-        print(self.drone_id, self.capabilities.speaker.audio_files)
 
         if self.audio_file:
             return self.speaker_helper.has_file(self.audio_file)

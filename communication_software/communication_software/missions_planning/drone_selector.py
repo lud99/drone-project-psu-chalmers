@@ -224,11 +224,11 @@ def compute_hardware_score(
     total_no_hardware = (-total_unweighted) + 100
 
     # lerp between the total score and the reducing score. if no_hardware is 1, then total_no_hardware is used
-    total_with_reduction = total + profile.no_hardware * (total_no_hardware - total)
+    _total_with_reduction = total + profile.no_hardware * (total_no_hardware - total)
 
-    print(
-        f"[{drone_id}] total score wo reduction {total}, {total_with_reduction}, {total_unweighted}"
-    )
+    # print(
+    #     f"[{drone_id}] total score w/o reduction {total}, {_total_with_reduction}, {total_unweighted}"
+    # )
 
     return round(total, 2)
 
@@ -508,7 +508,7 @@ class DroneSelector:
         # Step 3 – ranking (hardware scored against this mission's profile)
         ranked = self._rank(capable, mission_type, coordinates)
         chosen = ranked[0]
-        print(r.drone_id for r in ranked)
+        print(f"Ranked for {mission_type}: {[r.drone_id for r in ranked]}")
 
         # Instantiate and return the mission bound to the chosen drone
         mission = mission_type(

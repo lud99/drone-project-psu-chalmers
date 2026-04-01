@@ -18,6 +18,7 @@ from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
 from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
 from communication_software.missions_planning.mission_status import MissionStatus
 
 
@@ -39,9 +40,6 @@ import communication_software.missions_planning.mission_testing as mission_testi
 
 mission_testing.run_tests()
 
-
-COMMAND_CHANNEL = "drone_commands"
-DRONE_EVENT_CHANNEL = "drone_events"
 # Set to `true` in .env to run mock mission from test_mock_mission.json when receiving registration.
 DO_MOCK_MISSION = os.environ.get("DO_MOCK_MISSION", "false").lower() == "true"
 
@@ -454,7 +452,7 @@ class DroneCommunication:
             # Pass the global 'r' redis client, channel name, and stop event
             args=(
                 r,
-                COMMAND_CHANNEL,
+                DRONE_COMMANDS_CHANNEL,
                 self.redis_listener_stop_event,
             ),  # Removed 'self'/'instance' from args
             daemon=True,  # Thread will exit if main program exits
