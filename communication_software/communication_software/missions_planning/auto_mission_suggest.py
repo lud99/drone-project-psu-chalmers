@@ -3,7 +3,7 @@ import time
 import os
 import json
 import threading
-from typing import Any
+from typing import Any, Optional
 import redis
 from communication_software.missions_planning.mission_status import MissionStatus
 import communication_software.common.json_schemas as json_schemas
@@ -222,7 +222,7 @@ class AutoMissionSuggester:
                         self._redis.publish("drone_commands", first_task_raw)
                         print(f"[area_listener] First task sent")
                 else:
-                    print("[area_listener] Ingen drönare med kamera tillgänglig")
+                    print("[area_listener] No drone with camera available")
                     self.send_mission_unavailable("GotoAndSurveil", coordinates)
 
                 last_area_payload = raw_watch_area
@@ -404,7 +404,12 @@ class AutoMissionSuggester:
             self.send_proposed_missions(viable_missions)
         else:
             print(f"No drone available for any mission at {coordinates}")
-            self.send_object_notification(object_type="person", coordinates=coordinates)
+            self.send_mission_unavailable(
+                None,
+                json_schemas.GoToParams(lat=coordinates[0], lon=coordinates[1], alt=0),
+            )
+
+            # self.send_object_notification(object_type="person", coordinates=coordinates)
 
     def handle_detected_vehicle(self, coordinates: tuple[float, float]) -> None:
         """
@@ -456,9 +461,14 @@ class AutoMissionSuggester:
             self.send_proposed_missions(viable_missions)
         else:
             print(f"No drone available for mission detected vehicle at {coordinates}")
-            self.send_object_notification(
-                object_type="vehicle", coordinates=coordinates
+            self.send_mission_unavailable(
+                None,
+                json_schemas.GoToParams(lat=coordinates[0], lon=coordinates[1], alt=0),
             )
+
+            # self.send_object_notification(
+            # object_type="vehicle", coordinates=coordinates
+            # )
 
     def send_proposed_missions(self, missions: list[Mission]) -> None:
 
@@ -474,7 +484,7 @@ class AutoMissionSuggester:
         self._send_proposed_missions_ws(payload)
 
     def send_mission_unavailable(
-        self, mission_type: str, coordinates: json_schemas.GoToParams
+        self, mission_type: Optional[str], coordinates: json_schemas.GoToParams
     ) -> None:
         """
         Sends a notification to the frontend that no drone is available for a suggested mission.

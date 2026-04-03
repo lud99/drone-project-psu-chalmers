@@ -314,7 +314,7 @@ class FrontendMessages:
 
     class NoProposedMissions(FrontendMessage):
         msg_type: Literal["no_proposed_missions"] = "no_proposed_missions"
-        mission_type: str
+        mission_type: Optional[str]
         coordinates: GoToParams
 
     class ActiveMissions(FrontendMessage):

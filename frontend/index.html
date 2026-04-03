@@ -142,6 +142,19 @@
                                 class="btn btn-info all-drone-command-btn">Return Home All</button>
                             <button id="sendDetection">Send test detection</button>
                             <button id="clearDetection">Reset detections</button>
+                            <div>
+                                <input type="text" id="detection_id" />Tracker id
+                                <!-- <input type="number" id="detection_lat" />lat -->
+                                <!-- <input type="number" id="detection_lon" />lon -->
+                                <input type="text" id="detection_drone_id" />Drone id
+                                <select id="detection_class">
+                                    <option value="person">Person</option>
+                                    <option value="vehicle">Vehicle</option>
+                                    <option value="car">Car</option>
+                                    <option value="truck">Truck</option>
+                                    <option value="bus">Bus</option>
+                                </select>
+                            </div>
                         </div>
 
                     </div>
@@ -313,17 +326,135 @@
             }
         ]
 
+        let proposedMissions = [
+            {
+                "drone_id": "haubits_77",
+                "mission_type": "GotoAndAudio",
+                "description": "[drone haubits_77] GoTo and play Audio file: horn",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.69577522320947,
+                            "lon": 11.990693460923822,
+                            "alt": 117.97407905161255,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "play_audio",
+                        "params": {
+                            "file": "horn",
+                            "volume": 1,
+                            "duration_seconds": 30
+                        }
+                    },
+                    {
+                        "action": "go_home"
+                    }
+                ]
+            },
+            {
+                "drone_id": "haubits_77",
+                "mission_type": "GotoAndBlink",
+                "description": "[drone haubits_77] GoTo and Blink with LED type: beacon for Nones",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.69578493497226,
+                            "lon": 11.990646319979778,
+                            "alt": 3,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "led",
+                        "params": {
+                            "type": "beacon",
+                            "duration_seconds": null
+                        }
+                    }
+                ]
+            },
+            {
+                "drone_id": "haubits_77",
+                "mission_type": "GotoAndIlluminate",
+                "description": "[drone haubits_77] GoTo and Spotlight for Nones",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.69577522320947,
+                            "lon": 11.990693460923822,
+                            "alt": 117.97407905161255,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "spotlight",
+                        "params": {
+                            "pattern": "stready",
+                            "duration_seconds": null
+                        }
+                    }
+                ]
+            },
+            {
+                "drone_id": "haubits_77",
+                "mission_type": "GotoAndSurveil",
+                "description": "[drone haubits_77] GoTo and Surveil for Nones",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.69577522320947,
+                            "lon": 11.990693460923822,
+                            "alt": 117.97407905161255,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "angle_camera",
+                        "params": {
+                            "pitch": -90,
+                            "yaw": 0,
+                            "duration_seconds": null
+                        }
+                    }
+                ]
+            },
+            {
+                "drone_id": "haubits_77",
+                "mission_type": "GotoOnly",
+                "description": "[drone haubits_77] GoTo, lat:57.695785, lon:11.990646 alt:3.0",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.69578493497226,
+                            "lon": 11.990646319979778,
+                            "alt": 3,
+                            "heading": null
+                        }
+                    }
+                ]
+            }
+        ]
+
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
 
-        missions.forEach((mission, index) => {
-            container.innerHTML += `
+        function createMissionButtons() {
+            container.innerHTML = "";
+            proposedMissions.forEach((mission, index) => {
+                container.innerHTML += `
                 <div class="col-12 mb-2">
                     <div class="d-flex justify-content-between align-items-center" 
                         style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
                         <div>
                             <strong>Mission ${index + 1}</strong>
-                            <div>${mission.name}</div>
+                            <div>${mission.mission_type}</div>
                         </div>
                         <div class="mt-2">
                             <button class="btn btn-success btn-sm mission-action-btn" 
@@ -336,7 +467,10 @@
                     </div>
                 </div>
             `;
-        });
+            });
+        }
+
+        createMissionButtons();
 
         // Mission display
         const missionModal = document.getElementById('missionModal');
@@ -350,14 +484,14 @@
         missionModal.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
             const missionIndex = button.getAttribute('data-mission-index');
-            const selectedMission = missions[missionIndex];
+            const selectedMission = proposedMissions[missionIndex];
             const modalTitle = missionModal.querySelector('.modal-title');
             const modalBody = missionModal.querySelector('#modal-content-area');
-            const droneId = selectedMission.tasks.length > 0 ? selectedMission.tasks[0].drone_id : "Unknown Drone";
+            const droneId = selectedMission.drone_id;
 
             modalTitle.innerHTML = `
                 <div class="d-flex flex-column">
-                    <span class="fs-5">${selectedMission.name}</span>
+                    <span class="fs-5">${selectedMission.description}</span>
                     <span class="badge bg-dark mt-1" style="width: fit-content;">Drone: ${droneId}</span>
                 </div>
             `;
@@ -368,8 +502,10 @@
 
             selectedMission.tasks.forEach((currentTaskData, idx) => {
                 let paramsHtml = '';
-                const action = currentTaskData.task.action;
-                const p = currentTaskData.task.params;
+                const action = currentTaskData.action;
+                const p = currentTaskData.params;
+
+                console.log(currentTaskData)
 
                 if (action === 'go_to') {
                     const waypointNumber = allWaypoints.length + 1;
@@ -392,7 +528,7 @@
                 else if (action == 'angle_camera') {
                     paramsHtml = `<p><strong>Pitch:</strong> ${p.pitch} <br> <strong>Yaw:</strong> ${p.yaw}`
                 }
-                else {
+                else if (p != null) {
                     paramsHtml = '<ul>';
                     for (const [key, value] of Object.entries(p)) {
                         paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
@@ -817,6 +953,11 @@
                 // Update map marker
                 markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
             }
+
+            if (data.msg_type == "proposed_missions") {
+                proposedMissions = data.missions;
+                createMissionButtons();
+            }
         };
 
         // Control Handlers
@@ -890,10 +1031,10 @@
                     body: JSON.stringify(
                         [
                             {
-                                drone_ids: ["haubits_77"],
+                                drone_ids: [document.getElementById("detection_drone_id").value],
                                 gps_position: fyrfästet,
-                                object_type: "car",
-                                detection_id: 2,
+                                object_type: document.getElementById("detection_class").value,
+                                detection_id: document.getElementById("detection_id").value,
                                 timestamp: new Date().getMilliseconds()
                             }
                         ]
