@@ -141,6 +141,7 @@
                             <button id="rthAllBtn" data-command="flight_return_to_home"
                                 class="btn btn-info all-drone-command-btn">Return Home All</button>
                             <button id="sendDetection">Send test detection</button>
+                            <button id="clearDetection">Reset detections</button>
                         </div>
 
                     </div>
@@ -907,7 +908,44 @@
                 console.log(result)
 
                 if (!result.error) {
-                    alert("Coordinates sent ok");
+                    console.log("detections sent ok");
+                }
+                else {
+                    alert("Error: " + result.error);
+                }
+
+            } catch (error) {
+                console.error("Error sending detections", error);
+                alert("Failed to send detections to backend");
+            }
+        }
+
+        document.querySelector("#clearDetection").onclick = async (event) => {
+            try {
+                const fyrfästet = [57.693093, 11.984072];
+
+                const response = await fetch("/api/v1/set_detections", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/text"
+                    },
+
+                    body: JSON.stringify(
+                        [
+
+                        ]
+                    )
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result)
+
+                if (!result.error) {
+                    console.log("detections sent ok");
                 }
                 else {
                     alert("Error: " + result.error);

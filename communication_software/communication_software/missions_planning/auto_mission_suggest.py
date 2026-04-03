@@ -134,6 +134,9 @@ class AutoMissionSuggester:
         if detection.detection_id:
             id_key = f"{detection.object_type}:{detection.detection_id}"
             if id_key in self._recent_detection_ids:
+                print(
+                    f"Skipping detection {detection.detection_id}, was already detection during cooldown period"
+                )
                 return True
 
         lat = detection.gps_position[0]
@@ -253,20 +256,8 @@ class AutoMissionSuggester:
 
                 last_processed_by_key[key] = raw
 
-                for i, detection in enumerate(detections.root):
+                for detection in detections.root:
                     self.handle_detected_object(detection)
-                    #     {
-                    #         "type": detection.class_name.lower(),
-                    #         "coordinates": {
-                    #             "lat": detection.gps_position[0],
-                    #             "lon": detection.gps_position[1],
-                    #             "alt": 0,
-                    #         },
-                    #         "detection_id": (
-                    #             str(detection_id) if detection_id is not None else None
-                    #         ),
-                    #     }
-                    # )
 
             self._sleep_with_stop_check(0.5)
 
