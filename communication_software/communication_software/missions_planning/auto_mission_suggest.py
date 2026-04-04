@@ -176,58 +176,58 @@ class AutoMissionSuggester:
                 self._sleep_with_stop_check(1.0)
                 continue
 
-            try:
-                points = self._extract_watch_area_points(raw_watch_area)
-                if len(points) < 3:
-                    print("watch_area payload does not contain enough points.")
+            # try:
+            points = self._extract_watch_area_points(raw_watch_area)
+            if len(points) < 3:
+                print("watch_area payload does not contain enough points.")
+                last_area_payload = raw_watch_area
+                self._sleep_with_stop_check(1.0)
+                continue
+
+            print("[area_listener] Ny watch_area hittad, bearbetar...")
+            coordinates = self._get_area_surveil_coordinates(points)
+
+            surveil_mission = select_drone_for_mission(
+                mission_type=GotoAndSurveil,
+                coordinates=coordinates,
+                params={"duration_seconds": None},
+            )
+
+            if surveil_mission:
+                drone_id = surveil_mission.drone_id
+                registry = MissionRegistry()
+
+                # Kolla om just denna drönare redan har en DISPATCHED mission
+                all_missions = registry.get_all()
+                drone_busy = any(
+                    m["drone_id"] == drone_id
+                    and m["status"] == MissionStatus.DISPATCHED
+                    for m in all_missions
+                )
+
+                if drone_busy:
+                    print(
+                        f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
+                    )
                     last_area_payload = raw_watch_area
                     self._sleep_with_stop_check(1.0)
                     continue
 
-                print("[area_listener] Ny watch_area hittad, bearbetar...")
-                coordinates = self._get_area_surveil_coordinates(points)
-
-                surveil_mission = select_drone_for_mission(
-                    mission_type=GotoAndSurveil,
-                    coordinates=coordinates,
-                    params={"duration_seconds": None},
+                print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
+                registry.store(surveil_mission)
+                first_task_raw = self._redis.lpop(
+                    f"mission_{surveil_mission.mission_id}_task_queue"
                 )
+                if first_task_raw:
+                    self._redis.publish("drone_commands", first_task_raw)
+                    print(f"[area_listener] First task sent")
+            else:
+                print("[area_listener] No drone with camera available")
+                self.send_mission_unavailable("GotoAndSurveil", coordinates)
 
-                if surveil_mission:
-                    drone_id = surveil_mission.drone_id
-                    registry = MissionRegistry()
-
-                    # Kolla om just denna drönare redan har en DISPATCHED mission
-                    all_missions = registry.get_all()
-                    drone_busy = any(
-                        m["drone_id"] == drone_id
-                        and m["status"] == MissionStatus.DISPATCHED
-                        for m in all_missions
-                    )
-
-                    if drone_busy:
-                        print(
-                            f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
-                        )
-                        last_area_payload = raw_watch_area
-                        self._sleep_with_stop_check(1.0)
-                        continue
-
-                    print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
-                    registry.store(surveil_mission)
-                    first_task_raw = self._redis.lpop(
-                        f"mission_{surveil_mission.mission_id}_task_queue"
-                    )
-                    if first_task_raw:
-                        self._redis.publish("drone_commands", first_task_raw)
-                        print(f"[area_listener] First task sent")
-                else:
-                    print("[area_listener] No drone with camera available")
-                    self.send_mission_unavailable("GotoAndSurveil", coordinates)
-
-                last_area_payload = raw_watch_area
-            except Exception as exc:
-                print(f"area_listener failed: {exc}")
+            last_area_payload = raw_watch_area
+            # except Exception as exc:
+            # print(f"area_listener failed: {exc}")
 
             self._sleep_with_stop_check(1.0)
 

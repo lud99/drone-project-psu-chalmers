@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import cv2
 import json
+import os
 from datetime import datetime
 import redis.exceptions
 import redis
 import numpy as np
+import logging
 from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.missions_planning.mission_status import MissionStatus
 
@@ -25,9 +27,22 @@ from communication_software.common.frame_utils import (
     create_error_frame,
 )
 
+logger = logging.getLogger(__name__)
+
+
 try:
-    r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
-    r_async = redis.asyncio.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r = redis.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
+    r_async = redis.asyncio.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
     r.ping()  # Check if the connection is successful
     print("Successfully connected to Redis!")
 except redis.exceptions.ConnectionError as e:
@@ -155,7 +170,7 @@ async def flightmanager_websocket(websocket: WebSocket):
 
         async for message in pubsub.listen():
             if message["type"] == "message":
-                print("Received event, sending to frontend clients")
+                logger.debug("Received event, sending to frontend clients")
                 await websocket.send_text(message["data"])
 
     listener_task = asyncio.create_task(redis_listener())

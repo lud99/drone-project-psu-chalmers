@@ -320,7 +320,7 @@ class DroneSelector:
                 capabilities = json_schemas.parse_capabilities(capabilities_json)
 
                 if telemetry.battery_percent < self.MIN_BATTERY_THRESHOLD:
-                    logger.info(
+                    logger.warning(
                         "Drone %s skipped: battery %.1f%% below minimum threshold (%.1f%%).",
                         drone_id,
                         telemetry.battery_percent,

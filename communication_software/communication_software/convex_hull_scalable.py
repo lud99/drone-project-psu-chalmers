@@ -75,7 +75,7 @@ def get_drones_location(
         raise ProximityError()
 
     # Flatten the list of coordinates into an array
-    coords = np.array(corner_coords)
+    coords = np.array([[c.lat, c.lng] for c in corner_coords])
 
     # Class to represent a rectangle
     class Rectangle:

@@ -45,7 +45,7 @@ async def send_telemetry(websocket, drone_id: str):
         )
 
         await websocket.send(msg.model_dump_json())
-        print(f"[{time.strftime('%H:%M:%S')}] Telemetry validated and sent.")
+        # print(f"[{time.strftime('%H:%M:%S')}] Telemetry validated and sent.")
         await asyncio.sleep(TELEMETRY_INTERVAL)
 
 

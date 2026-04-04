@@ -329,7 +329,10 @@ class DroneCommunication:
         try:
             while True:
                 data = await ws.recv()
-                filter_types = []  # Enter keywords to filter out from logs
+                filter_types = [
+                    "ping",
+                    "telemetry",
+                ]  # Enter keywords to filter out from logs
                 try:
                     if json.loads(data).get("msg_type") not in filter_types:
                         print(f"Received from {connection_id}: {data}")
@@ -571,7 +574,7 @@ class DroneCommunication:
     ):
         try:
             if message.event == "task_complete":
-                next_task_raw = r.lpop(f"mission_queue:{message.mission_id}")
+                next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
                 if next_task_raw:
                     next_task = json.loads(next_task_raw)
                     print(
@@ -589,7 +592,7 @@ class DroneCommunication:
                         message.mission_id, MissionStatus.COMPLETED
                     )
 
-                    await asyncio.sleep(30)
+                    await asyncio.sleep(15)
                     go_home = json_schemas.GoHomeMessage(
                         drone_id=connection_id,
                         mission_id=message.mission_id,
