@@ -293,17 +293,6 @@ class FrontendMessages:
 
     # --- (Frontend -> Backend) ---
 
-    class AcceptMission(FrontendMessage):
-        msg_type: Literal["accept_mission"] = "accept_mission"
-        mission_id: str
-
-    class RejectMissions(FrontendMessage):
-        msg_type: Literal["reject_missions"] = "reject_missions"
-
-    class StartDrone(FrontendMessage):
-        msg_type: Literal["start_drone"] = "start_drone"
-        drone_id: str
-
     class SetWatchArea(FrontendMessage):
         msg_type: Literal["set_watch_area"] = "set_watch_area"
         area: Points
@@ -355,11 +344,8 @@ class FrontendMessages:
 
 AnyFrontendMessage = Annotated[
     Union[
-        FrontendMessages.AcceptMission,
-        FrontendMessages.RejectMissions,
         FrontendMessages.ProposedMissions,
         FrontendMessages.ActiveMissions,
-        FrontendMessages.StartDrone,
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
         FrontendMessages.SetWatchArea,

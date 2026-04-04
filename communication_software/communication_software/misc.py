@@ -131,9 +131,8 @@ async def run_comm_server(
         daemon=True,
         name="object-listener",
     ).start()
-    threading.Thread(
-        target=auto_mission_suggester.area_listener, daemon=True, name="area-listener"
-    ).start()
+
+    _listener_task = asyncio.create_task(auto_mission_suggester.redis_area_listener())
     print("AutoMissionSuggester listeners started.")
 
     await drone_communication.start_websocket_server(ip=ip)

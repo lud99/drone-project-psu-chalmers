@@ -442,6 +442,34 @@
             }
         ]
 
+        async function dispatchMission(missionId) {
+            try {
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/dispatch(${missionId})`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/text"
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result)
+
+                if (!result.error) {
+                    alert("Mission dispatched ok");
+                }
+                else {
+                    alert("Error: " + result.error);
+                }
+
+            } catch (error) {
+                console.error("Error to dispatch", error);
+            }
+        }
+
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
 

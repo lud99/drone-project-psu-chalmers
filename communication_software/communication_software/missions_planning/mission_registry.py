@@ -6,6 +6,8 @@ from .mission_status import MissionStatus
 import communication_software.common.json_schemas as json_schemas
 from communication_software.missions_planning.missions import Mission
 
+from communication_software.constants import DRONE_COMMANDS_CHANNEL
+
 
 class MissionRegistry:
     def __init__(
@@ -20,11 +22,7 @@ class MissionRegistry:
     def store(self, mission: Mission):
         # tasks = mission.get_tasks()
         mission_dict = mission.to_dict()
-        # mission_dict["tasks"] = tasks
-        mission_dict["status"] = MissionStatus.DISPATCHED.value
-        self.r.set(
-            f"mission_{mission.mission_id}_active_task", json.dumps(mission_dict)
-        )
+        self.r.set(f"mission_{mission.mission_id}_state", json.dumps(mission_dict))
 
         for i, task in enumerate(mission.tasks):
             task_message = json_schemas.TaskMessage(
@@ -41,6 +39,22 @@ class MissionRegistry:
         print(
             f"Mission {mission.mission_id} saved with {len(mission.tasks)} tasks in queue"
         )
+
+    def dispatch_mission(self, mission_id: str):
+        mission = json.loads(self.r.get(f"mission_{mission_id}_state"))
+
+        if self.is_drone_dispatched(mission["drone_id"]):
+            raise Exception(
+                f"Cannot dispatch drone {mission['drone_id']}, it is already on a mission"
+            )
+
+        mission["status"] = MissionStatus.DISPATCHED.value
+
+        self.r.set(f"mission_{mission_id}_state", json.dumps(mission))
+
+        first_task_raw = self.r.lpop(f"mission_{mission_id}_task_queue")
+
+        self.r.publish(DRONE_COMMANDS_CHANNEL, first_task_raw)
 
     def get(self, mission_id: str):
         data = self.r.get(f"mission_{mission_id}_state")
@@ -60,6 +74,14 @@ class MissionRegistry:
         if mission:
             mission["status"] = status.value
             self.r.set(f"mission_{mission_id}_state", json.dumps(mission))
+
+    def is_drone_dispatched(self, drone_id: str) -> bool:
+        for mission in self.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] == MissionStatus.DISPATCHED.value:
+                    return True
+
+        return False
 
     def remove(self, mission_id: str):
         self.r.delete(f"mission_{mission_id}_state")

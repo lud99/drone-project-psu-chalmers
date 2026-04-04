@@ -17,7 +17,10 @@ from communication_software.missions_planning.mission_status import MissionStatu
 
 from typing import Optional
 
-from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
+from communication_software.constants import (
+    DRONE_EVENT_CHANNEL,
+    SURVEIL_AREA_CHANNEL,
+)
 
 import communication_software.common.json_schemas as json_schemas
 
@@ -29,6 +32,7 @@ from communication_software.common.frame_utils import (
 
 logger = logging.getLogger(__name__)
 
+mission_registry = MissionRegistry()
 
 try:
     r = redis.Redis(
@@ -237,65 +241,39 @@ async def atos_websocket(websocket: WebSocket):
 ### POST routes
 
 
-@app.post("/api/v1/accept_mission")
-async def accept_mission(payload: str = Body(...)):
-    try:
-        json_schemas.parse_frontend_message(payload)
-    except Exception as e:
-        return {"msg_type": "response", "error": str(e)}
-
-    return {"msg_type": "response", "error": None}
-
-
 @app.post("/api/v1/missions/dispatch/{mission_id}")
 def dispatch_mission(mission_id: str):
     try:
         mission = mission_registry.get(mission_id)
         if not mission:
-            return {"error": "Mission not found"}
+            return {"msg_type": "response", "error": "Mission not found"}
 
-        coords = json_schemas.GoToParams.model_validate_json(mission["coordinates"])
-        task_message = json_schemas.TaskMessage(
-            drone_id=mission["drone_id"],
-            mission_id=mission["mission_id"],
-            index=0,
-            task_action=json_schemas.GoToTask(
-                action="go_to",
-                params=json_schemas.GoToParams(
-                    lat=coords.lat,
-                    lon=coords.lon,
-                    alt=coords.alt,
-                    heading=coords.heading,
-                ),
-            ),
-        )
-        r.publish(DRONE_COMMANDS_CHANNEL, task_message.model_dump_json())
-
-        mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
+        mission_registry.dispatch_mission(mission_id)
 
         return {"status": "dispatched", "mission": mission}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 
 
-@app.post("/api/v1/reject_missions")
-async def reject_missions(payload: str = Body(...)):
+@app.post("/api/v1/missions/reject/{mission_id}")
+async def reject_missions(mission_id: str):
     try:
-        json_schemas.parse_frontend_message(payload)
+        mission = mission_registry.get(mission_id)
+        if not mission:
+            return {"msg_type": "response", "error": "Mission not found"}
+
+        mission_status = mission["status"]
+        if mission_status != MissionStatus.PENDING.value:
+            return {
+                "msg_type": "response",
+                "error": f"Cannot reject mission, it is in state '{mission_status}'",
+            }
+
+        mission = mission_registry.remove(mission_id)
+
+        return {"msg_type": "response"}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
-
-    return {"msg_type": "response", "error": None}
-
-
-@app.post("/api/v1/start_drone")
-async def start_drone(payload: str = Body(...)):
-    try:
-        json_schemas.parse_frontend_message(payload)
-    except Exception as e:
-        return {"msg_type": "response", "error": str(e)}
-
-    return {"msg_type": "response", "error": None}
 
 
 @app.post("/api/v1/set_watch_area")
@@ -304,7 +282,11 @@ async def set_watch_area(payload: str = Body(...)):
         message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
             coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
-            r.set("watch_area", json.dumps({"points": coords}))
+            raw_watch_area = json.dumps({"points": coords})
+            r.set("watch_area", raw_watch_area)
+
+            r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
+
             return {"msg_type": "response", "error": None}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
