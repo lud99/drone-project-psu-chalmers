@@ -6,7 +6,7 @@ from .mission_status import MissionStatus
 import communication_software.common.json_schemas as json_schemas
 from communication_software.missions_planning.missions import Mission
 
-from communication_software.constants import DRONE_COMMANDS_CHANNEL
+from communication_software.constants import DRONE_COMMANDS_CHANNEL, DRONE_EVENT_CHANNEL
 
 
 class MissionRegistry:
@@ -55,6 +55,7 @@ class MissionRegistry:
         first_task_raw = self.r.lpop(f"mission_{mission_id}_task_queue")
 
         self.r.publish(DRONE_COMMANDS_CHANNEL, first_task_raw)
+        self.r.publish(DRONE_EVENT_CHANNEL, first_task_raw)
 
     def get(self, mission_id: str):
         data = self.r.get(f"mission_{mission_id}_state")

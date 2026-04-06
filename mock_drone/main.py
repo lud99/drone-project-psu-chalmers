@@ -82,7 +82,7 @@ async def do_task(
 
     if isinstance(action, json_schemas.GoToTask):
         print("Going to a position")
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.PlayAudioTask):

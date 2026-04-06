@@ -6,6 +6,7 @@ import uvicorn
 import cv2
 import json
 import os
+import uuid
 from datetime import datetime
 import redis.exceptions
 import redis
@@ -281,13 +282,30 @@ async def set_watch_area(payload: str = Body(...)):
     try:
         message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
-            coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
-            raw_watch_area = json.dumps({"points": coords})
-            r.set("watch_area", raw_watch_area)
+            request_id = str(uuid.uuid4())  # Unique ID for this specific request
 
+            coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
+
+            # Add the request_id to the payload so B knows where to send the answer
+            payload_data = {"points": coords, "request_id": request_id}
+            raw_watch_area = json.dumps(payload_data)
+
+            # 1. Publish to B
             r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
 
-            return {"msg_type": "response", "error": None}
+            # 2. Wait for B to respond on a unique list key (timeout after 10 seconds)
+            response_key = f"response_{request_id}"
+            response = r.blpop(response_key, timeout=5)
+
+            if response:
+                # response is a tuple (key, data)
+                mission_data = json.loads(response[1])
+                return {"msg_type": "response", "data": mission_data, "error": None}
+            else:
+                return {
+                    "msg_type": "response",
+                    "error": "Timeout waiting for drone assignment",
+                }
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
     return {"msg_type": "response", "error": None}

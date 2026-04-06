@@ -69,19 +69,20 @@ class Mission(ABC):
     def get_frontend_mission_proposal(self) -> dict:
         return {
             "drone_id": self.drone_id,
+            "mission_id": self.mission_id,
             "mission_type": self.__class__.__name__,
             "description": repr(self),
             "tasks": self.get_tasks(),
         }
 
     def to_dict(self) -> dict:
-        task_json = [task.model_dump_json() for task in self.get_tasks()]
+        task_json = [task.model_dump() for task in self.get_tasks()]
         return {
             "mission_id": self.mission_id,
             "drone_id": self.drone_id,
             "mission_type": self.__class__.__name__,
             "status": self.status.value,
-            "coordinates": self.coordinates.model_dump_json(),
+            "coordinates": self.coordinates.model_dump(),
             "tasks": task_json,
         }
 

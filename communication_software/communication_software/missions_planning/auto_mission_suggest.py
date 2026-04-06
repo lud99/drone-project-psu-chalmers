@@ -3,7 +3,7 @@ import time
 import os
 import json
 import threading
-from typing import Any, Optional
+from typing import Optional
 import redis
 import communication_software.common.json_schemas as json_schemas
 from communication_software.convex_hull_scalable import Coordinate, get_drones_location
@@ -68,22 +68,8 @@ class AutoMissionSuggester:
         while time.time() < deadline and not self._stop_event.is_set():
             time.sleep(min(step, max(0.0, deadline - time.time())))
 
-    def _extract_watch_area_points(self, raw_watch_area: str) -> list[dict[str, float]]:
+    def _extract_watch_area_points(self, points: dict) -> list[dict[str, float]]:
         """Parses Redis watch area payload and returns a normalized points list."""
-        payload = json.loads(raw_watch_area)
-
-        points: Any
-        if isinstance(payload, dict):
-            if isinstance(payload.get("points"), list):
-                points = payload["points"]
-            elif isinstance(payload.get("area"), list):
-                points = payload["area"]
-            else:
-                points = []
-        elif isinstance(payload, list):
-            points = payload
-        else:
-            points = []
 
         normalized_points: list[dict[str, float]] = []
         for point in points:
@@ -174,9 +160,11 @@ class AutoMissionSuggester:
 
         async for message in pubsub.listen():
             if message["type"] == "message":
-                raw_watch_area = message["data"]
+                data = json.loads(message["data"])
+                request_id = data["request_id"]
+                points = data["points"]
 
-                points = self._extract_watch_area_points(raw_watch_area)
+                points = self._extract_watch_area_points(points)
                 if len(points) < 3:
                     print("watch_area payload does not contain enough points.")
                     continue
@@ -205,66 +193,21 @@ class AutoMissionSuggester:
                     registry.store(surveil_mission)
                     registry.dispatch_mission(surveil_mission.mission_id)
                     print(f"[area_listener] First task sent")
+
+                    if request_id:
+                        response_key = f"response_{request_id}"
+                        self._redis.rpush(
+                            response_key, json.dumps(surveil_mission.to_dict())
+                        )
+                        self._redis.expire(response_key, 20)
                 else:
+                    # Notify that no drone was available
+                    self._redis.rpush(
+                        f"response_{request_id}",
+                        json.dumps({"error": "No drone available"}),
+                    )
                     print("[area_listener] No drone with camera available")
                     self.send_mission_unavailable("GotoAndSurveil", coordinates)
-
-    # def area_listener(self):
-    #     last_area_payload: str | None = None
-
-    #     while not self._stop_event.is_set():
-    #         raw_watch_area = self._redis.get("watch_area")
-    #         if not raw_watch_area:
-    #             self._sleep_with_stop_check(1.0)
-    #             continue
-
-    #         if raw_watch_area == last_area_payload:
-    #             self._sleep_with_stop_check(1.0)
-    #             continue
-
-    #         # try:
-    #         points = self._extract_watch_area_points(raw_watch_area)
-    #         if len(points) < 3:
-    #             print("watch_area payload does not contain enough points.")
-    #             last_area_payload = raw_watch_area
-    #             self._sleep_with_stop_check(1.0)
-    #             continue
-
-    #         print("[area_listener] Ny watch_area hittad, bearbetar...")
-    #         coordinates = self._get_area_surveil_coordinates(points)
-
-    #         surveil_mission = select_drone_for_mission(
-    #             mission_type=GotoAndSurveil,
-    #             coordinates=coordinates,
-    #             params={"duration_seconds": None},
-    #         )
-
-    #         if surveil_mission:
-    #             drone_id = surveil_mission.drone_id
-    #             registry = MissionRegistry()
-
-    #             # Kolla om just denna drönare redan har en DISPATCHED mission
-    #             if registry.is_drone_dispatched(drone_id):
-    #                 print(
-    #                     f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
-    #                 )
-    #                 last_area_payload = raw_watch_area
-    #                 self._sleep_with_stop_check(1.0)
-    #                 continue
-
-    #             print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
-    #             registry.store(surveil_mission)
-    #             registry.dispatch_mission(surveil_mission.mission_id)
-    #             print(f"[area_listener] First task sent")
-    #         else:
-    #             print("[area_listener] No drone with camera available")
-    #             self.send_mission_unavailable("GotoAndSurveil", coordinates)
-
-    #         last_area_payload = raw_watch_area
-    #         # except Exception as exc:
-    #         # print(f"area_listener failed: {exc}")
-
-    #         self._sleep_with_stop_check(1.0)
 
     def object_listener(self):
         """

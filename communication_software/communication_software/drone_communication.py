@@ -574,6 +574,11 @@ class DroneCommunication:
     ):
         try:
             if message.event == "task_complete":
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    message.model_dump_json(),
+                )
+
                 next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
                 if next_task_raw:
                     next_task = json.loads(next_task_raw)
@@ -582,17 +587,21 @@ class DroneCommunication:
                         f"action:{next_task['task_action']['action']}"
                     )
                     await self.connections[connection_id].send(next_task_raw)
+
+                    r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
+
                 else:
                     print(
-                        f"Mission {message.mission_id} done - waiting 30s before go_home"
+                        f"Mission {message.mission_id} done - waiting 15s before go_home"
                     )
+
+                    await asyncio.sleep(15)
 
                     # Update mission status to be completed
                     mission_registry.update_status(
                         message.mission_id, MissionStatus.COMPLETED
                     )
 
-                    await asyncio.sleep(15)
                     go_home = json_schemas.GoHomeMessage(
                         drone_id=connection_id,
                         mission_id=message.mission_id,
@@ -600,6 +609,8 @@ class DroneCommunication:
                     await self.connections[connection_id].send(
                         go_home.model_dump_json()
                     )
+                    r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+
                     print(f"go_home sent to {connection_id}")
             elif message.event == "task_failed":
                 error = f"Task for drone {message.drone_id} failed with error '{message.message}'"

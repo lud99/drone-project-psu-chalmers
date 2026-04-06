@@ -216,235 +216,11 @@
         // Initialize Map
         let activePolygon = null;
 
-        const missions = [
-            {
-                name: "Lisa's mission",
-                tasks: [
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "drone_id": "AZL-55555",
-                        "index": 0,
-                        "task": {
-                            "action": "go_to",
-                            "params": {
-                                "lat": 57.688787,
-                                "lon": 11.978403,
-                                "alt": 25.0,
-                                "heading": 180
-                            }
-                        }
-                    },
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "drone_id": "AZL-55555",
-                        "index": 1,
-                        "task": {
-                            "action": "play_audio",
-                            "params": {
-                                "file": "alarm.mp3",
-                                "volume": 1.0,
-                                "duration_seconds": 60
-                            }
-                        }
-                    },
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "index": 2,
-                        "drone_id": "AZL-55555",
-                        "task": {
-                            "action": "led",
-                            "params": {
-                                "type": "rear",
-                                "pattern": "pulse",
-                                "duration_seconds": -1
-                            }
-                        }
-                    },
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "index": 3,
-                        "drone_id": "AZL-55555",
-                        "task": {
-                            "action": "spotlight",
-                            "params": {
-                                "pattern": "steady",
-                                "duration_seconds": 90
-                            }
-                        }
-                    },
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "index": 4,
-                        "drone_id": "AZL-55555",
-                        "task": {
-                            "action": "angle_camera",
-                            "params": {
-                                "pitch": 45,
-                                "yaw": 0
-                            }
-                        }
-                    },
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_101",
-                        "drone_id": "AZL-55555",
-                        "index": 5,
-                        "task": {
-                            "action": "go_to",
-                            "params": {
-                                "lat": 57.704512,
-                                "lon": 11.963704,
-                                "alt": 25.0,
-                                "heading": 180
-                            }
-                        }
-                    },
-                ]
-            },
-            {
-                name: "Ludde's mission",
-                tasks: [
-                    {
-                        "msg_type": "task",
-                        "mission_id": "mission_102",
-                        "index": 3,
-                        "drone_id": "AZL-55555",
-                        "task": {
-                            "action": "spotlight",
-                            "params": {
-                                "pattern": "steady",
-                                "duration_seconds": 90
-                            }
-                        }
-                    },
-                ]
-            }
-        ]
-
-        let proposedMissions = [
-            {
-                "drone_id": "haubits_77",
-                "mission_type": "GotoAndAudio",
-                "description": "[drone haubits_77] GoTo and play Audio file: horn",
-                "tasks": [
-                    {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.69577522320947,
-                            "lon": 11.990693460923822,
-                            "alt": 117.97407905161255,
-                            "heading": null
-                        }
-                    },
-                    {
-                        "action": "play_audio",
-                        "params": {
-                            "file": "horn",
-                            "volume": 1,
-                            "duration_seconds": 30
-                        }
-                    },
-                    {
-                        "action": "go_home"
-                    }
-                ]
-            },
-            {
-                "drone_id": "haubits_77",
-                "mission_type": "GotoAndBlink",
-                "description": "[drone haubits_77] GoTo and Blink with LED type: beacon for Nones",
-                "tasks": [
-                    {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.69578493497226,
-                            "lon": 11.990646319979778,
-                            "alt": 3,
-                            "heading": null
-                        }
-                    },
-                    {
-                        "action": "led",
-                        "params": {
-                            "type": "beacon",
-                            "duration_seconds": null
-                        }
-                    }
-                ]
-            },
-            {
-                "drone_id": "haubits_77",
-                "mission_type": "GotoAndIlluminate",
-                "description": "[drone haubits_77] GoTo and Spotlight for Nones",
-                "tasks": [
-                    {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.69577522320947,
-                            "lon": 11.990693460923822,
-                            "alt": 117.97407905161255,
-                            "heading": null
-                        }
-                    },
-                    {
-                        "action": "spotlight",
-                        "params": {
-                            "pattern": "stready",
-                            "duration_seconds": null
-                        }
-                    }
-                ]
-            },
-            {
-                "drone_id": "haubits_77",
-                "mission_type": "GotoAndSurveil",
-                "description": "[drone haubits_77] GoTo and Surveil for Nones",
-                "tasks": [
-                    {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.69577522320947,
-                            "lon": 11.990693460923822,
-                            "alt": 117.97407905161255,
-                            "heading": null
-                        }
-                    },
-                    {
-                        "action": "angle_camera",
-                        "params": {
-                            "pitch": -90,
-                            "yaw": 0,
-                            "duration_seconds": null
-                        }
-                    }
-                ]
-            },
-            {
-                "drone_id": "haubits_77",
-                "mission_type": "GotoOnly",
-                "description": "[drone haubits_77] GoTo, lat:57.695785, lon:11.990646 alt:3.0",
-                "tasks": [
-                    {
-                        "action": "go_to",
-                        "params": {
-                            "lat": 57.69578493497226,
-                            "lon": 11.990646319979778,
-                            "alt": 3,
-                            "heading": null
-                        }
-                    }
-                ]
-            }
-        ]
+        let proposedMissions = new Map()
 
         async function dispatchMission(missionId) {
             try {
-                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/dispatch(${missionId})`, {
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/dispatch/${missionId})`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/text"
@@ -470,12 +246,28 @@
             }
         }
 
+
+
+        // Mission display
+        const missionModal = document.getElementById('missionModal');
+        let currentTaskData = null;
+        let currentMissionModalId = ""
+        let modalMap = null;
+
+        let allWaypoints = [];
+        let activeMissionMapId = "";
+        let activeMaps = [];
+
+
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
+        document.querySelector("#missionModal .btn-success").addEventListener("click", (event) => {
+            dispatchMission(currentMissionModalId)
+        })
 
         function createMissionButtons() {
             container.innerHTML = "";
-            proposedMissions.forEach((mission, index) => {
+            proposedMissions.values().forEach((mission, index) => {
                 container.innerHTML += `
                 <div class="col-12 mb-2">
                     <div class="d-flex justify-content-between align-items-center" 
@@ -486,7 +278,7 @@
                         </div>
                         <div class="mt-2">
                             <button class="btn btn-success btn-sm mission-action-btn" 
-                                    data-mission-index="${index}" 
+                                    data-mission-id="${mission.mission_id}" 
                                     data-bs-toggle="modal" 
                                     data-bs-target="#missionModal">
                                 Show More Info
@@ -500,19 +292,11 @@
 
         createMissionButtons();
 
-        // Mission display
-        const missionModal = document.getElementById('missionModal');
-        let currentTaskData = null;
-        let modalMap = null;
-
-        let allWaypoints = [];
-        let activeMissionMapId = "";
-        let activeMaps = [];
-
         missionModal.addEventListener('show.bs.modal', function (event) {
             const button = event.relatedTarget;
-            const missionIndex = button.getAttribute('data-mission-index');
-            const selectedMission = proposedMissions[missionIndex];
+            const missionId = button.getAttribute('data-mission-id');
+            const selectedMission = proposedMissions.get(missionId);
+            currentMissionModalId = missionId
             const modalTitle = missionModal.querySelector('.modal-title');
             const modalBody = missionModal.querySelector('#modal-content-area');
             const droneId = selectedMission.drone_id;
@@ -525,7 +309,7 @@
             `;
 
             let fullContent = '';
-            activeMissionMapId = `map-overview-${missionIndex}`;
+            activeMissionMapId = `map-overview-${missionId}`;
             allWaypoints = [];
 
             selectedMission.tasks.forEach((currentTaskData, idx) => {
@@ -983,7 +767,9 @@
             }
 
             if (data.msg_type == "proposed_missions") {
-                proposedMissions = data.missions;
+                data.missions.forEach(mission => {
+                    proposedMissions.set(mission.mission_id, mission)
+                });
                 createMissionButtons();
             }
         };

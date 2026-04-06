@@ -297,6 +297,8 @@ class FrontendMessages:
         msg_type: Literal["set_watch_area"] = "set_watch_area"
         area: Points
 
+    # Backend -> Frontend
+
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
         missions: list[dict]
