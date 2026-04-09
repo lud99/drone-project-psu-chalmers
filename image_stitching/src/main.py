@@ -9,14 +9,18 @@ import supervision.detection.core as sv
 from annotator import Annotator
 import coordinate_mapping
 import redis
+from datetime import datetime
 import asyncio
 import os
 import torch
 import io
+import logging
 from typing import Optional
 
 from common.frame_utils import create_error_frame
 import common.json_schemas as json_schemas
+
+logger = logging.getLogger(__name__)
 
 if torch.cuda.is_available():
     print(
@@ -27,6 +31,8 @@ if torch.cuda.is_available():
     )
 else:
     print("[INFO] PyTorch CUDA not detected. YOLO will use CPU.")
+
+VERBOSE_DETECTION_LOGGING = False
 
 # Each drone needs a separate model instance to allow for tracking
 model_for_drones: dict[str, YOLO] = dict()
@@ -48,7 +54,6 @@ def create_model() -> YOLO:
 
 def create_drone_model(drone_id: str) -> YOLO:
     model_for_drones[drone_id] = create_model()
-    print(model_for_drones[drone_id].names)
     return model_for_drones[drone_id]
 
 
@@ -99,7 +104,9 @@ def detect_objects(frame: np.ndarray, drone_model: YOLO) -> sv.Detections:
     Returns:
         sv.Detections: Detected objects.
     """
-    results = drone_model.track(frame, persist=True, conf=0.10, imgsz=448)
+    results = drone_model.track(
+        frame, persist=True, conf=0.10, imgsz=448, verbose=VERBOSE_DETECTION_LOGGING
+    )
     detections = sv.Detections.from_ultralytics(results[0])
     return detections
 
@@ -459,7 +466,9 @@ async def annotate_stream(drone_id: str) -> None:
 
             # Send the results to redis
             await set_frame(f"{drone_id}", annotated_frame, detections)
-            print(f"Setting video frame and detections in Redis for drone {drone_id}")
+            logger.debug(
+                f"Setting video frame and detections in Redis for drone {drone_id}"
+            )
     finally:
         stop_event.set()
 
@@ -514,12 +523,16 @@ def detect_and_annotate_image(
         ]
         position_labels = [f"({int(d[0])}, {int(d[1])})" for d in detections.xyxy]
 
-        for class_id, gps_position in zip(detections.class_id, detection_gps_positions):
+        for tracker_id, class_id, gps_position in zip(
+            detections.tracker_id, detections.class_id, detection_gps_positions
+        ):
             detections_complete.root.append(
                 json_schemas.SingleDetection(
-                    class_name=model.names[class_id],
+                    object_type=model.names[class_id],
+                    detection_id=tracker_id,
                     gps_position=gps_position,
                     drone_ids=drone_ids,
+                    timestamp=int(datetime.now().microsecond / 1000),
                 )
             )
 

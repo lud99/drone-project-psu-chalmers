@@ -12,7 +12,7 @@ class CameraCapabilities(BaseModel):
 
 
 class LEDCapabilities(BaseModel):
-    types: list[str]  # will likely have to change
+    types: Annotated[list[str], Field(min_length=1)]
 
 
 class SpeakerCapabilities(BaseModel):
@@ -48,7 +48,7 @@ class GoToParams(BaseModel):
     lat: float
     lon: float
     alt: float
-    heading: int
+    heading: Optional[int] = None
 
 
 class PlayAudioParams(BaseModel):
@@ -59,7 +59,6 @@ class PlayAudioParams(BaseModel):
 
 class LEDParams(BaseModel):
     type: str
-    pattern: str
     duration_seconds: Optional[float]
 
 
@@ -67,6 +66,25 @@ class SpotlightParams(BaseModel):
     pattern: str
     duration_seconds: Optional[float]
 
+
+class AngleCameraParams(BaseModel):
+    pitch: float
+    yaw: float
+    duration_seconds: Optional[float] = None
+
+
+class HoverParams(BaseModel):
+    duration_seconds: Optional[float] = None
+
+
+AnyParams = Union[
+    GoToParams,
+    PlayAudioParams,
+    LEDParams,
+    SpotlightParams,
+    AngleCameraParams,
+    HoverParams,
+]
 
 # The specific Task types
 
@@ -91,20 +109,30 @@ class SpotlightTask(BaseModel):
     params: SpotlightParams
 
 
-class AngleCameraParams(BaseModel):
-    pitch: float
-    roll: float
-    yaw: float
-    duration_seconds: Optional[float] = None
-
-
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
     params: AngleCameraParams
 
 
-# This variable holds the "one of these" logic
-AnyTaskAction = Union[GoToTask, PlayAudioTask, LEDTask, SpotlightTask]
+class HoverTask(BaseModel):
+    action: Literal["hover"] = "hover"
+    params: HoverParams
+
+
+class GoHomeTask(BaseModel):
+    action: Literal["go_home"] = "go_home"
+
+
+# Uppdatera AnyTaskAction
+AnyTaskAction = Union[
+    GoToTask,
+    PlayAudioTask,
+    LEDTask,
+    SpotlightTask,
+    AngleCameraTask,
+    HoverTask,
+    GoHomeTask,
+]
 
 
 MsgTypeT = TypeVar("MsgTypeT", bound=str)
@@ -231,8 +259,10 @@ AnyDroneMessage = Annotated[
 ### Detections schema
 class SingleDetection(BaseModel):
     gps_position: tuple[float, float]
-    class_name: str
+    object_type: str
+    detection_id: int
     drone_ids: Annotated[list[str], Field(min_length=1)]
+    timestamp: int  # in milliseconds
 
 
 class Detections(RootModel):
@@ -263,24 +293,20 @@ class FrontendMessages:
 
     # --- (Frontend -> Backend) ---
 
-    class AcceptMission(FrontendMessage):
-        msg_type: Literal["accept_mission"] = "accept_mission"
-        mission_id: str
-
-    class RejectMissions(FrontendMessage):
-        msg_type: Literal["reject_missions"] = "reject_missions"
-
-    class StartDrone(FrontendMessage):
-        msg_type: Literal["start_drone"] = "start_drone"
-        drone_id: str
-
     class SetWatchArea(FrontendMessage):
         msg_type: Literal["set_watch_area"] = "set_watch_area"
         area: Points
 
+    # Backend -> Frontend
+
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
         missions: list[dict]
+
+    class NoProposedMissions(FrontendMessage):
+        msg_type: Literal["no_proposed_missions"] = "no_proposed_missions"
+        mission_type: Optional[str]
+        coordinates: GoToParams
 
     class ActiveMissions(FrontendMessage):
         msg_type: Literal["active_missions"] = "active_missions"
@@ -320,11 +346,8 @@ class FrontendMessages:
 
 AnyFrontendMessage = Annotated[
     Union[
-        FrontendMessages.AcceptMission,
-        FrontendMessages.RejectMissions,
         FrontendMessages.ProposedMissions,
         FrontendMessages.ActiveMissions,
-        FrontendMessages.StartDrone,
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
         FrontendMessages.SetWatchArea,

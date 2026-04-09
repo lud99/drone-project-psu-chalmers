@@ -1,24 +1,71 @@
 import redis
+import os
 import json
 from .mission_status import MissionStatus
 
+import communication_software.common.json_schemas as json_schemas
+from communication_software.missions_planning.missions import Mission
+
+from communication_software.constants import DRONE_COMMANDS_CHANNEL, DRONE_EVENT_CHANNEL
+
 
 class MissionRegistry:
-    def __init__(self):
-        self._client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    def __init__(
+        self,
+    ):
+        self.r = redis.Redis(
+            host=os.environ.get("REDIS_URL"),
+            port=os.environ.get("REDIS_PORT"),
+            decode_responses=True,
+        )
 
-    def store(self, mission):
-        self._client.set(mission.mission_id, json.dumps(mission.to_dict()))
+    def store(self, mission: Mission):
+        # tasks = mission.get_tasks()
+        mission_dict = mission.to_dict()
+        self.r.set(f"mission_{mission.mission_id}_state", json.dumps(mission_dict))
+
+        for i, task in enumerate(mission.tasks):
+            task_message = json_schemas.TaskMessage(
+                drone_id=mission.drone_id,
+                mission_id=mission.mission_id,
+                index=i,
+                task_action=task,
+            )
+            self.r.rpush(
+                f"mission_{mission.mission_id}_task_queue",
+                task_message.model_dump_json(),
+            )
+
+        print(
+            f"Mission {mission.mission_id} saved with {len(mission.tasks)} tasks in queue"
+        )
+
+    def dispatch_mission(self, mission_id: str):
+        mission = json.loads(self.r.get(f"mission_{mission_id}_state"))
+
+        if self.is_drone_dispatched(mission["drone_id"]):
+            raise Exception(
+                f"Cannot dispatch drone {mission['drone_id']}, it is already on a mission"
+            )
+
+        mission["status"] = MissionStatus.DISPATCHED.value
+
+        self.r.set(f"mission_{mission_id}_state", json.dumps(mission))
+
+        first_task_raw = self.r.lpop(f"mission_{mission_id}_task_queue")
+
+        self.r.publish(DRONE_COMMANDS_CHANNEL, first_task_raw)
+        self.r.publish(DRONE_EVENT_CHANNEL, first_task_raw)
 
     def get(self, mission_id: str):
-        data = self._client.get(mission_id)
+        data = self.r.get(f"mission_{mission_id}_state")
         return json.loads(data) if data else None
 
     def get_all(self) -> list:
-        keys = self._client.keys("*")
+        keys = self.r.keys("mission_*_state")
         missions = []
         for key in keys:
-            data = self._client.get(key)
+            data = self.r.get(key)
             if data:
                 missions.append(json.loads(data))
         return missions
@@ -27,10 +74,17 @@ class MissionRegistry:
         mission = self.get(mission_id)
         if mission:
             mission["status"] = status.value
-            self._client.set(mission_id, json.dumps(mission))
+            self.r.set(f"mission_{mission_id}_state", json.dumps(mission))
+
+    def is_drone_dispatched(self, drone_id: str) -> bool:
+        for mission in self.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] == MissionStatus.DISPATCHED.value:
+                    return True
+
+        return False
 
     def remove(self, mission_id: str):
-        self._client.delete(mission_id)
-
-    def clear_all(self):
-        self._client.flushdb()
+        self.r.delete(f"mission_{mission_id}_state")
+        self.r.delete(f"mission_{mission_id}_active_task")
+        self.r.delete(f"mission_{mission_id}_task_queue")

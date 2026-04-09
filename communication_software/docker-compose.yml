@@ -6,22 +6,23 @@ services:
     env_file:
       - path: ./.env
       - path: ./host_ip.env
-    build: 
+    build:
       context: .
       dockerfile: ./Dockerfile
     command: ${backend_command}
     networks:
-      - atos-net 
+      - atos-net
     ports:
       - 8765:8765
       - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
       - 5000:5000
       - 8000:8000
-      - 3478:3478/udp  # STUN server port
-      - 8765:8765/udp  # WebRTC signaling port
+      - 3478:3478/udp # STUN server port
+      - 8765:8765/udp # WebRTC signaling port
       - 5678:5678 # Python debugger port
       - 9992:9992/udp # Multicast port
-    environment: # 
+    environment:
+      #
       - ENV_ALTITUDE= 15 # does not matter probably
       - ENV_LATITUDE= 57.77293201101717
       - ENV_LONGITUDE= 12.773497400522357
@@ -29,6 +30,8 @@ services:
       - N_DRONES=2
       - OVERLAP=0.5
       - WEBSOCKET_PORT=${WEBSOCKET_PORT}
+      - REDIS_PORT=6379
+      - REDIS_URL=redis
     volumes:
       - .:/root/atos_ws/src/communication_software
     depends_on:
@@ -41,15 +44,15 @@ services:
     networks:
       - atos-net
     ports:
-      - "80:80" 
-      - "8080:8080" 
+      - "80:80"
+      - "8080:8080"
       - "8081:8081"
       - "8082:8082"
-      - "3000:3000" 
+      - "3000:3000"
       - "3443:3443"
       - "55556:55555"
       - "443:443"
-      - "9090:9090" 
+      - "9090:9090"
     command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
     depends_on:
       - isoObject
@@ -59,7 +62,8 @@ services:
     container_name: isoObject
     networks:
       - atos-net
-    deploy: # Add deploy section for resource limits
+    deploy:
+      # Add deploy section for resource limits
       resources:
         limits:
           cpus: "0.1"
@@ -70,7 +74,7 @@ services:
 
   frontend:
     container_name: frontend
-    build: 
+    build:
       context: ../frontend
       dockerfile: ../frontend/Dockerfile
     depends_on:
@@ -88,7 +92,7 @@ services:
       - REDIS_URL=redis #192.168.1.41 # use redis or localhost for Docker
       - PYTHONUNBUFFERED=1
 
-    build: 
+    build:
       context: ../image_stitching
     networks:
       - atos-net

@@ -21,6 +21,8 @@ import communication_software.communication_software.common.json_schemas as json
 SERVER_WS_URL = "ws://localhost:14500"
 DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
+
+liseberg = (57.696162, 11.991556)
 VIDEO_PATH = "mock_drone/test_video_2024.mp4"
 
 
@@ -29,8 +31,8 @@ async def send_telemetry(websocket, drone_id: str):
     while True:
         # Create the Telemetry sub-model
         current_telemetry = json_schemas.Telemetry(
-            lat=57.705 + (random.uniform(-0.001, 0.001)),
-            lon=11.938 + (random.uniform(-0.001, 0.001)),
+            lat=liseberg[0] + (random.uniform(-0.001, 0.001)),
+            lon=liseberg[1] + (random.uniform(-0.001, 0.001)),
             alt=random.uniform(110, 120),
             heading=random.randint(0, 359),
             speed=random.uniform(0.0, 5.5),
@@ -43,7 +45,7 @@ async def send_telemetry(websocket, drone_id: str):
         )
 
         await websocket.send(msg.model_dump_json())
-        print(f"[{time.strftime('%H:%M:%S')}] Telemetry validated and sent.")
+        # print(f"[{time.strftime('%H:%M:%S')}] Telemetry validated and sent.")
         await asyncio.sleep(TELEMETRY_INTERVAL)
 
 
@@ -80,43 +82,51 @@ async def do_task(
 
     if isinstance(action, json_schemas.GoToTask):
         print("Going to a position")
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         await send_task_complete(ws, drone_id, task_message)
+
     elif isinstance(action, json_schemas.PlayAudioTask):
         print(f"Playing sound for {action.params.duration_seconds}s")
-
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.LEDTask):
         print(f"Activating LED for {action.params.duration_seconds}s")
-
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.SpotlightTask):
-        print(f"Activating spotligt for {action.params.duration_seconds}s")
-
+        print(f"Activating spotlight for {action.params.duration_seconds}s")
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
             event.set()
             await send_task_complete(ws, drone_id, task_message)
         else:
-            # Activating for infinite time should send complete event asap
             await send_task_complete(ws, drone_id, task_message)
+
+    elif isinstance(action, json_schemas.AngleCameraTask):
+        print(f"Angling camera pitch={action.params.pitch} yaw={action.params.yaw}")
+        await asyncio.sleep(2)
+        await send_task_complete(ws, drone_id, task_message)
+
+    elif isinstance(action, json_schemas.HoverTask):
+        print(f"Hovering for {action.params.duration_seconds}s")
+        if action.params.duration_seconds:
+            await asyncio.sleep(action.params.duration_seconds)
+        else:
+            await asyncio.sleep(5)
+        await send_task_complete(ws, drone_id, task_message)
 
 
 class VideoFileTrack(VideoStreamTrack):
@@ -169,16 +179,16 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                 model="DJI-Mavic-Mock",
                 drone_id=drone_id,
                 capabilities=json_schemas.Capabilities(
-                    led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
-                    spotlight=True,
-                    speaker=json_schemas.SpeakerCapabilities(
-                        audio_files=["hello", "world"]
-                    ),
                     camera=json_schemas.CameraCapabilities(
-                        aspect_ratio=1.77,
+                        aspect_ratio=1.777,
                         horizontal_fov=84.0,
                         resolution_height=1080,
                         resolution_width=1920,
+                    ),
+                    led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
+                    spotlight=True,
+                    speaker=json_schemas.SpeakerCapabilities(
+                        audio_files=["horn", "hello"]
                     ),
                 ),
                 telemetry=json_schemas.Telemetry(

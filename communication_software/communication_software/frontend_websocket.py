@@ -5,15 +5,23 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import cv2
 import json
+import os
+import uuid
 from datetime import datetime
 import redis.exceptions
 import redis
 import numpy as np
+import logging
 from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.missions_planning.mission_status import MissionStatus
 
 
 from typing import Optional
+
+from communication_software.constants import (
+    DRONE_EVENT_CHANNEL,
+    SURVEIL_AREA_CHANNEL,
+)
 
 import communication_software.common.json_schemas as json_schemas
 
@@ -23,16 +31,29 @@ from communication_software.common.frame_utils import (
     create_error_frame,
 )
 
+logger = logging.getLogger(__name__)
+
+mission_registry = MissionRegistry()
+
 try:
-    r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
-    r_async = redis.asyncio.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r = redis.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
+    r_async = redis.asyncio.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
     r.ping()  # Check if the connection is successful
     print("Successfully connected to Redis!")
 except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis: {e}")
     exit()  # Exit if we can't connect
 
-DRONE_EVENT_CHANNEL = "drone_events"
 
 app = FastAPI()
 # 1. Define the domains allowed to access your API
@@ -154,7 +175,7 @@ async def flightmanager_websocket(websocket: WebSocket):
 
         async for message in pubsub.listen():
             if message["type"] == "message":
-                print("Received event, sending to frontend clients")
+                logger.debug("Received event, sending to frontend clients")
                 await websocket.send_text(message["data"])
 
     listener_task = asyncio.create_task(redis_listener())
@@ -218,39 +239,42 @@ async def atos_websocket(websocket: WebSocket):
         print("ATOS client disconnected")
 
 
-COMMAND_CHANNEL = "drone_commands"
-
 ### POST routes
 
 
-@app.post("/api/v1/accept_mission")
-async def accept_mission(payload: str = Body(...)):
+@app.post("/api/v1/missions/dispatch/{mission_id}")
+def dispatch_mission(mission_id: str):
     try:
-        json_schemas.parse_frontend_message(payload)
+        mission = mission_registry.get(mission_id)
+        if not mission:
+            return {"msg_type": "response", "error": "Mission not found"}
+
+        mission_registry.dispatch_mission(mission_id)
+
+        return {"status": "dispatched", "mission": mission}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 
-    return {"msg_type": "response", "error": None}
 
-
-@app.post("/api/v1/reject_missions")
-async def reject_missions(payload: str = Body(...)):
+@app.post("/api/v1/missions/reject/{mission_id}")
+async def reject_missions(mission_id: str):
     try:
-        json_schemas.parse_frontend_message(payload)
+        mission = mission_registry.get(mission_id)
+        if not mission:
+            return {"msg_type": "response", "error": "Mission not found"}
+
+        mission_status = mission["status"]
+        if mission_status != MissionStatus.PENDING.value:
+            return {
+                "msg_type": "response",
+                "error": f"Cannot reject mission, it is in state '{mission_status}'",
+            }
+
+        mission = mission_registry.remove(mission_id)
+
+        return {"msg_type": "response"}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
-
-    return {"msg_type": "response", "error": None}
-
-
-@app.post("/api/v1/start_drone")
-async def start_drone(payload: str = Body(...)):
-    try:
-        json_schemas.parse_frontend_message(payload)
-    except Exception as e:
-        return {"msg_type": "response", "error": str(e)}
-
-    return {"msg_type": "response", "error": None}
 
 
 @app.post("/api/v1/set_watch_area")
@@ -258,13 +282,46 @@ async def set_watch_area(payload: str = Body(...)):
     try:
         message = json_schemas.parse_frontend_message(payload)
         if isinstance(message, json_schemas.FrontendMessages.SetWatchArea):
-            r.set("watch_area", message.area.model_dump_json())
-            return {"msg_type": "response", "error": None}
+            request_id = str(uuid.uuid4())  # Unique ID for this specific request
+
+            coords = [{"lat": p.lat, "lon": p.lon} for p in message.area.points]
+
+            # Add the request_id to the payload so B knows where to send the answer
+            payload_data = {"points": coords, "request_id": request_id}
+            raw_watch_area = json.dumps(payload_data)
+
+            # 1. Publish to B
+            r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
+
+            # 2. Wait for B to respond on a unique list key (timeout after 10 seconds)
+            response_key = f"response_{request_id}"
+            response = r.blpop(response_key, timeout=5)
+
+            if response:
+                # response is a tuple (key, data)
+                mission_data = json.loads(response[1])
+                return {"msg_type": "response", "data": mission_data, "error": None}
+            else:
+                return {
+                    "msg_type": "response",
+                    "error": "Timeout waiting for drone assignment",
+                }
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+    return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/set_detections")
+async def set_detections(payload: str = Body(...)):
+    try:
+        detections = json_schemas.parse_detections(payload).root
+
+        for _detection in detections:
+            redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
+            r.set(redis_key_detections, payload)
 
     except Exception as e:
-        print(e)
         return {"msg_type": "response", "error": str(e)}
-
     return {"msg_type": "response", "error": None}
 
 
@@ -284,6 +341,11 @@ async def get_proposed_missions():
 async def get_active_missions():
     # Logic to fetch active missions
     pass
+
+
+@app.get("/api/v1/missions")
+def get_missions():
+    return mission_registry.get_all()
 
 
 @app.get("/api/v1/get_watch_area")
@@ -375,23 +437,6 @@ async def merged_feed():
 
 ## Connect missions to the API/frontend
 mission_registry = MissionRegistry()
-
-
-@app.get("/api/v1/missions")
-def get_missions():
-    return mission_registry.get_all()
-
-
-@app.post("/api/v1/missions/dispatch/{mission_id}")
-def dispatch_mission(mission_id: str):
-    mission = mission_registry.get(mission_id)
-    if not mission:
-        return {"error": "Mission not found"}
-
-    mission_registry.update_status(mission_id, MissionStatus.DISPATCHED)
-    # TODO: Forward to translation layer here
-
-    return {"status": "dispatched", "mission": mission}
 
 
 @app.get("/api/v1/health")

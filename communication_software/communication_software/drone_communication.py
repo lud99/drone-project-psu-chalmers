@@ -17,9 +17,18 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
+from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
+from communication_software.missions_planning.mission_status import MissionStatus
+
 
 try:
-    r = redis.Redis(host="redis", port=6379, db=0, decode_responses=True)
+    r = redis.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
     r.ping()
     r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
     print("Successfully connected to Redis (Drone Communication Server)!")
@@ -27,8 +36,9 @@ except redis.exceptions.ConnectionError as e:
     print(f"Error connecting to Redis (Drone Communication Server): {e}")
     exit()
 
-COMMAND_CHANNEL = "drone_commands"
-DRONE_EVENT_CHANNEL = "drone_events"
+# import communication_software.missions_planning.mission_testing as mission_testing
+# mission_testing.run_tests()
+
 # Set to `true` in .env to run mock mission from test_mock_mission.json when receiving registration.
 DO_MOCK_MISSION = os.environ.get("DO_MOCK_MISSION", "false").lower() == "true"
 
@@ -39,12 +49,13 @@ ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
 
+mission_registry = MissionRegistry()
+
 
 class DroneCommunication:
     def __init__(self) -> None:
         self.connections = {}  # Active WebSocket connections
         self.connection_counter = 0
-        # self.drone_coordinates = []  # List of drone coordinates
 
         self.loop = None
         self.redis_listener_stop_event = threading.Event()
@@ -126,14 +137,6 @@ class DroneCommunication:
             sender.stop()
             multicast_thread.join()
             print("Stopped multicast sender thread")
-
-    # def transform_coordinates(self, coordinates: Coordinate, angle: int) -> tuple:
-    #     """Transforms coordinates into required format."""
-    #     lat = str(coordinates.lat)[:9]
-    #     lng = str(coordinates.lng)[:9]
-    #     alt = str(coordinates.alt)[:3]
-    #     new_angle = str(angle)
-    #     return (lat, lng, alt, new_angle)
 
     def redis_command_listener(self, redis_client, channel, stop_event):
         """Listens for messages on the specified Redis channel in a blocking loop."""
@@ -326,7 +329,10 @@ class DroneCommunication:
         try:
             while True:
                 data = await ws.recv()
-                filter_types = []  # Enter keywords to filter out from logs
+                filter_types = [
+                    "ping",
+                    "telemetry",
+                ]  # Enter keywords to filter out from logs
                 try:
                     if json.loads(data).get("msg_type") not in filter_types:
                         print(f"Received from {connection_id}: {data}")
@@ -448,7 +454,7 @@ class DroneCommunication:
             # Pass the global 'r' redis client, channel name, and stop event
             args=(
                 r,
-                COMMAND_CHANNEL,
+                DRONE_COMMANDS_CHANNEL,
                 self.redis_listener_stop_event,
             ),  # Removed 'self'/'instance' from args
             daemon=True,  # Thread will exit if main program exits
@@ -567,20 +573,60 @@ class DroneCommunication:
         self, message: json_schemas.TaskEventMessage, connection_id
     ):
         try:
-            if self.task_index < len(self.task_list):
-                action = self.task_list[self.task_index].get(
-                    "task_action",
-                    self.task_list[self.task_index].get("msg_type", "unknown"),
+            if message.event == "task_complete":
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    message.model_dump_json(),
                 )
-                print(
-                    f"Sending task from event: index:{self.task_index}, action:{action}"
+
+                next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
+                if next_task_raw:
+                    next_task = json.loads(next_task_raw)
+                    print(
+                        f"Skickar nästa task index:{next_task['index']}, "
+                        f"action:{next_task['task_action']['action']}"
+                    )
+                    await self.connections[connection_id].send(next_task_raw)
+
+                    r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
+
+                else:
+                    print(
+                        f"Mission {message.mission_id} done - waiting 15s before go_home"
+                    )
+
+                    await asyncio.sleep(15)
+
+                    # Update mission status to be completed
+                    mission_registry.update_status(
+                        message.mission_id, MissionStatus.COMPLETED
+                    )
+
+                    go_home = json_schemas.GoHomeMessage(
+                        drone_id=connection_id,
+                        mission_id=message.mission_id,
+                    )
+                    await self.connections[connection_id].send(
+                        go_home.model_dump_json()
+                    )
+                    r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+
+                    print(f"go_home sent to {connection_id}")
+            elif message.event == "task_failed":
+                error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
+                print(error)
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
                 )
-                await self.connections[connection_id].send(
-                    json.dumps(self.task_list[self.task_index])
-                )
-                self.task_index += 1
             else:
-                print("No more tasks left in current mock mission")
+                error = f"Unhandled task event '{message.event}' for drone {message.drone_id} with error '{message.message}'"
+                print(error)
+                r.publish(
+                    DRONE_EVENT_CHANNEL,
+                    json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+                )
+
         except Exception as e:
             error = f"handle_task_event_error {e}"
             print(error)
