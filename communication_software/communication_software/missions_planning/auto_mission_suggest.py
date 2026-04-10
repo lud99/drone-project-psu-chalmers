@@ -36,18 +36,26 @@ class AutoMissionSuggester:
             "PROPOSED_MISSIONS_WS_URL",
             "ws://localhost:8000/api/v1/ws/drone",
         )
-        self._redis = redis.Redis(
-            host=os.environ.get("REDIS_URL"),
-            port=os.environ.get("REDIS_PORT"),
-            db=0,
-            decode_responses=True,
-        )
-        self._redis_async = redis.asyncio.Redis(
-            host=os.environ.get("REDIS_URL"),
-            port=os.environ.get("REDIS_PORT"),
-            db=0,
-            decode_responses=True,
-        )
+
+        try:
+            self._redis = redis.Redis(
+                host=os.environ.get("REDIS_URL"),
+                port=os.environ.get("REDIS_PORT"),
+                db=0,
+                decode_responses=True,
+            )
+            self._redis_async = redis.asyncio.Redis(
+                host=os.environ.get("REDIS_URL"),
+                port=os.environ.get("REDIS_PORT"),
+                db=0,
+                decode_responses=True,
+            )
+            self._redis.ping()  # Check if the connection is successful
+            print("[Auto Mission Suggest] Successfully connected to Redis")
+        except redis.exceptions.ConnectionError as e:
+            print(f"[Auto Mission Suggest] Error connecting to Redis: {e}")
+            exit()  # Exit if we can't connect
+
         self._cooldown_seconds = COOLDOWN_SECONDS
         self._dedupe_distance_meters = DEDUP_DISTANCE_METERS
         self._recent_detection_ids: dict[str, float] = {}
@@ -180,18 +188,17 @@ class AutoMissionSuggester:
 
                 if surveil_mission:
                     drone_id = surveil_mission.drone_id
-                    registry = MissionRegistry()
 
                     # Kolla om just denna drönare redan har en DISPATCHED mission
-                    if registry.is_drone_dispatched(drone_id):
+                    if MissionRegistry.is_drone_dispatched(drone_id):
                         print(
                             f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
                         )
                         continue
 
                     print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
-                    registry.store(surveil_mission)
-                    registry.dispatch_mission(surveil_mission.mission_id)
+                    MissionRegistry.store(surveil_mission)
+                    MissionRegistry.dispatch_mission(surveil_mission.mission_id)
                     print(f"[area_listener] First task sent")
 
                     if request_id:
@@ -202,10 +209,13 @@ class AutoMissionSuggester:
                         self._redis.expire(response_key, 20)
                 else:
                     # Notify that no drone was available
+                    response_key = f"response_{request_id}"
                     self._redis.rpush(
-                        f"response_{request_id}",
-                        json.dumps({"error": "No drone available"}),
+                        response_key,
+                        json.dumps([]),
                     )
+                    self._redis.expire(response_key, 20)
+
                     print("[area_listener] No drone with camera available")
                     self.send_mission_unavailable("GotoAndSurveil", coordinates)
 
@@ -214,7 +224,6 @@ class AutoMissionSuggester:
         Continuously polls Redis for new detection snapshots and dispatches
         detected objects for mission suggestion.
         """
-        mission_registry = MissionRegistry()
 
         last_processed_by_key: dict[str, str] = {}
 
@@ -238,7 +247,7 @@ class AutoMissionSuggester:
 
                 for detection in detections.root:
                     # Only propose missions if the drone is flying
-                    if mission_registry.is_drone_dispatched(detection.drone_ids[0]):
+                    if MissionRegistry.is_drone_dispatched(detection.drone_ids[0]):
                         self.handle_detected_object(detection)
                     else:
                         print("Found detection but drone is not dispatched")
@@ -325,7 +334,9 @@ class AutoMissionSuggester:
         if self._should_skip_detection(detection):
             return
 
-        print("Found new detection, proposing missions")
+        print(
+            f"Found new detection {detection.detection_id}, will generate and propose missions..."
+        )
 
         if detection.object_type == "person":
             self.handle_detected_person(detection.gps_position)
@@ -457,10 +468,8 @@ class AutoMissionSuggester:
             # )
 
     def send_proposed_missions(self, missions: list[Mission]) -> None:
-
-        registry = MissionRegistry()
         for mission in missions:
-            registry.store(mission)
+            MissionRegistry.store(mission)
 
         proposed_payload = json_schemas.FrontendMessages.ProposedMissions(
             missions=[mission.get_frontend_mission_proposal() for mission in missions]

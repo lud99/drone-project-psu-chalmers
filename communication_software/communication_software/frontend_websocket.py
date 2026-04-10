@@ -33,7 +33,6 @@ from communication_software.common.frame_utils import (
 
 logger = logging.getLogger(__name__)
 
-mission_registry = MissionRegistry()
 
 try:
     r = redis.Redis(
@@ -49,9 +48,9 @@ try:
         decode_responses=True,
     )
     r.ping()  # Check if the connection is successful
-    print("Successfully connected to Redis!")
+    print("[Frontend Server] Successfully connected to Redis")
 except redis.exceptions.ConnectionError as e:
-    print(f"Error connecting to Redis: {e}")
+    print(f"[Frontend Server] Error connecting to Redis: {e}")
     exit()  # Exit if we can't connect
 
 
@@ -245,11 +244,11 @@ async def atos_websocket(websocket: WebSocket):
 @app.post("/api/v1/missions/dispatch/{mission_id}")
 def dispatch_mission(mission_id: str):
     try:
-        mission = mission_registry.get(mission_id)
+        mission = MissionRegistry.get(mission_id)
         if not mission:
             return {"msg_type": "response", "error": "Mission not found"}
 
-        mission_registry.dispatch_mission(mission_id)
+        MissionRegistry.dispatch_mission(mission_id)
 
         return {"status": "dispatched", "mission": mission}
     except Exception as e:
@@ -259,7 +258,7 @@ def dispatch_mission(mission_id: str):
 @app.post("/api/v1/missions/reject/{mission_id}")
 async def reject_missions(mission_id: str):
     try:
-        mission = mission_registry.get(mission_id)
+        mission = MissionRegistry.get(mission_id)
         if not mission:
             return {"msg_type": "response", "error": "Mission not found"}
 
@@ -270,7 +269,7 @@ async def reject_missions(mission_id: str):
                 "error": f"Cannot reject mission, it is in state '{mission_status}'",
             }
 
-        mission = mission_registry.remove(mission_id)
+        mission = MissionRegistry.remove(mission_id)
 
         return {"msg_type": "response"}
     except Exception as e:
@@ -345,7 +344,7 @@ async def get_active_missions():
 
 @app.get("/api/v1/missions")
 def get_missions():
-    return mission_registry.get_all()
+    return MissionRegistry.get_all()
 
 
 @app.get("/api/v1/get_watch_area")
@@ -433,10 +432,6 @@ async def merged_feed():
         stream_drone_frames("merged"),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
-
-
-## Connect missions to the API/frontend
-mission_registry = MissionRegistry()
 
 
 @app.get("/api/v1/health")
