@@ -229,9 +229,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
 
                         # Send Answer back
                         answer_msg = json_schemas.WebRTCAnswerMessage(
-                            msg_type="answer",
-                            sdp=pc.localDescription.sdp,
-                            # drone_id=drone_id,
+                            msg_type="answer", sdp=pc.localDescription.sdp
                         )
                         await websocket.send(answer_msg.model_dump_json())
 
