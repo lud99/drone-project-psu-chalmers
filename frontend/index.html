@@ -216,6 +216,7 @@
         // Initialize Map
         let activePolygon = null;
         let userMarker = null;
+        let watchAreaMarker = null;
 
         let proposedMissions = new Map()
 
@@ -702,8 +703,29 @@
                             return;
                         }
 
-                        if (result.data.length == 0) {
+                        if (result.data && result.data.length === 0) {
                             alert("No drone connected and available for surveil mission")
+                            return
+                        }
+
+                        // If the backend returned valid coordinates, add a marker to the map
+                        const coords = [result.data.coordinates.lat, result.data.coordinates.lon];
+                        if (coords) {
+                            const watchAreaIcon = L.icon({
+                                iconUrl: '/images/camera.png',
+                                iconSize: [20, 15], // Maintain aspect ratio to prevent stretching
+                                iconAnchor: [10, 15],
+                                popupAnchor: [0, -28]
+                            });
+
+                            if (watchAreaMarker) {
+                                watchAreaMarker.setLatLng(coords);
+                            } else {
+                                watchAreaMarker = L.marker(coords, {
+                                    icon: watchAreaIcon,
+                                    title: 'Watch Area Coordinates'
+                                }).addTo(map).bindPopup("Drone surveil location");
+                            }
                         }
 
                     } catch (error) {

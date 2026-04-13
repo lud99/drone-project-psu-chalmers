@@ -39,6 +39,9 @@ def calculate_altitude(width: float, height: float) -> float:
     # Height = (Diagonal / 2) / tan(FOV / 2)
     alt = (diagonal / 2) / np.tan(theta)
     alt = round(alt)
+    if alt < 30:
+        return 30
+
     if alt < 99:
         return alt
     else:
@@ -127,7 +130,7 @@ def get_drones_location(
         return np.dot(v1, v2)
 
     def find_optimal_rectangle(coords, aspect_ratio, max_altitude=99):
-        """Find the rectangle orientation that minimizes coverage cost when altitude is constrained."""
+        """Find the rectangle orientation that minimizes the required camera footprint at the altitude cap."""
         hull = ConvexHull(coords)
         hull_pts = coords[hull.vertices]
 
@@ -139,7 +142,7 @@ def get_drones_location(
         camera_height = 2 * radius * (1 / norm_factor)
 
         best = {
-            "cost": float("inf"),
+            "metric": (float("inf"), float("inf")),
             "center": None,
             "axis": None,
             "width": None,
@@ -165,15 +168,11 @@ def get_drones_location(
             rect_width = max0 - min0
             rect_height = max1 - min1
 
-            # Calculate how many camera footprints we need in each direction
-            # when altitude is capped
-            n_width = max(1, np.ceil(rect_width / camera_width))
-            n_height = max(1, np.ceil(rect_height / camera_height))
+            # Skip degenerate rectangles
+            if rect_height <= 0 or rect_width <= 0:
+                continue
 
-            # Total coverage area needed
-            total_coverage_area = n_width * camera_width * n_height * camera_height
-
-            # Also consider the aspect ratio constraint
+            # Apply aspect ratio constraint to get final dimensions
             if rect_width / rect_height > aspect_ratio:
                 final_width = rect_width
                 final_height = final_width / aspect_ratio
@@ -181,14 +180,17 @@ def get_drones_location(
                 final_height = rect_height
                 final_width = final_height * aspect_ratio
 
-            # The "cost" is the total coverage area - lower is better
-            cost = total_coverage_area
+            width_scale = final_width / camera_width
+            height_scale = final_height / camera_height
+            scale = max(width_scale, height_scale)
+            final_area = final_width * final_height
+            metric = (scale, final_area)
 
-            if cost < best["cost"]:
+            if metric < best["metric"]:
                 center = ((min0 + max0) / 2) * U0 + ((min1 + max1) / 2) * U1
                 best.update(
                     {
-                        "cost": cost,
+                        "metric": metric,
                         "center": center,
                         "axis": [U0, U1],
                         "width": final_width,
@@ -210,7 +212,7 @@ def get_drones_location(
             U1 = perp(U0)
 
             min0, max0 = 0, 0
-            max1 = 0
+            min1, max1 = 0, 0
 
             for j in range(n):
                 D = polygon[j] - origin
@@ -218,15 +220,18 @@ def get_drones_location(
                 min0 = min(min0, dot0)
                 max0 = max(max0, dot0)
                 dot1 = dot(U1, D)
+                min1 = min(min1, dot1)
                 max1 = max(max1, dot1)
-            area = (max0 - min0) * max1
+            area = (max0 - min0) * (max1 - min1)
 
             if area < min_rect.area:
-                min_rect.center = origin + ((min0 + max0) / 2) * U0 + (max1 / 2) * U1
+                min_rect.center = (
+                    origin + ((min0 + max0) / 2) * U0 + ((min1 + max1) / 2) * U1
+                )
                 min_rect.axis[0] = U0
                 min_rect.axis[1] = U1
                 min_rect.extent[0] = (max0 - min0) / 2
-                min_rect.extent[1] = max1 / 2
+                min_rect.extent[1] = (max1 - min1) / 2
                 min_rect.area = area
         return min_rect
 
@@ -264,21 +269,17 @@ def get_drones_location(
     else:
         rect = min_area_rectangle_of_hull(compute_convex_hull(coords))
 
-    # 1. Get the tightest bounding box (The Red Box)
-    rect = min_area_rectangle_of_hull(compute_convex_hull(coords))
-
-    # Check if we'll need to cap altitude
+    # Check what altitude this would require
     curr_w = rect.extent[0] * 2
     curr_h = rect.extent[1] * 2
-    test_altitude = calculate_altitude(curr_w, curr_h)
 
-    # If altitude will be capped, find a better orientation
-    if test_altitude >= 99:
-        optimal_rect = find_optimal_rectangle(coords, aspect_ratio, max_altitude=99)
-        if optimal_rect["cost"] < float("inf"):
-            rect.center = optimal_rect["center"]
-            rect.axis = optimal_rect["axis"]
-            rect.extent = [optimal_rect["width"] / 2, optimal_rect["height"] / 2]
+    # Scale to aspect ratio
+    if curr_w / curr_h > aspect_ratio:
+        scaled_w = curr_w
+        scaled_h = scaled_w / aspect_ratio
+    else:
+        scaled_h = curr_h
+        scaled_w = scaled_h * aspect_ratio
 
     # 2. Extract its current dimensions and orientation
     # rect.extent stores half-widths/heights
@@ -308,13 +309,6 @@ def get_drones_location(
         split_axis = axis[1]
         angle_axis = axis[0]
 
-    # if width > height:
-    #     split_axis = axis[0]
-    #     angle_axis = axis[1]
-    # else:
-    #     split_axis = axis[1]
-    #     angle_axis = axis[0]
-
     # 3. Figure out the physical dimensions each drone needs to cover
     coverage_factor = n_drones - overlap * (n_drones - 1)
 
@@ -329,7 +323,7 @@ def get_drones_location(
         req_w = curr_w
         req_h = curr_h / coverage_factor
 
-    # 4. Pad the required dimensions to fit the camera's 16:9 Aspect Ratio
+    # 4. Pad the required dimensions to fit the camera's Aspect Ratio
     if req_w / req_h > aspect_ratio:
         cam_w = req_w
         cam_h = cam_w / aspect_ratio
@@ -337,74 +331,36 @@ def get_drones_location(
         cam_h = req_h
         cam_w = cam_h * aspect_ratio
 
-    half_w = cam_w / 2
-    half_h = cam_h / 2
+    altitude = calculate_altitude(cam_w, cam_h)
 
-    # 5. Set the distance between drones based on the camera size
+    theta = (82.6 / 2) * (np.pi / 180)
+
+    safety_buffer = 1.0
+    radius = altitude * np.tan(theta) * safety_buffer
+
+    # Compute full dimensions from clamped altitude and camera aspect ratio
+    norm_factor = np.sqrt(aspect_ratio**2 + 1)
+
+    width = 2 * radius * (aspect_ratio / norm_factor)
+    height = 2 * radius * (1 / norm_factor)
+
+    # Half extents after altitude clamping
+    half_w = width / 2
+    half_h = height / 2
+
+    # Recalculate centers so they don't have gaps between them
     if curr_w > curr_h:
         split_offset = cam_w * (1 - overlap)
     else:
         split_offset = cam_h * (1 - overlap)
 
+    # Correct spacing (full width)
+    split_offset = width * (1 - overlap)
+
     drone_centers = [
         center + (i - (n_drones - 1) / 2) * split_offset * split_axis
-        for i in range(int(n_drones))
+        for i in range(n_drones)
     ]
-
-    altitude = calculate_altitude(cam_w, cam_h)
-
-    if altitude < 30:
-        altitude = 30  # Enforce minimum 30m flight limit
-
-        theta = (82.6 / 2) * (np.pi / 180)
-
-        # NOTE: Removed the '* 1.4' so the green box accurately represents
-        # the camera footprint at 30 meters. Put it back if you want a safety buffer.
-        safety_buffer = 1.0
-        radius = altitude * np.tan(theta) * safety_buffer
-
-        # Compute full dimensions from aspect ratio
-        norm_factor = np.sqrt(aspect_ratio**2 + 1)
-
-        width = 2 * radius * (aspect_ratio / norm_factor)
-        height = 2 * radius * (1 / norm_factor)
-
-        # Half extents (used everywhere else)
-        half_w = cam_w / 2
-        half_h = cam_h / 2
-
-        # Correct spacing (full width)
-        split_offset = width * (1 - overlap)
-
-        drone_centers = [
-            center + (i - (n_drones - 1) / 2) * split_offset * split_axis
-            for i in range(n_drones)
-        ]
-
-    if altitude >= 99:  # Example max altitude
-        altitude = 99
-
-        # Calculate what the camera ACTUALLY sees at 120m
-        theta = (82.6 / 2) * (np.pi / 180)
-        radius = altitude * np.tan(theta)
-        norm_factor = np.sqrt(aspect_ratio**2 + 1)
-
-        # Shrink the plotting variables to match physical reality
-        cam_w = 2 * radius * (aspect_ratio / norm_factor)
-        cam_h = 2 * radius * (1 / norm_factor)
-        half_w = cam_w / 2
-        half_h = cam_h / 2
-
-        # Recalculate centers so they don't have gaps between them
-        if curr_w > curr_h:
-            split_offset = cam_w * (1 - overlap)
-        else:
-            split_offset = cam_h * (1 - overlap)
-
-        drone_centers = [
-            center + (i - (n_drones - 1) / 2) * split_offset * split_axis
-            for i in range(int(n_drones))
-        ]
 
     fly_to_coords = []
     for drone_center in drone_centers:
@@ -413,10 +369,6 @@ def get_drones_location(
             drone_center[0] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
         ) * (180 / np.pi)
 
-        # delta_lat = drone_center[0] / 6371000 * (180 / np.pi)
-        # delta_long = (
-        #     drone_center[1] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
-        # ) * (180 / np.pi)
         lat = drone_origin.lat + delta_lat
         long = drone_origin.lng + delta_long
 
@@ -469,7 +421,6 @@ def get_drones_location(
         label="Min Area Bounding Box",
         zorder=10,
     )
-    print(rect_corners)
 
     for drone_center in drone_centers:
         rect_corners = np.array(
@@ -565,6 +516,38 @@ tc0_points = [
 run_test_case(
     "Test Case 0: Footbool field near chalmers",
     tc0_points,
+    n_drones=1,
+    aspect_ratio=16 / 9,
+)
+
+
+# Rotated rectangle roughly aligned northeast-southwest
+# Expected: One drone should fly over a rotated coverage box that matches the hull orientation.
+tc0a_points = [
+    {"lat": 57.684200, "lon": 11.978900},
+    {"lat": 57.684700, "lon": 11.979900},
+    {"lat": 57.685100, "lon": 11.979600},
+    {"lat": 57.684600, "lon": 11.978600},
+]
+run_test_case(
+    "Test Case 0A: Rotated NE-SW Rectangle",
+    tc0a_points,
+    n_drones=1,
+    aspect_ratio=16 / 9,
+)
+
+
+# Rotated rectangle roughly aligned northwest-southeast
+# Expected: One drone should capture a tilted, long and thin area with a single oriented bounding box.
+tc0b_points = [
+    {"lat": 57.684100, "lon": 11.978600},
+    {"lat": 57.684300, "lon": 11.979700},
+    {"lat": 57.684900, "lon": 11.979500},
+    {"lat": 57.684700, "lon": 11.978400},
+]
+run_test_case(
+    "Test Case 0B: Long Thin Rotated Rectangle",
+    tc0b_points,
     n_drones=1,
     aspect_ratio=16 / 9,
 )

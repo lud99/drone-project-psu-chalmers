@@ -32,18 +32,33 @@ class Coordinate:
 # Main function to calculate drone locations
 
 
-def calculate_height(area: float, aspect_ratio: float = 16 / 9) -> float:
-    """Calculates the height that the drone needs to fly at to cover a certain 16:9 area."""
+def calculate_altitude(width: float, height: float) -> float:
+    # Diagonal of the area we want to see
+    diagonal = np.sqrt(width**2 + height**2)
+    # 82.6 is the diagonal Field of View (FOV)
     theta = (82.6 / 2) * (np.pi / 180)
-    x = np.sqrt(area / aspect_ratio)
-    y = (16 * x) / 4
-    radius = np.sqrt((2 * y) ** 2 + (1.5 * y) ** 2)
-    height = radius / np.tan(theta)
-    height = round(height)
-    if height < 99:
-        return height
+
+    # Height = (Diagonal / 2) / tan(FOV / 2)
+    alt = (diagonal / 2) / np.tan(theta)
+    alt = round(alt)
+    if alt < 30:
+        return 30
+
+    if alt < 99:
+        return alt
     else:
-        raise HeightError()
+        return 99
+
+
+# ENU projection
+def latlon_to_local(lat, lon, origin_lat, origin_lon):
+    R = 6371000
+    dlat = np.radians(lat - origin_lat)
+    dlon = np.radians(lon - origin_lon)
+
+    x = dlon * R * np.cos(np.radians(origin_lat))  # East
+    y = dlat * R  # North
+    return np.array([x, y])
 
 
 def get_drones_location(
@@ -75,7 +90,12 @@ def get_drones_location(
         raise ProximityError()
 
     # Flatten the list of coordinates into an array
-    coords = np.array([[c.lat, c.lng] for c in corner_coords])
+    coords = np.array(
+        [
+            latlon_to_local(c.lat, c.lng, drone_origin.lat, drone_origin.lng)
+            for c in corner_coords
+        ]
+    )
 
     # Class to represent a rectangle
     class Rectangle:
@@ -116,7 +136,7 @@ def get_drones_location(
             U1 = perp(U0)
 
             min0, max0 = 0, 0
-            max1 = 0
+            min1, max1 = 0, 0
 
             for j in range(n):
                 D = polygon[j] - origin
@@ -124,15 +144,18 @@ def get_drones_location(
                 min0 = min(min0, dot0)
                 max0 = max(max0, dot0)
                 dot1 = dot(U1, D)
+                min1 = min(min1, dot1)
                 max1 = max(max1, dot1)
-            area = (max0 - min0) * max1
+            area = (max0 - min0) * (max1 - min1)
 
             if area < min_rect.area:
-                min_rect.center = origin + ((min0 + max0) / 2) * U0 + (max1 / 2) * U1
+                min_rect.center = (
+                    origin + ((min0 + max0) / 2) * U0 + ((min1 + max1) / 2) * U1
+                )
                 min_rect.axis[0] = U0
                 min_rect.axis[1] = U1
                 min_rect.extent[0] = (max0 - min0) / 2
-                min_rect.extent[1] = max1 / 2
+                min_rect.extent[1] = (max1 - min1) / 2
                 min_rect.area = area
         return min_rect
 
@@ -170,60 +193,102 @@ def get_drones_location(
     else:
         rect = min_area_rectangle_of_hull(compute_convex_hull(coords))
 
-    axis = np.array(rect.axis)
-    center = np.array(rect.center)
-    extent = np.array(rect.extent)
+    # Check what altitude this would require
+    curr_w = rect.extent[0] * 2
+    curr_h = rect.extent[1] * 2
 
-    if extent[0] > extent[1]:
+    # Scale to aspect ratio
+    if curr_w / curr_h > aspect_ratio:
+        scaled_w = curr_w
+        scaled_h = scaled_w / aspect_ratio
+    else:
+        scaled_h = curr_h
+        scaled_w = scaled_h * aspect_ratio
+
+    # 2. Extract its current dimensions and orientation
+    # rect.extent stores half-widths/heights
+    curr_w = rect.extent[0] * 2
+    curr_h = rect.extent[1] * 2
+    axis = rect.axis  # This ensures Green rotation = Red rotation
+    center = rect.center
+
+    # 3. Scale dimensions to fit aspect ratio without changing rotation
+    if curr_w / curr_h > aspect_ratio:
+        # Too wide for the aspect ratio; expand height
+        width = curr_w
+        height = width / aspect_ratio
+    else:
+        # Too tall for the aspect ratio; expand width
+        height = curr_h
+        width = height * aspect_ratio
+
+    if curr_w > curr_h:
         split_axis = axis[0]
         angle_axis = axis[1]
     else:
         split_axis = axis[1]
         angle_axis = axis[0]
 
-    # Calculate the total area of the rectangle
-    total_area = 4 * extent[0] * extent[1]
+    # 3. Figure out the physical dimensions each drone needs to cover
+    coverage_factor = n_drones - overlap * (n_drones - 1)
 
-    # Calculate the dimensions of the 16:9 drone squares
-    height_r = np.sqrt(total_area / (n_drones * aspect_ratio))
-    width = height_r * aspect_ratio
+    if curr_w > curr_h:
+        split_axis = axis[0]
+        angle_axis = axis[1]
+        req_w = curr_w / coverage_factor
+        req_h = curr_h
+    else:
+        split_axis = axis[1]
+        angle_axis = axis[0]
+        req_w = curr_w
+        req_h = curr_h / coverage_factor
 
-    # Adjust the split offset to ensure the drone squares cover the entire rectangle
-    split_offset = width * (1 + (1 - 2 * overlap))
+    # 4. Pad the required dimensions to fit the camera's Aspect Ratio
+    if req_w / req_h > aspect_ratio:
+        cam_w = req_w
+        cam_h = cam_w / aspect_ratio
+    else:
+        cam_h = req_h
+        cam_w = cam_h * aspect_ratio
+
+    altitude = calculate_altitude(cam_w, cam_h)
+
+    theta = (82.6 / 2) * (np.pi / 180)
+
+    safety_buffer = 1.0
+    radius = altitude * np.tan(theta) * safety_buffer
+
+    # Compute full dimensions from clamped altitude and camera aspect ratio
+    norm_factor = np.sqrt(aspect_ratio**2 + 1)
+
+    width = 2 * radius * (aspect_ratio / norm_factor)
+    height = 2 * radius * (1 / norm_factor)
+
+    # Recalculate centers so they don't have gaps between them
+    if curr_w > curr_h:
+        split_offset = cam_w * (1 - overlap)
+    else:
+        split_offset = cam_h * (1 - overlap)
+
+    # Correct spacing (full width)
+    split_offset = width * (1 - overlap)
 
     drone_centers = [
         center + (i - (n_drones - 1) / 2) * split_offset * split_axis
-        for i in range(int(n_drones))
+        for i in range(n_drones)
     ]
-
-    height = calculate_height(width * height_r, aspect_ratio)  # skickar aspect_ratio
-
-    if height < 30:
-        height = 30
-
-        theta = (82.6 / 2) * (np.pi / 180)
-        radius = (height * np.tan(theta)) * 1.4
-
-        norm_factor = np.sqrt(aspect_ratio**2 + 1)
-
-        width = radius * (aspect_ratio / norm_factor)
-        height_r = radius * (1 / norm_factor)
-
-        split_offset = 2 * width * (1 - overlap)
-        drone_centers = [
-            center + (i - (n_drones - 1) / 2) * split_offset * split_axis
-            for i in range(n_drones)
-        ]
 
     fly_to_coords = []
     for drone_center in drone_centers:
-        delta_lat = drone_center[0] / 6371000 * (180 / np.pi)
+        delta_lat = drone_center[1] / 6371000 * (180 / np.pi)
         delta_long = (
-            drone_center[1] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
+            drone_center[0] / (6371000 * np.cos(drone_origin.lat * np.pi / 180))
         ) * (180 / np.pi)
+
         lat = drone_origin.lat + delta_lat
         long = drone_origin.lng + delta_long
-        fly_to_coords.append(Coordinate(lat, long, int(height)))
+
+        fly_to_coords.append(Coordinate(lat, long, int(altitude)))
 
     angle_radians = np.arctan2(angle_axis[1], angle_axis[0])
     return fly_to_coords, round(np.degrees(angle_radians))

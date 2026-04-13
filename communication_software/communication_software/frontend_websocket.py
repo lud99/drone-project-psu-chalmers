@@ -288,6 +288,7 @@ async def set_watch_area(payload: str = Body(...)):
             # Add the request_id to the payload so B knows where to send the answer
             payload_data = {"points": coords, "request_id": request_id}
             raw_watch_area = json.dumps(payload_data)
+            r.set("watch_area", json.dumps({"points": coords}))
 
             # 1. Publish to B
             r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
