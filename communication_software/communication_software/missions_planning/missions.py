@@ -161,7 +161,9 @@ class GotoAndAudio(Mission):
             audio_file = self.get_audio_file()
         except NoAudioFileError:
             audio_file = "N/A"
-        return f"[drone {self.drone_id}] GoTo and play Audio file: {audio_file}"
+
+        time = "∞" if self.duration_seconds is None else self.duration_seconds
+        return f"[drone {self.drone_id}] GoTo and play Audio file: {audio_file} for {time}s"
 
 
 class GotoAndBlink(Mission):
@@ -197,7 +199,11 @@ class GotoAndBlink(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return f"[drone {self.drone_id}] GoTo and Blink with LED type: beacon for {self.duration_seconds}s"
+        time = "∞" if self.duration_seconds is None else self.duration_seconds
+
+        return (
+            f"[drone {self.drone_id}] GoTo and Blink with LED type: beacon for {time}s"
+        )
 
 
 class GotoAndSurveil(Mission):
@@ -237,7 +243,9 @@ class GotoAndSurveil(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return f"[drone {self.drone_id}] GoTo and Surveil for {self.duration_seconds}s"
+        time = "∞" if self.duration_seconds is None else self.duration_seconds
+
+        return f"[drone {self.drone_id}] GoTo and Surveil for {time}s"
 
 
 class GotoAndIlluminate(Mission):
@@ -269,9 +277,9 @@ class GotoAndIlluminate(Mission):
         self.tasks = tasks
 
     def __repr__(self) -> str:
-        return (
-            f"[drone {self.drone_id}] GoTo and Spotlight for {self.duration_seconds}s"
-        )
+        time = "∞" if self.duration_seconds is None else self.duration_seconds
+
+        return f"[drone {self.drone_id}] GoTo and Spotlight for {time}s"
 
 
 class GotoOnly(Mission):

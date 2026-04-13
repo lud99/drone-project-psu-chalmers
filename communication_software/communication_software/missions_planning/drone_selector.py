@@ -30,6 +30,8 @@ from .missions import (
     GotoOnly,
 )
 
+from .mission_registry import MissionRegistry
+
 logger = logging.getLogger(__name__)
 
 # total must be 1
@@ -256,6 +258,20 @@ def compute_total_score(
     )
 
 
+try:
+    r = redis.Redis(
+        host=os.environ.get("REDIS_URL"),
+        port=os.environ.get("REDIS_PORT"),
+        db=0,
+        decode_responses=True,
+    )
+    r.ping()
+    print("[Drone Selector] Successfully connected to Redis")
+except redis.exceptions.ConnectionError as e:
+    print(f"[Drone Selector] Error connecting to Redis: {e}")
+    exit()
+
+
 # Main selector
 class DroneSelector:
     """
@@ -275,14 +291,9 @@ class DroneSelector:
     )
 
     def __init__(self):
-        self._redis = redis.Redis(
-            host=os.environ.get("REDIS_URL"),
-            port=os.environ.get("REDIS_PORT"),
-            db=0,
-            decode_responses=True,
-        )
+        pass
 
-    # ── Step 1: Availability ─────────────────────────────────────────────
+    # ── Step 1: Connected ─────────────────────────────────────────────
 
     def _get_connected_drones(self) -> list[DroneCandidate]:
         """
@@ -293,12 +304,12 @@ class DroneSelector:
         telemetry_keys: dict[str, str] = {}  # drone_id → redis key
         capabilities_keys: dict[str, str] = {}
 
-        for key in self._redis.scan_iter(match="telemetry_drone*"):
-            drone_id = key.replace("telemetry_drone", "")
+        for key in r.scan_iter(match="telemetry_drone*"):
+            drone_id: str = key.replace("telemetry_drone", "")
             telemetry_keys[drone_id] = key
 
-        for key in self._redis.scan_iter(match="capabilities_drone*"):
-            drone_id = key.replace("capabilities_drone", "")
+        for key in r.scan_iter(match="capabilities_drone*"):
+            drone_id: str = key.replace("capabilities_drone", "")
             capabilities_keys[drone_id] = key
 
         # Only drones present in both sets are considered connected
@@ -307,8 +318,8 @@ class DroneSelector:
         candidates: list[DroneCandidate] = []
         for drone_id in connected_ids:
             try:
-                telemetry_json = self._redis.get(telemetry_keys[drone_id])
-                capabilities_json = self._redis.get(capabilities_keys[drone_id])
+                telemetry_json = r.get(telemetry_keys[drone_id])
+                capabilities_json = r.get(capabilities_keys[drone_id])
 
                 if telemetry_json is None or capabilities_json is None:
                     logger.warning(
@@ -392,7 +403,24 @@ class DroneSelector:
         )
         return capable
 
-    # ── Step 3: Ranking ───────────────────────────────────────────────────
+    # ── Step 3: Availability ───────────────────────────────────────────────────
+
+    def _filter_available(
+        self, candidates: list[DroneCandidate]
+    ) -> list[DroneCandidate]:
+        available: list[DroneCandidate] = []
+
+        for candidate in candidates:
+            if not MissionRegistry.is_drone_dispatched(candidate.drone_id):
+                available.append(candidate)
+            else:
+                logger.info(
+                    "Drone %s capable, but is already dispatched", candidate.drone_id
+                )
+
+        return available
+
+    # ── Step 4: Ranking ───────────────────────────────────────────────────
 
     def _rank(
         self,
@@ -505,8 +533,17 @@ class DroneSelector:
             )
             return None
 
-        # Step 3 – ranking (hardware scored against this mission's profile)
-        ranked = self._rank(capable, mission_type, coordinates)
+        # Step 3 - Filter out dispatched drones
+        available = self._filter_available(capable)
+
+        # Step 4 – ranking (hardware scored against this mission's profile)
+        ranked = self._rank(available, mission_type, coordinates)
+        if len(ranked) == 0:
+            print(
+                f"No available missions for connected and available drones. {len(candidates)} connected, {len(capable)} capable, {len(available)} available"
+            )
+            return None
+
         chosen = ranked[0]
         print(f"Ranked for {mission_type}: {[r.drone_id for r in ranked]}")
 

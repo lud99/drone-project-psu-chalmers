@@ -31,9 +31,9 @@ try:
     )
     r.ping()
     r.flushdb()  # Removes all stuff, as stopping docker containers is not enough to clear it
-    print("Successfully connected to Redis (Drone Communication Server)!")
+    print("[Drone Communication Server] Successfully connected to Redis")
 except redis.exceptions.ConnectionError as e:
-    print(f"Error connecting to Redis (Drone Communication Server): {e}")
+    print(f"[Drone Communication Server] Error connecting to Redis: {e}")
     exit()
 
 # import communication_software.missions_planning.mission_testing as mission_testing
@@ -48,8 +48,6 @@ from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
 ice_configuration = RTCConfiguration(
     iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
 )
-
-mission_registry = MissionRegistry()
 
 
 class DroneCommunication:
@@ -254,9 +252,6 @@ class DroneCommunication:
 
     async def process_redis_command(self, redis_message_data):
         """Processes a command received from Redis (runs in the main event loop)."""
-        print(
-            f"\n[PROCESS CMD] Processing command received from Redis. Data type: {type(redis_message_data)}"
-        )
         try:
             if isinstance(redis_message_data, bytes):
                 redis_message_data = redis_message_data.decode("utf-8")
@@ -271,14 +266,6 @@ class DroneCommunication:
                 return
 
             connection_id = message.drone_id
-
-            print(
-                f"[PROCESS CMD] Parsed: Drone='{connection_id}', msg_type='{message.msg_type}'"
-            )
-
-            print(
-                f"[PROCESS CMD] Current active connections: {len(self.connections.items())}"
-            )
 
             if connection_id not in self.connections:
                 print(f"[PROCESS CMD] {connection_id} is not connected!!")
@@ -298,7 +285,7 @@ class DroneCommunication:
 
             try:
                 print(
-                    f"Sending message to WebSocket {connection_id}: {redis_message_data}"
+                    f"Sending message to drone WebSocket {connection_id}: {redis_message_data}"
                 )
                 await connection_ws.send(redis_message_data)
             except websockets.exceptions.ConnectionClosed:
@@ -460,16 +447,11 @@ class DroneCommunication:
             daemon=True,  # Thread will exit if main program exits
         )
         self.redis_listener_task.start()
-        print("Started Redis listener thread.")
+        print("[Drone Communication] Started Redis listener thread.")
 
     def handle_telemetry_message(
         self, message: json_schemas.TelemetryMessage, connection_id
     ):
-        # For debugginig
-        # lat = data.get("latitude")
-        # long = data.get("longitude")
-        # altitude = data.get("altitude")
-        # print(f"Handling position: lat={lat}, long={long}, altitude={altitude}")
         try:
             r.set(
                 f"telemetry_drone{connection_id}", message.telemetry.model_dump_json()
@@ -592,13 +574,13 @@ class DroneCommunication:
 
                 else:
                     print(
-                        f"Mission {message.mission_id} done - waiting 15s before go_home"
+                        f"Mission {message.mission_id} done - waiting 30s before go_home"
                     )
 
-                    await asyncio.sleep(15)
+                    await asyncio.sleep(30)
 
                     # Update mission status to be completed
-                    mission_registry.update_status(
+                    MissionRegistry.update_status(
                         message.mission_id, MissionStatus.COMPLETED
                     )
 
