@@ -496,7 +496,7 @@ class DJIFlightManager {
                     cameraCapabilities.resolution_height = res.height;
 
                     SettingsDefinitions.VideoFov djiFov = settings.getFov();
-                    cameraCapabilities.horizontal_fov = (float) DJIDroneSpecs.getHorizontalFov(aircraft.getModel(), djiFov);
+                    cameraCapabilities.diagonal_fov = (float) DJIDroneSpecs.getDiagonalFov(aircraft.getModel(), djiFov);
                     cameraCapabilities.aspect_ratio = (res.height > 0) ? (float) res.width / res.height : 0.0f;
 
                     registrationData.capabilities.camera = cameraCapabilities;
@@ -522,7 +522,7 @@ class DJIFlightManager {
         DJIDroneSpecs.Resolution defaultRes = DJIDroneSpecs.getDimensions(SettingsDefinitions.VideoResolution.UNKNOWN);
         fallback.resolution_width = defaultRes.width;
         fallback.resolution_height = defaultRes.height;
-        fallback.horizontal_fov = (float) DJIDroneSpecs.getHorizontalFov(aircraft.getModel(), null);
+        fallback.diagonal_fov = (float) DJIDroneSpecs.getDiagonalFov(aircraft.getModel(), null);
         fallback.aspect_ratio = defaultRes.height > 0
                 ? (float) defaultRes.width / defaultRes.height
                 : 16.0f / 9.0f;

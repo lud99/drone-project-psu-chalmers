@@ -17,7 +17,7 @@ class HeightError(Exception):
 
 def calculate_altitude_old(area: float, aspect_ratio: float = 16 / 9) -> float:
     """Calculates the height that the drone needs to fly at to cover a certain 16:9 area."""
-    theta = (82.6 / 2) * (np.pi / 180)
+    theta = (82 / 2) * (np.pi / 180)
     x = np.sqrt(area / aspect_ratio)
     y = (16 * x) / 4
     radius = np.sqrt((2 * y) ** 2 + (1.5 * y) ** 2)
@@ -30,11 +30,10 @@ def calculate_altitude_old(area: float, aspect_ratio: float = 16 / 9) -> float:
         # raise HeightError(height)
 
 
-def calculate_altitude(width: float, height: float) -> float:
+def calculate_altitude(width: float, height: float, diagonal_fov: float) -> float:
     # Diagonal of the area we want to see
     diagonal = np.sqrt(width**2 + height**2)
-    # 82.6 is the diagonal Field of View (FOV)
-    theta = (82.6 / 2) * (np.pi / 180)
+    theta = (diagonal_fov / 2) * (np.pi / 180)
 
     # Height = (Diagonal / 2) / tan(FOV / 2)
     alt = (diagonal / 2) / np.tan(theta)
@@ -69,10 +68,11 @@ def latlon_to_local(lat, lon, origin_lat, origin_lon):
 def get_drones_location(
     corner_coords: list[Coordinate],
     drone_origin: Coordinate,
+    diagonal_fov: float,
     n_drones: int = 2,
     overlap: float = 0.5,
     aspect_ratio: float = 16 / 9,
-) -> tuple[list[Coordinate], float]:
+) -> tuple[list[Coordinate], float, list[list[Coordinate]]]:
     """
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
 
@@ -83,7 +83,7 @@ def get_drones_location(
         overlap (float): The overlap percentage between the drones.
 
     Returns:
-        tuple: A tuple containing a list of coordinates for the drones to fly to and the angle of the rectangle.
+        tuple: A tuple containing a list of coordinates for the drones to fly to, the angle of the rectangle, and a list of lists of the 4 coverage corners for each drone.
     """
 
     # Overlap has to be between 0 and 1
@@ -331,9 +331,9 @@ def get_drones_location(
         cam_h = req_h
         cam_w = cam_h * aspect_ratio
 
-    altitude = calculate_altitude(cam_w, cam_h)
+    altitude = calculate_altitude(cam_w, cam_h, diagonal_fov)
 
-    theta = (82.6 / 2) * (np.pi / 180)
+    theta = (diagonal_fov / 2) * (np.pi / 180)
 
     safety_buffer = 1.0
     radius = altitude * np.tan(theta) * safety_buffer
@@ -467,8 +467,33 @@ def get_drones_location(
     plt.axis("equal")
     plt.show()
 
+    coverage_corners = []
+    for drone_center in drone_centers:
+        rect_corners_local = np.array(
+            [
+                drone_center + half_w * axis[0] + half_h * axis[1],
+                drone_center + half_w * axis[0] - half_h * axis[1],
+                drone_center - half_w * axis[0] - half_h * axis[1],
+                drone_center - half_w * axis[0] + half_h * axis[1],
+            ]
+        )
+
+        corners_lat_lng = []
+        for x, y in rect_corners_local:
+            delta_lat = y / 6371000 * (180 / np.pi)
+            delta_long = (x / (6371000 * np.cos(np.radians(drone_origin.lat)))) * (
+                180 / np.pi
+            )
+
+            lat = drone_origin.lat + delta_lat
+            lng = drone_origin.lng + delta_long
+
+            corners_lat_lng.append((lat, lng))
+
+        coverage_corners.append(corners_lat_lng)
+
     angle = np.arctan2(angle_axis[1], angle_axis[0])
-    return fly_to_coords, np.degrees(angle)
+    return fly_to_coords, round(np.degrees(angle)), coverage_corners
 
 
 # ==========================================
@@ -488,12 +513,13 @@ def run_test_case(name, points, n_drones, aspect_ratio=16 / 9, overlap=0.0):
     origin = Coordinate(lat=center_lat, lng=center_lon, alt=30)
 
     try:
-        fly_to_coords, angle = get_drones_location(
+        fly_to_coords, angle, coverage_corners = get_drones_location(
             corner_coords=hull_points,
             drone_origin=origin,
             n_drones=n_drones,
             aspect_ratio=aspect_ratio,
             overlap=overlap,
+            diagonal_fov=84.0,
         )
         for i, coord in enumerate(fly_to_coords):
             print(

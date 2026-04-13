@@ -371,11 +371,10 @@ async def merge_and_annotate_stream(drone_ids: tuple[str, str]) -> None:
                 print("[ERROR] No right camera specification present!")
                 continue
 
-            # TODO: How does horizontal and vertical fov differ? what fov should be used?
-            left_fov = left_capabilities.camera.horizontal_fov
+            left_fov = left_capabilities.camera.diagonal_fov
             left_alt = left_telemetry.alt
             left_location = (left_telemetry.lat, left_telemetry.lon)
-            right_fov = right_capabilities.camera.horizontal_fov
+            right_fov = right_capabilities.camera.diagonal_fov
             right_alt = right_telemetry.alt
             right_location = (right_telemetry.lat, right_telemetry.lon)
 
@@ -449,8 +448,7 @@ async def annotate_stream(drone_id: str) -> None:
                 print("[ERROR] No camera specification present!")
                 continue
 
-            # TODO: How does horizontal and vertical fov differ? what fov should be used?
-            fov = capabilities.camera.horizontal_fov
+            fov = capabilities.camera.diagonal_fov
             alt = telemetry.alt
             location = (telemetry.lat, telemetry.lon)
 
@@ -578,7 +576,7 @@ async def insert_dummy_telemetry_and_capabilities(drone_id: str) -> None:
             speaker=None,
             camera=json_schemas.CameraCapabilities(
                 aspect_ratio=1.77,
-                horizontal_fov=84.0,
+                diagonal_fov=84.0,
                 resolution_height=1080,
                 resolution_width=1920,
             ),

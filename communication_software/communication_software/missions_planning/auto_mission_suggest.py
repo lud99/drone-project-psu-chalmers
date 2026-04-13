@@ -92,22 +92,23 @@ class AutoMissionSuggester:
         return normalized_points
 
     def _get_area_surveil_coordinates(
-        self, points: list[dict[str, float]]
-    ) -> json_schemas.GoToParams:
+        self, points: list[dict[str, float]], diagonal_fov: float
+    ) -> tuple[json_schemas.GoToParams, list]:
         hull_points = [Coordinate(lat=p["lat"], lng=p["lon"]) for p in points]
         center_lat = sum(p["lat"] for p in points) / len(points)
         center_lon = sum(p["lon"] for p in points) / len(points)
         origin = Coordinate(lat=center_lat, lng=center_lon, alt=30)
 
-        fly_to_coords, angle = get_drones_location(
+        fly_to_coords, angle, coverage_corners = get_drones_location(
             corner_coords=hull_points,
             drone_origin=origin,
             n_drones=1,
+            diagonal_fov=diagonal_fov,
         )
         best = fly_to_coords[0]
         return json_schemas.GoToParams(
             lat=best.lat, lon=best.lng, alt=best.alt, heading=int(angle)
-        )
+        ), coverage_corners
 
     @staticmethod
     def _distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -163,61 +164,90 @@ class AutoMissionSuggester:
         return False
 
     async def redis_area_listener(self):
-        pubsub = self._redis_async.pubsub()
-        await pubsub.subscribe(SURVEIL_AREA_CHANNEL)
+        try:
+            pubsub = self._redis_async.pubsub()
+            await pubsub.subscribe(SURVEIL_AREA_CHANNEL)
 
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                data = json.loads(message["data"])
-                request_id = data["request_id"]
-                points = data["points"]
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    data = json.loads(message["data"])
+                    request_id = data["request_id"]
+                    points = data["points"]
 
-                points = self._extract_watch_area_points(points)
-                if len(points) < 3:
-                    print("watch_area payload does not contain enough points.")
-                    continue
-
-                print("[area_listener] Ny watch_area hittad, bearbetar...")
-                coordinates = self._get_area_surveil_coordinates(points)
-
-                surveil_mission = select_drone_for_mission(
-                    mission_type=GotoAndSurveil,
-                    coordinates=coordinates,
-                    params={"duration_seconds": None},
-                )
-
-                if surveil_mission:
-                    drone_id = surveil_mission.drone_id
-
-                    # Kolla om just denna drönare redan har en DISPATCHED mission
-                    if MissionRegistry.is_drone_dispatched(drone_id):
-                        print(
-                            f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
-                        )
+                    points = self._extract_watch_area_points(points)
+                    if len(points) < 3:
+                        print("watch_area payload does not contain enough points.")
                         continue
 
-                    print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
-                    MissionRegistry.store(surveil_mission)
-                    MissionRegistry.dispatch_mission(surveil_mission.mission_id)
-                    print(f"[area_listener] First task sent")
+                    print("[area_listener] Ny watch_area hittad, bearbetar...")
+                    coordinates, coverage_corners = self._get_area_surveil_coordinates(
+                        points, diagonal_fov=82.6
+                    )
 
-                    if request_id:
+                    surveil_mission = select_drone_for_mission(
+                        mission_type=GotoAndSurveil,
+                        coordinates=coordinates,
+                        params={"duration_seconds": None},
+                    )
+
+                    if surveil_mission:
+                        # As we must know the fov to be able to determine the area, but we also must have a coordinate to decide what drone to use,
+                        # we have to do a preliminary coordinate calculation here to be able to select a drone, and then recalculate the coordinates with the correct fov for the selected drone.
+                        drone_id = surveil_mission.drone_id
+                        diagonal_fov = json_schemas.parse_capabilities(
+                            self._redis.get(f"capabilities_drone{drone_id}")
+                        ).camera.diagonal_fov
+
+                        coordinates, coverage_corners = (
+                            self._get_area_surveil_coordinates(
+                                points, diagonal_fov=diagonal_fov
+                            )
+                        )
+
+                        surveil_mission = select_drone_for_mission(
+                            mission_type=GotoAndSurveil,
+                            coordinates=coordinates,
+                            params={"duration_seconds": None},
+                        )
+
+                        # Kolla om just denna drönare redan har en DISPATCHED mission
+                        if MissionRegistry.is_drone_dispatched(drone_id):
+                            print(
+                                f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
+                            )
+                            continue
+
+                        print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
+                        MissionRegistry.store(surveil_mission)
+                        MissionRegistry.dispatch_mission(surveil_mission.mission_id)
+                        print(f"[area_listener] First task sent")
+
+                        if request_id:
+                            response_key = f"response_{request_id}"
+                            print(f"Sending redis response for{request_id}")
+                            self._redis.rpush(
+                                response_key,
+                                json.dumps(
+                                    {
+                                        "mission": surveil_mission.to_dict(),
+                                        "coverage_corners": coverage_corners,
+                                    }
+                                ),
+                            )
+                            self._redis.expire(response_key, 20)
+                    else:
+                        # Notify that no drone was available
                         response_key = f"response_{request_id}"
                         self._redis.rpush(
-                            response_key, json.dumps(surveil_mission.to_dict())
+                            response_key,
+                            json.dumps({"mission": [], "coverage_corners": []}),
                         )
                         self._redis.expire(response_key, 20)
-                else:
-                    # Notify that no drone was available
-                    response_key = f"response_{request_id}"
-                    self._redis.rpush(
-                        response_key,
-                        json.dumps([]),
-                    )
-                    self._redis.expire(response_key, 20)
 
-                    print("[area_listener] No drone with camera available")
-                    self.send_mission_unavailable("GotoAndSurveil", coordinates)
+                        print("[area_listener] No drone with camera available")
+                        self.send_mission_unavailable("GotoAndSurveil", coordinates)
+        except Exception as exc:
+            print(f"[area_listener] Error in Redis listener: {exc}")
 
     def object_listener(self):
         """

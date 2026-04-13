@@ -218,7 +218,7 @@ public class TaskTestRunner {
                 if (adapterCapabilities.camera != null) {
                     JSONObject camera = new JSONObject();
                     camera.put("aspect_ratio", adapterCapabilities.camera.aspect_ratio);
-                    camera.put("horizontal_fov", adapterCapabilities.camera.horizontal_fov);
+                    camera.put("diagonal_fov", adapterCapabilities.camera.diagonal_fov);
                     camera.put("resolution_height", adapterCapabilities.camera.resolution_height);
                     camera.put("resolution_width", adapterCapabilities.camera.resolution_width);
                     capabilities.put("camera", camera);

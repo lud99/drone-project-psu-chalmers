@@ -205,7 +205,7 @@ def compute_hardware_score(
             capabilities.camera.resolution_height,
         )
 
-        fov_score = min(capabilities.camera.horizontal_fov / FOV_MAX, 1.0) * 100.0
+        fov_score = min(capabilities.camera.diagonal_fov / FOV_MAX, 1.0) * 100.0
 
     speaker_score = 100.0 if capabilities.speaker else 0.0
     lights_score = 100.0 if (capabilities.spotlight or capabilities.led) else 0.0

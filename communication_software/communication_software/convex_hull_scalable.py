@@ -3,6 +3,9 @@ from scipy.spatial import ConvexHull
 
 # Exception classes
 
+MIN_ALTITUDE = 30
+MAX_ALTITUDE = 70
+
 
 class HeightError(Exception):
     def __init__(self, message="Height exceeds Swedish regulations"):
@@ -32,22 +35,22 @@ class Coordinate:
 # Main function to calculate drone locations
 
 
-def calculate_altitude(width: float, height: float) -> float:
+def calculate_altitude(width: float, height: float, diagonal_fov: float) -> float:
     # Diagonal of the area we want to see
     diagonal = np.sqrt(width**2 + height**2)
-    # 82.6 is the diagonal Field of View (FOV)
-    theta = (82.6 / 2) * (np.pi / 180)
+    # diagonal_fov is the camera diagonal Field of View (FOV) in degrees
+    theta = (diagonal_fov / 2) * (np.pi / 180)
 
     # Height = (Diagonal / 2) / tan(FOV / 2)
     alt = (diagonal / 2) / np.tan(theta)
     alt = round(alt)
-    if alt < 30:
-        return 30
+    if alt < MIN_ALTITUDE:
+        return MIN_ALTITUDE
 
-    if alt < 99:
+    if alt < MAX_ALTITUDE:
         return alt
     else:
-        return 99
+        return MAX_ALTITUDE
 
 
 # ENU projection
@@ -64,21 +67,24 @@ def latlon_to_local(lat, lon, origin_lat, origin_lon):
 def get_drones_location(
     corner_coords: list[Coordinate],
     drone_origin: Coordinate,
+    diagonal_fov: float,
     n_drones: int = 2,
     overlap: float = 0.5,
     aspect_ratio: float = 16 / 9,
-) -> tuple[list[Coordinate], float]:
+) -> tuple[list[Coordinate], float, list[list[Coordinate]]]:
     """
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
 
     Args:
         corner_coords (dict): Dictionary of trajectory coordinates for each vehicle.
         drone_origin (Coordinate): The origin coordinate of the test.
+        diagonal_fov (float): Camera diagonal Field of View in degrees.
         n_drones (int): Number of drones to be used in the test.
         overlap (float): The overlap percentage between the drones.
+        aspect_ratio (float): Camera aspect ratio (default 16/9).
 
     Returns:
-        tuple: A tuple containing a list of coordinates for the drones to fly to and the angle of the rectangle.
+        tuple: A tuple containing a list of coordinates for the drones to fly to, the angle of the rectangle, and a list of lists of the 4 coverage corners for each drone.
     """
 
     # Overlap has to be between 0 and 1
@@ -251,9 +257,9 @@ def get_drones_location(
         cam_h = req_h
         cam_w = cam_h * aspect_ratio
 
-    altitude = calculate_altitude(cam_w, cam_h)
+    altitude = calculate_altitude(cam_w, cam_h, diagonal_fov)
 
-    theta = (82.6 / 2) * (np.pi / 180)
+    theta = (diagonal_fov / 2) * (np.pi / 180)
 
     safety_buffer = 1.0
     radius = altitude * np.tan(theta) * safety_buffer
@@ -263,6 +269,10 @@ def get_drones_location(
 
     width = 2 * radius * (aspect_ratio / norm_factor)
     height = 2 * radius * (1 / norm_factor)
+
+    # Half extents after altitude clamping
+    half_w = width / 2
+    half_h = height / 2
 
     # Recalculate centers so they don't have gaps between them
     if curr_w > curr_h:
@@ -290,5 +300,30 @@ def get_drones_location(
 
         fly_to_coords.append(Coordinate(lat, long, int(altitude)))
 
+    coverage_corners = []
+    for drone_center in drone_centers:
+        rect_corners_local = np.array(
+            [
+                drone_center + half_w * axis[0] + half_h * axis[1],
+                drone_center + half_w * axis[0] - half_h * axis[1],
+                drone_center - half_w * axis[0] - half_h * axis[1],
+                drone_center - half_w * axis[0] + half_h * axis[1],
+            ]
+        )
+
+        corners_lat_lng = []
+        for x, y in rect_corners_local:
+            delta_lat = y / 6371000 * (180 / np.pi)
+            delta_long = (x / (6371000 * np.cos(np.radians(drone_origin.lat)))) * (
+                180 / np.pi
+            )
+
+            lat = drone_origin.lat + delta_lat
+            lng = drone_origin.lng + delta_long
+
+            corners_lat_lng.append((lat, lng))
+
+        coverage_corners.append(corners_lat_lng)
+
     angle_radians = np.arctan2(angle_axis[1], angle_axis[0])
-    return fly_to_coords, round(np.degrees(angle_radians))
+    return fly_to_coords, round(np.degrees(angle_radians)), coverage_corners

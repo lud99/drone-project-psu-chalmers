@@ -6,7 +6,7 @@ from pydantic import BaseModel, RootModel, Field, TypeAdapter
 
 class CameraCapabilities(BaseModel):
     aspect_ratio: float
-    horizontal_fov: float
+    diagonal_fov: float
     resolution_height: int
     resolution_width: int
 
