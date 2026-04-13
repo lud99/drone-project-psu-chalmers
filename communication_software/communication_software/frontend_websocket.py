@@ -292,9 +292,10 @@ async def set_watch_area(payload: str = Body(...)):
             # 1. Publish to B
             r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
 
-            # 2. Wait for B to respond on a unique list key (timeout after 10 seconds)
+            # 2. Wait for B to respond on a unique list key (timeout after 5 seconds)
             response_key = f"response_{request_id}"
             response = r.blpop(response_key, timeout=5)
+            print("response", response)
 
             if response:
                 # response is a tuple (key, data)
