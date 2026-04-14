@@ -339,15 +339,17 @@ class AutoMissionSuggester:
         )
 
         if detection.object_type == "person":
-            self.handle_detected_person(detection.gps_position)
+            self.handle_detected_person(detection)
         elif detection.object_type in ["vehicle", "car", "truck", "bus"]:
-            self.handle_detected_vehicle(detection.gps_position)
+            self.handle_detected_vehicle(detection)
 
-    def handle_detected_person(self, coordinates: tuple[float, float]) -> None:
+    def handle_detected_person(self, detection: json_schemas.SingleDetection) -> None:
         """
         Handles a detected person message.
         Tries missions in priority order and selects the first one with an available drone.
         """
+
+        coordinates = detection.gps_position
 
         # Preferred missions in priority order
         missions_order = [
@@ -398,7 +400,7 @@ class AutoMissionSuggester:
                     viable_missions.append(mission)
 
         if viable_missions:
-            self.send_proposed_missions(viable_missions)
+            self.send_proposed_missions(viable_missions, detection)
         else:
             print(f"No drone available for any mission at {coordinates}")
             self.send_mission_unavailable(
@@ -408,11 +410,12 @@ class AutoMissionSuggester:
 
             # self.send_object_notification(object_type="person", coordinates=coordinates)
 
-    def handle_detected_vehicle(self, coordinates: tuple[float, float]) -> None:
+    def handle_detected_vehicle(self, detection: json_schemas.SingleDetection) -> None:
         """
         Handles a detected vehicle message.
         Parses the message and sends a mission suggestion to the frontend.
         """
+        coordinates = detection.gps_position
         missions_order = [
             (GotoAndAudio, ({"audio_type": "stray_car"}, {"audio_type": "alert"})),
             (GotoAndBlink, ({"duration_seconds": 10},)),
@@ -455,7 +458,7 @@ class AutoMissionSuggester:
                         mission.coordinates = new_coordinates
                     viable_missions.append(mission)
         if viable_missions:
-            self.send_proposed_missions(viable_missions)
+            self.send_proposed_missions(viable_missions, detection)
         else:
             print(f"No drone available for mission detected vehicle at {coordinates}")
             self.send_mission_unavailable(
@@ -467,12 +470,21 @@ class AutoMissionSuggester:
             # object_type="vehicle", coordinates=coordinates
             # )
 
-    def send_proposed_missions(self, missions: list[Mission]) -> None:
+    def send_proposed_missions(
+        self, missions: list[Mission], detection: json_schemas.SingleDetection
+    ) -> None:
         for mission in missions:
             MissionRegistry.store(mission)
 
         proposed_payload = json_schemas.FrontendMessages.ProposedMissions(
-            missions=[mission.get_frontend_mission_proposal() for mission in missions]
+            detection_id=detection.detection_id,
+            object_type=detection.object_type,
+            gps_position=detection.gps_position,
+            timestamp=detection.timestamp,
+            missions=[
+                json_schemas.ProposedMission(**mission.get_frontend_mission_proposal())
+                for mission in missions
+            ],
         )
         payload = proposed_payload.model_dump_json()
 
