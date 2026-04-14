@@ -1,16 +1,25 @@
 import asyncio
+import signal
+import threading
 from typing import Any, Optional
 
-from mavlink_client.command_handler import CommandHandler
-from mavlink_client.config import Config
-from mavlink_client.mavlink_adapter import MavlinkAdapter
-from mavlink_client.mavlink_connection import MavlinkConnectionManager
-from mavlink_client.mission_executor import MissionExecutor
-from mavlink_client.mock_drone import MockDrone
-from mavlink_client.telemetry_manager import TelemetryManager
-from mavlink_client.websocket_client import BackendWebSocketClient
+from .config import Config
+from .mavlink_adapter import MavlinkAdapter
+from .mavlink_connection import MavlinkConnectionManager
+from .mission_executor import MissionExecutor
+from .mock_drone import MockDrone
+from .telemetry_manager import TelemetryManager
+from .websocket_client import BackendWebSocketClient
+from .drone_controller import DroneController
+from .api import start_api_server
 
 print("MAIN.PY LOADED")
+
+TAKEOFF_ALT_METERS = 5.0  # relative to launch altitude (ground)
+ARM_DELAY_SEC = 5
+HOVER_DURATION_SEC = 10
+LANDING_WAIT_TIMEOUT_SEC = 45
+ALTITUDE_REACHED_TIMEOUT_SEC = 30
 
 
 class MockMissionExecutor:
@@ -18,28 +27,20 @@ class MockMissionExecutor:
         self.mock_drone = mock_drone
         self.config = config
 
+    def arm(self) -> None:
+        self.mock_drone.arm()
+
+    def takeoff(self, altitude: Optional[float] = None) -> None:
+        target_alt = altitude if altitude is not None else self.config.default_takeoff_alt
+        self.mock_drone.takeoff(target_alt)
+
     def arm_and_takeoff(self, altitude: Optional[float] = None) -> None:
         target_alt = altitude if altitude is not None else self.config.default_takeoff_alt
         self.mock_drone.arm()
         self.mock_drone.takeoff(target_alt)
 
-    def fly_to_coordinate(
-        self,
-        lat: float,
-        lon: float,
-        alt: float,
-        heading: Optional[float] = None,
-    ) -> None:
-        self.mock_drone.goto(lat, lon, alt, heading)
-
-    def return_to_home(self) -> None:
-        self.mock_drone.rtl()
-
     def land(self) -> None:
         self.mock_drone.land()
-
-    def abort(self) -> None:
-        self.mock_drone.mode = "LOITER"
 
     def disarm(self) -> None:
         self.mock_drone.disarm()
@@ -68,6 +69,178 @@ def telemetry_dict(snapshot: Any) -> dict[str, Any]:
     }
 
 
+async def call_blocking_method(obj: Any, method_name: str, *args: Any) -> Any:
+    method = getattr(obj, method_name, None)
+    if method is None:
+        raise AttributeError(
+            f"{obj.__class__.__name__} does not have {method_name}()")
+    return await asyncio.to_thread(method, *args)
+
+
+async def arm_drone(mission_executor: Any) -> None:
+    # arm_and_takeoff combines arming and takeoff
+    # This function is kept for compatibility but arming happens during arm_and_takeoff
+    pass
+
+
+async def takeoff_drone(mission_executor: Any, altitude: float) -> None:
+    if hasattr(mission_executor, "arm_and_takeoff"):
+        await call_blocking_method(mission_executor, "arm_and_takeoff", altitude)
+        return
+
+    if hasattr(mission_executor, "takeoff"):
+        await call_blocking_method(mission_executor, "takeoff", altitude)
+        return
+
+    raise AttributeError(
+        "MissionExecutor does not support takeoff() or arm_and_takeoff()")
+
+
+async def land_drone(mission_executor: Any) -> None:
+    if hasattr(mission_executor, "land"):
+        await call_blocking_method(mission_executor, "land")
+        return
+    raise AttributeError("MissionExecutor does not support land()")
+
+
+async def disarm_drone(mission_executor: Any) -> None:
+    if hasattr(mission_executor, "disarm"):
+        await call_blocking_method(mission_executor, "disarm")
+        return
+    raise AttributeError("MissionExecutor does not support disarm()")
+
+
+async def wait_until_altitude_reached(
+    telemetry_manager: TelemetryManager,
+    target_altitude: float,
+    tolerance: float = 0.7,
+    timeout_sec: int = ALTITUDE_REACHED_TIMEOUT_SEC,
+) -> None:
+    start = asyncio.get_running_loop().time()
+
+    while True:
+        snapshot = telemetry_manager.snapshot()
+        current_alt = snapshot.alt
+
+        if current_alt is not None and current_alt >= target_altitude - tolerance:
+            print(f"[FLIGHT] Reached target altitude: {current_alt} m")
+            return
+
+        if asyncio.get_running_loop().time() - start > timeout_sec:
+            print("[FLIGHT] Altitude wait timed out, continuing")
+            return
+
+        await asyncio.sleep(1)
+
+
+async def wait_until_landed(
+    telemetry_manager: TelemetryManager,
+    timeout_sec: int = LANDING_WAIT_TIMEOUT_SEC,
+) -> None:
+    start = asyncio.get_running_loop().time()
+
+    while True:
+        snapshot = telemetry_manager.snapshot()
+        current_alt = snapshot.alt
+        armed = snapshot.armed
+
+        if current_alt is not None and current_alt <= 0.3:
+            print(f"[FLIGHT] Landing detected, altitude={current_alt}")
+            return
+
+        if armed is False:
+            print("[FLIGHT] Drone reports disarmed during landing wait")
+            return
+
+        if asyncio.get_running_loop().time() - start > timeout_sec:
+            print("[FLIGHT] Landing wait timed out, continuing")
+            return
+
+        await asyncio.sleep(1)
+
+
+async def emergency_land_and_disarm(
+    mission_executor: Any,
+    telemetry_manager: TelemetryManager,
+) -> None:
+    print("[SAFETY] Emergency landing sequence started")
+
+    if mission_executor is None:
+        print("[SAFETY] Mission executor is None, skipping emergency landing")
+        return
+
+    try:
+        await land_drone(mission_executor)
+    except Exception as e:
+        print(f"[SAFETY] Failed to send land command: {e}")
+
+    try:
+        await wait_until_landed(telemetry_manager, timeout_sec=20)
+    except Exception as e:
+        print(f"[SAFETY] Error while waiting for landing: {e}")
+
+    try:
+        await disarm_drone(mission_executor)
+        print("[SAFETY] Drone disarmed")
+    except Exception as e:
+        print(f"[SAFETY] Failed to disarm drone: {e}")
+
+
+async def flight_sequence(
+    mission_executor: Any,
+    telemetry_manager: TelemetryManager,
+    shutdown_event: asyncio.Event,
+    launch_altitude: float,
+) -> None:
+    print("[FLIGHT] Starting autonomous sequence")
+
+    if shutdown_event.is_set():
+        return
+
+    target_altitude = launch_altitude + TAKEOFF_ALT_METERS
+    print(
+        f"[FLIGHT] Arming and taking off to {target_altitude} m (launch alt {launch_altitude} m + {TAKEOFF_ALT_METERS} m)")
+
+    try:
+        await takeoff_drone(mission_executor, target_altitude)
+    except Exception as e:
+        print(f"[FLIGHT] Takeoff failed: {e}")
+        await emergency_land_and_disarm(mission_executor, telemetry_manager)
+        return
+
+    try:
+        await wait_until_altitude_reached(telemetry_manager, target_altitude)
+
+        print(f"[FLIGHT] Hovering for {HOVER_DURATION_SEC} seconds")
+        for _ in range(HOVER_DURATION_SEC):
+            if shutdown_event.is_set():
+                return
+            await asyncio.sleep(1)
+
+        if shutdown_event.is_set():
+            return
+
+        print("[FLIGHT] Landing drone")
+        await land_drone(mission_executor)
+
+        await wait_until_landed(telemetry_manager)
+
+        if shutdown_event.is_set():
+            return
+
+        print("[FLIGHT] Disarming drone")
+        await disarm_drone(mission_executor)
+
+        print("[FLIGHT] Autonomous sequence complete")
+
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"[FLIGHT] Exception during flight sequence: {e}")
+        await emergency_land_and_disarm(mission_executor, telemetry_manager)
+        return
+
+
 async def main() -> None:
     print("ENTERED ASYNC MAIN")
 
@@ -83,42 +256,71 @@ async def main() -> None:
 
     telemetry_task: Optional[asyncio.Task] = None
     heartbeat_task: Optional[asyncio.Task] = None
-    receive_task: Optional[asyncio.Task] = None
+    controller: Optional[DroneController] = None
+
+    shutdown_event = asyncio.Event()
+
+    async def start_emergency_shutdown() -> None:
+        print("[SAFETY] Emergency shutdown triggered")
+        if controller:
+            await controller.emergency_land_and_disarm()
+
+    def handle_sigint() -> None:
+        shutdown_event.set()
+        asyncio.create_task(start_emergency_shutdown())
 
     try:
         if config.use_mock_drone:
             print("[BOOT] Using mock drone mode")
             mock_drone = MockDrone(telemetry_manager)
             mission_executor = MockMissionExecutor(mock_drone, config)
-
         else:
             print("[BOOT] Using real MAVLink mode")
             connection = MavlinkConnectionManager(
                 connection_string=config.mavlink_connection_string,
                 baud=config.mavlink_baud,
             )
-            connection.connect()
+            try:
+                connection.connect()
+            except Exception as conn_err:
+                print(f"[BOOT] MAVLink connection failed: {conn_err}")
+                print("[BOOT] Falling back to mock mode")
+                mock_drone = MockDrone(telemetry_manager)
+                mission_executor = MockMissionExecutor(mock_drone, config)
+                config.use_mock_drone = True
+            else:
+                adapter = MavlinkAdapter(
+                    connection=connection,
+                    telemetry_manager=telemetry_manager,
+                    drone_id=config.drone_id,
+                )
 
-            adapter = MavlinkAdapter(
-                connection=connection,
-                telemetry_manager=telemetry_manager,
-                drone_id=config.drone_id,
-            )
+                mission_executor = MissionExecutor(adapter, config)
 
-            mission_executor = MissionExecutor(adapter, config)
-
-            print("[BOOT] Real MAVLink connection ready. Telemetry-only mode enabled.")
-            print("[BOOT] No automatic takeoff will be executed.")
-
-            if adapter is not None:
+                print("[BOOT] Real MAVLink connection ready")
                 adapter.poll_telemetry()
 
-        command_handler = CommandHandler(mission_executor, telemetry_manager)
+        controller = DroneController(
+            mission_executor, telemetry_manager, config)
+        await controller.initialize()
+
+        loop = asyncio.get_running_loop()
+        try:
+            loop.add_signal_handler(signal.SIGINT, handle_sigint)
+            loop.add_signal_handler(signal.SIGTERM, handle_sigint)
+        except NotImplementedError:
+            print("[WARN] Signal handlers not available on this platform")
+
+        # Start API server early so the UI is always reachable
+        api_thread = threading.Thread(
+            target=start_api_server, args=(controller, config))
+        api_thread.daemon = True
+        api_thread.start()
+        print(f"[API] Server started on port {config.api_port}")
 
         try:
             print(f"[WS] Connecting to backend at {config.backend_ws_url}")
             await ws_client.connect()
-            # await ws_client.register_drone(config.drone_id)
             backend_connected = True
             print(f"[WS] Connected to backend at {config.backend_ws_url}")
         except Exception as e:
@@ -147,11 +349,21 @@ async def main() -> None:
             print("[WS] Register payload sent")
 
         async def telemetry_loop() -> None:
-            while True:
+            while not shutdown_event.is_set():
                 try:
                     if config.use_mock_drone:
                         if mock_drone is not None:
                             mock_drone.tick()
+                            telemetry_manager.update(
+                                lat=mock_drone.lat,
+                                lon=mock_drone.lon,
+                                alt=mock_drone.alt,
+                                heading=mock_drone.heading,
+                                speed=mock_drone.speed,
+                                battery_percent=mock_drone.battery,
+                                mode=mock_drone.mode,
+                                armed=mock_drone.armed,
+                            )
                     else:
                         if adapter is not None:
                             adapter.poll_telemetry()
@@ -164,17 +376,16 @@ async def main() -> None:
                     }
 
                     if backend_connected:
-                        print("[DEBUG TELEMETRY PAYLOAD]", payload)
                         await ws_client.send_json(payload)
                     else:
-                        if snapshot.lat is not None or snapshot.mode is not None:
-                            print(
-                                f"[TELEMETRY] lat={snapshot.lat}, lon={snapshot.lon}, "
-                                f"alt={snapshot.alt}, heading={snapshot.heading}, "
-                                f"speed={snapshot.speed}, battery={snapshot.battery_percent}, "
-                                f"mode={snapshot.mode}, armed={snapshot.armed}, "
-                                f"gps_fix={snapshot.gps_fix_type}, sats={snapshot.satellites_visible}"
-                            )
+                        print(
+                            f"[TELEMETRY] lat={snapshot.lat}, lon={snapshot.lon}, "
+                            f"alt={snapshot.alt}, heading={snapshot.heading}, "
+                            f"speed={snapshot.speed}, battery={snapshot.battery_percent}, "
+                            f"mode={snapshot.mode}, armed={snapshot.armed}, "
+                            f"gps_fix={snapshot.gps_fix_type}, sats={snapshot.satellites_visible}"
+                        )
+
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
@@ -183,65 +394,46 @@ async def main() -> None:
                 await asyncio.sleep(config.telemetry_interval_sec)
 
         async def heartbeat_loop() -> None:
-            while True:
-                # try:
-                #     if backend_connected:
-                #         await ws_client.send_json(
-                #             {
-                #                 "msg_type": "ping",
-                #                 "drone_id": config.drone_id,
-                #             }
-                #         )
-                # except asyncio.CancelledError:
-                #     raise
-                # except Exception as e:
-                #     print(f"[HEARTBEAT] {e}")
-
+            while not shutdown_event.is_set():
                 await asyncio.sleep(config.heartbeat_interval_sec)
-
-        async def receive_handler(message: dict[str, Any]) -> None:
-            try:
-                reply = command_handler.handle(message)
-                if reply and backend_connected:
-                    reply["drone_id"] = config.drone_id
-                    await ws_client.send_json(reply)
-            except Exception as e:
-                print(f"[COMMAND] {e}")
-                if backend_connected:
-                    await ws_client.send_json(
-                        {
-                            "msg_type": "ack",
-                            "drone_id": config.drone_id,
-                            "command": message.get("msg_type"),
-                            "status": "error",
-                            "error": str(e),
-                        }
-                    )
 
         telemetry_task = asyncio.create_task(
             telemetry_loop(), name="telemetry_loop")
         heartbeat_task = asyncio.create_task(
             heartbeat_loop(), name="heartbeat_loop")
 
-        if backend_connected:
-            receive_task = asyncio.create_task(
-                ws_client.receive_loop(receive_handler),
-                name="receive_loop",
-            )
-            await asyncio.gather(telemetry_task, heartbeat_task, receive_task)
-        else:
-            print("[WS] Receive loop skipped because backend is unavailable")
-            await asyncio.gather(telemetry_task, heartbeat_task)
+        # Wait for shutdown
+        while not shutdown_event.is_set():
+            await asyncio.sleep(0.1)
+
+        await asyncio.sleep(2)
 
     except KeyboardInterrupt:
-        print("\n[SAFETY] KeyboardInterrupt received")
-        print("[SAFETY] Telemetry-only session stopped by user")
-        raise
+        print("[SAFETY] KeyboardInterrupt fallback triggered")
+        if controller:
+            try:
+                await controller.emergency_land_and_disarm()
+            except Exception as e:
+                print(f"[SAFETY] Fallback landing failed: {e}")
 
     finally:
+        print("[SHUTDOWN] Starting cleanup sequence")
+        shutdown_event.set()
+
         await safe_cancel(telemetry_task)
         await safe_cancel(heartbeat_task)
-        await safe_cancel(receive_task)
+
+        if controller:
+            await controller.shutdown()
+
+        if backend_connected:
+            try:
+                await ws_client.close()
+                print("[SHUTDOWN] WebSocket closed")
+            except Exception as e:
+                print(f"[SHUTDOWN] Error closing WebSocket: {e}")
+
+        print("[SHUTDOWN] Cleanup complete")
 
 
 if __name__ == "__main__":

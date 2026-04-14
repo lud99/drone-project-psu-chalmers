@@ -155,6 +155,15 @@ class MavlinkAdapter:
     def takeoff(self, altitude: float) -> bool:
         start_alt = self._current_alt()
 
+        current_mode = self._current_mode().upper()
+        if current_mode != "TAKEOFF":
+            print(
+                f"[DEBUG] Current mode is {current_mode}, switching to TAKEOFF before takeoff")
+            if not self.set_mode("TAKEOFF"):
+                raise RuntimeError(
+                    "Failed to switch to TAKEOFF mode before takeoff")
+            time.sleep(1.0)
+
         print(f"[DEBUG] Sending takeoff command to {altitude} m")
         self.connection.takeoff(altitude)
 

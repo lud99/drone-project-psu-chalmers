@@ -1,0 +1,332 @@
+import asyncio
+from enum import Enum
+from typing import Any, Optional, Dict, List, Tuple
+import logging
+
+from .config import Config
+from .telemetry_manager import TelemetryManager
+from .geofence import Geofence, haversine_distance
+from .commands import Command, CommandType, StatusResponse, Point
+
+
+logger = logging.getLogger(__name__)
+
+
+class DroneState(str, Enum):
+    IDLE = "idle"
+    ARMING = "arming"
+    TAKING_OFF = "taking_off"
+    HOVERING = "hovering"
+    NAVIGATING = "navigating"
+    HOLDING = "holding"
+    LANDING = "landing"
+    DISARMING = "disarming"
+    EMERGENCY = "emergency"
+    ERROR = "error"
+
+
+class DroneController:
+    def __init__(self, mission_executor: Any, telemetry_manager: TelemetryManager, config: Config):
+        self.mission_executor = mission_executor
+        self.telemetry_manager = telemetry_manager
+        self.config = config
+        self.state = DroneState.IDLE
+        self.current_command: Optional[str] = None
+        self.geofence = Geofence()
+        self.launch_altitude = 0.0
+        self.latest_safety_message: Optional[str] = None
+        self._navigation_task: Optional[asyncio.Task] = None
+        self._geofence_task: Optional[asyncio.Task] = None
+        self._shutdown_event = asyncio.Event()
+
+    async def initialize(self):
+        """Initialize controller, set launch altitude."""
+        snapshot = self.telemetry_manager.snapshot()
+        self.launch_altitude = snapshot.alt or 0.0
+        logger.info(
+            f"Controller initialized with launch altitude: {self.launch_altitude}")
+
+    async def execute_command(self, command: Command) -> Dict[str, Any]:
+        """Execute a command and return response."""
+        logger.info(f"Received command: {command.type}")
+        if command.type == CommandType.ARM:
+            return await self._arm()
+        elif command.type == CommandType.TAKEOFF_TO_RELATIVE_ALTITUDE:
+            data = command.data or {}
+            alt = data.get("relative_altitude_m",
+                           self.config.default_takeoff_alt)
+            return await self._takeoff_to_altitude(alt)
+        elif command.type == CommandType.LAND:
+            return await self._land()
+        elif command.type == CommandType.DISARM:
+            return await self._disarm()
+        elif command.type == CommandType.GOTO_POINT:
+            data = command.data or {}
+            return await self._goto_point(
+                data["latitude"], data["longitude"],
+                data.get("relative_altitude_m"),
+                data.get("yaw_deg"),
+                data.get("acceptance_radius_m",
+                         self.config.goto_acceptance_radius_m)
+            )
+        elif command.type == CommandType.SET_POLYGON_GEOFENCE:
+            data = command.data or {}
+            return await self._set_geofence(data["polygon"])
+        elif command.type == CommandType.CLEAR_POLYGON_GEOFENCE:
+            return await self._clear_geofence()
+        elif command.type == CommandType.HOLD:
+            return await self._hold()
+        elif command.type == CommandType.GET_STATUS:
+            return await self._get_status()
+        else:
+            return {"success": False, "message": f"Unknown command: {command.type}"}
+
+    async def _arm(self) -> Dict[str, Any]:
+        if self.state not in [DroneState.IDLE, DroneState.ERROR]:
+            return {"success": False, "message": f"Cannot arm in state: {self.state}"}
+        try:
+            self.state = DroneState.ARMING
+            self.current_command = "arm"
+            if hasattr(self.mission_executor, "arm"):
+                await asyncio.to_thread(self.mission_executor.arm)
+            else:
+                # minimal takeoff
+                await asyncio.to_thread(self.mission_executor.arm_and_takeoff, self.launch_altitude + 1)
+            self.state = DroneState.IDLE
+            logger.info("Drone armed successfully")
+            return {"success": True, "message": "Drone armed"}
+        except Exception as e:
+            self.state = DroneState.ERROR
+            logger.error(f"Arm failed: {e}")
+            return {"success": False, "message": f"Arm failed: {e}"}
+
+    async def _takeoff_to_altitude(self, relative_alt: float) -> Dict[str, Any]:
+        if self.state not in [DroneState.IDLE, DroneState.HOVERING]:
+            return {"success": False, "message": f"Cannot takeoff in state: {self.state}"}
+        if not (self.config.min_relative_altitude_m <= relative_alt <= self.config.max_relative_altitude_m):
+            return {"success": False, "message": f"Altitude {relative_alt} out of range [{self.config.min_relative_altitude_m}, {self.config.max_relative_altitude_m}]"}
+        try:
+            self.state = DroneState.TAKING_OFF
+            self.current_command = f"takeoff to {relative_alt}m"
+            target_alt = self.launch_altitude + relative_alt
+            if hasattr(self.mission_executor, "takeoff"):
+                await asyncio.to_thread(self.mission_executor.takeoff, target_alt)
+            else:
+                await asyncio.to_thread(self.mission_executor.arm_and_takeoff, target_alt)
+            # Wait for altitude
+            await self._wait_for_altitude(target_alt)
+            self.state = DroneState.HOVERING
+            logger.info(f"Takeoff to {relative_alt}m completed")
+            return {"success": True, "message": f"Reached altitude {relative_alt}m"}
+        except Exception as e:
+            self.state = DroneState.ERROR
+            logger.error(f"Takeoff failed: {e}")
+            return {"success": False, "message": f"Takeoff failed: {e}"}
+
+    async def _land(self) -> Dict[str, Any]:
+        if self.state in [DroneState.EMERGENCY, DroneState.LANDING]:
+            return {"success": False, "message": "Already landing"}
+        try:
+            # Cancel any navigation
+            if self._navigation_task and not self._navigation_task.done():
+                self._navigation_task.cancel()
+            self.state = DroneState.LANDING
+            self.current_command = "land"
+            await asyncio.to_thread(self.mission_executor.land)
+            await self._wait_for_landed()
+            self.state = DroneState.IDLE
+            logger.info("Landing completed")
+            return {"success": True, "message": "Landed successfully"}
+        except Exception as e:
+            self.state = DroneState.ERROR
+            logger.error(f"Land failed: {e}")
+            return {"success": False, "message": f"Land failed: {e}"}
+
+    async def _disarm(self) -> Dict[str, Any]:
+        if self.state not in [DroneState.IDLE, DroneState.ERROR]:
+            return {"success": False, "message": f"Cannot disarm in state: {self.state}"}
+        try:
+            self.state = DroneState.DISARMING
+            self.current_command = "disarm"
+            await asyncio.to_thread(self.mission_executor.disarm)
+            self.state = DroneState.IDLE
+            logger.info("Drone disarmed")
+            return {"success": True, "message": "Disarmed"}
+        except Exception as e:
+            self.state = DroneState.ERROR
+            logger.error(f"Disarm failed: {e}")
+            return {"success": False, "message": f"Disarm failed: {e}"}
+
+    async def _goto_point(self, lat: float, lon: float, rel_alt: Optional[float] = None,
+                          yaw: Optional[float] = None, radius: float = 2.0) -> Dict[str, Any]:
+        if self.state not in [DroneState.HOVERING, DroneState.NAVIGATING]:
+            return {"success": False, "message": f"Cannot goto in state: {self.state}"}
+        # Check geofence
+        if not self.geofence.is_point_inside(lat, lon):
+            return {"success": False, "message": "Target point outside geofence"}
+        # Validate telemetry
+        snapshot = self.telemetry_manager.snapshot()
+        if snapshot.gps_fix_type is None or snapshot.gps_fix_type < 3:
+            return {"success": False, "message": "GPS fix insufficient"}
+        try:
+            self.state = DroneState.NAVIGATING
+            self.current_command = f"goto {lat},{lon}"
+            alt = rel_alt if rel_alt is not None else (
+                snapshot.alt or self.launch_altitude + 10)
+            await asyncio.to_thread(self.mission_executor.fly_to_coordinate, lat, lon, alt, yaw)
+            # Start monitoring
+            self._navigation_task = asyncio.create_task(
+                self._monitor_goto(lat, lon, alt, radius))
+            logger.info(f"Goto {lat},{lon} initiated")
+            return {"success": True, "message": f"Navigating to {lat},{lon}"}
+        except Exception as e:
+            self.state = DroneState.ERROR
+            logger.error(f"Goto failed: {e}")
+            return {"success": False, "message": f"Goto failed: {e}"}
+
+    async def _monitor_goto(self, target_lat: float, target_lon: float, target_alt: float, radius: float):
+        start_time = asyncio.get_event_loop().time()
+        while not self._shutdown_event.is_set():
+            snapshot = self.telemetry_manager.snapshot()
+            current_lat = snapshot.lat
+            current_lon = snapshot.lon
+            current_alt = snapshot.alt
+            if current_lat is None or current_lon is None or current_alt is None:
+                continue
+            dist = haversine_distance(
+                current_lat, current_lon, target_lat, target_lon)
+            alt_diff = abs((current_alt or 0) - target_alt)
+            if dist <= radius and alt_diff <= 1.0:
+                self.state = DroneState.HOVERING
+                self.current_command = None
+                logger.info("Goto target reached")
+                return
+            if asyncio.get_event_loop().time() - start_time > self.config.goto_timeout_sec:
+                self.state = DroneState.HOLDING
+                self.current_command = "hold (timeout)"
+                logger.warning("Goto timeout, holding position")
+                return
+            await asyncio.sleep(1)
+
+    async def _set_geofence(self, polygon: List[Dict]) -> Dict[str, Any]:
+        points = [(p["latitude"], p["longitude"]) for p in polygon]
+        if self.geofence.set_polygon(points):
+            self._start_geofence_monitoring()
+            logger.info("Geofence set")
+            return {"success": True, "message": "Geofence set"}
+        else:
+            return {"success": False, "message": "Invalid polygon"}
+
+    async def _clear_geofence(self) -> Dict[str, Any]:
+        self.geofence.clear_polygon()
+        if self._geofence_task:
+            self._geofence_task.cancel()
+        logger.info("Geofence cleared")
+        return {"success": True, "message": "Geofence cleared"}
+
+    def _start_geofence_monitoring(self):
+        if self._geofence_task:
+            self._geofence_task.cancel()
+        self._geofence_task = asyncio.create_task(self._monitor_geofence())
+
+    async def _monitor_geofence(self):
+        while not self._shutdown_event.is_set() and self.geofence.polygon:
+            snapshot = self.telemetry_manager.snapshot()
+            lat = snapshot.lat
+            lon = snapshot.lon
+            if lat is not None and lon is not None:
+                if not self.geofence.is_point_inside(lat, lon):
+                    logger.warning("Geofence breach detected")
+                    self.latest_safety_message = "Geofence breach"
+                    if self.config.geofence_breach_action == "land":
+                        await self._land()
+                    else:
+                        await self._hold()
+            await asyncio.sleep(self.config.geofence_check_interval_sec)
+
+    async def _hold(self) -> Dict[str, Any]:
+        try:
+            # Assume mission_executor has abort or set_mode to LOITER
+            if hasattr(self.mission_executor, "abort"):
+                await asyncio.to_thread(self.mission_executor.abort)
+            self.state = DroneState.HOLDING
+            self.current_command = "hold"
+            logger.info("Hold command executed")
+            return {"success": True, "message": "Holding position"}
+        except Exception as e:
+            logger.error(f"Hold failed: {e}")
+            return {"success": False, "message": f"Hold failed: {e}"}
+
+    async def _get_status(self) -> Dict[str, Any]:
+        snapshot = self.telemetry_manager.snapshot()
+        polygon = None
+        if self.geofence.polygon:
+            polygon = [Point(latitude=lat, longitude=lon)
+                       for lat, lon in self.geofence.polygon]
+        return StatusResponse(
+            state=self.state.value,
+            current_command=self.current_command,
+            geofence_active=self.geofence.polygon is not None,
+            polygon=polygon,
+            latest_safety_message=self.latest_safety_message,
+            using_mock_drone=self.config.use_mock_drone,
+            telemetry={
+                "lat": snapshot.lat,
+                "lon": snapshot.lon,
+                "alt": snapshot.alt,
+                "heading": snapshot.heading,
+                "speed": snapshot.speed,
+                "battery_percent": snapshot.battery_percent,
+                "mode": snapshot.mode,
+                "armed": snapshot.armed,
+                "gps_fix_type": snapshot.gps_fix_type,
+                "satellites_visible": snapshot.satellites_visible,
+            }
+        ).dict()
+
+    async def _wait_for_altitude(self, target_alt: float, tolerance: float = 0.7, timeout: int = 30):
+        start = asyncio.get_event_loop().time()
+        while not self._shutdown_event.is_set():
+            snapshot = self.telemetry_manager.snapshot()
+            current_alt = snapshot.alt
+            if current_alt is not None and abs(current_alt - target_alt) <= tolerance:
+                return
+            if asyncio.get_event_loop().time() - start > timeout:
+                raise TimeoutError("Altitude not reached in time")
+            await asyncio.sleep(1)
+
+    async def _wait_for_landed(self, timeout: int = 45):
+        start = asyncio.get_event_loop().time()
+        while not self._shutdown_event.is_set():
+            snapshot = self.telemetry_manager.snapshot()
+            current_alt = snapshot.alt
+            armed = snapshot.armed
+            if current_alt is not None and current_alt <= 0.3:
+                return
+            if armed is False:
+                return
+            if asyncio.get_event_loop().time() - start > timeout:
+                raise TimeoutError("Landing timeout")
+            await asyncio.sleep(1)
+
+    async def emergency_land_and_disarm(self):
+        """Emergency shutdown."""
+        self.state = DroneState.EMERGENCY
+        self.latest_safety_message = "Emergency shutdown"
+        try:
+            await self._land()
+            await self._disarm()
+        except Exception as e:
+            logger.error(f"Emergency land/disarm failed: {e}")
+
+    async def shutdown(self):
+        """Shutdown controller."""
+        self._shutdown_event.set()
+
+    async def shutdown(self):
+        """Shutdown controller."""
+        self._shutdown_event.set()
+        if self._navigation_task and not self._navigation_task.done():
+            self._navigation_task.cancel()
+        if self._geofence_task and not self._geofence_task.done():
+            self._geofence_task.cancel()

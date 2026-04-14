@@ -10,42 +10,33 @@ class MissionExecutor:
         self.adapter = adapter
         self.config = config
 
-    def arm_and_takeoff(self, altitude: float | None = None) -> None:
-        alt = altitude if altitude is not None else self.config.default_takeoff_alt
-
-        print("[DEBUG] PX4 arm + takeoff")
-
-        current_mode = self.adapter.wait_for_valid_mode()
-        print(f"[DEBUG] Current mode before takeoff prep: {current_mode}")
-
-        if current_mode != "TAKEOFF":
-            if not self.adapter.set_mode("TAKEOFF"):
-                raise RuntimeError(
-                    f"Vehicle is currently in {current_mode} and failed to switch to TAKEOFF"
-                )
-
-            time.sleep(1.0)
-
-            current_mode = self.adapter.wait_for_valid_mode()
-            print(f"[DEBUG] Mode after switch attempt: {current_mode}")
-
-            if current_mode != "TAKEOFF":
-                raise RuntimeError(
-                    f"Vehicle is currently in {current_mode}, failed to enter TAKEOFF mode"
-                )
-
+    def arm(self) -> None:
+        # Keep arming as a standalone action for command-driven UI flows.
         if not self.adapter.arm():
             raise RuntimeError("Arm command rejected by flight controller")
 
+    def takeoff(self, altitude: float | None = None) -> None:
+        alt = altitude if altitude is not None else self.config.default_takeoff_alt
+
+        if not self.adapter._is_armed():
+            if not self.adapter.arm():
+                raise RuntimeError("Arm command rejected by flight controller")
+
+        if not self.adapter.takeoff(alt):
+            raise RuntimeError(
+                "Takeoff failed or vehicle disarmed during climb")
+
+    def arm_and_takeoff(self, altitude: float | None = None) -> None:
+        alt = altitude if altitude is not None else self.config.default_takeoff_alt
+        print("[DEBUG] PX4 arm + takeoff")
+        self.arm()
         print("[DEBUG] Waiting to confirm armed state is stable")
         time.sleep(2.0)
 
         if not self.adapter._is_armed():
             raise RuntimeError("Vehicle disarmed immediately after arming")
 
-        if not self.adapter.takeoff(alt):
-            raise RuntimeError(
-                "Takeoff failed or vehicle disarmed during climb")
+        self.takeoff(alt)
 
     def fly_to_coordinate(
         self,
@@ -65,6 +56,9 @@ class MissionExecutor:
 
     def land(self) -> None:
         self.adapter.land()
+
+    def disarm(self) -> None:
+        self.adapter.disarm()
 
     def abort(self) -> None:
         self.adapter.set_mode("LOITER")

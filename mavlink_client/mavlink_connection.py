@@ -272,6 +272,12 @@ class MavlinkConnectionManager:
         if self.master is None:
             raise RuntimeError("MAVLink not connected")
 
+        # Ensure the flight mode is appropriate for takeoff.
+        print("[DEBUG] Ensuring TAKEOFF mode before takeoff command")
+        if not self.set_mode("TAKEOFF"):
+            raise RuntimeError(
+                "Failed to switch to TAKEOFF mode before takeoff")
+
         print(
             f"[DEBUG] Sending PX4-friendly MAV_CMD_NAV_TAKEOFF altitude={altitude}")
 
