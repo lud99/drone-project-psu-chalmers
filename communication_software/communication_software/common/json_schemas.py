@@ -90,11 +90,13 @@ class SpotlightTask(BaseModel):
     action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
 
+
 class AngleCameraParams(BaseModel):
     pitch: float
     roll: float
     yaw: float
     duration_seconds: Optional[float] = None
+
 
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
@@ -199,6 +201,7 @@ class WebRTCAnswerMessage(DroneMessage):
     sdp: str
     type: Optional[str] = None
 
+
 # Create a Union of all possible messages
 AnyDroneMessage = Annotated[
     Union[
@@ -217,6 +220,7 @@ AnyDroneMessage = Annotated[
     ],
     Field(discriminator="msg_type"),
 ]
+
 
 ### Detections schema
 class SingleDetection(BaseModel):
@@ -243,8 +247,10 @@ class Points(BaseModel):
 
 class DroneInfo(BaseModel):
     drone_id: str
+    model: str
     capabilities: Capabilities
     telemetry: Telemetry
+
 
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):
@@ -279,6 +285,7 @@ class FrontendMessages:
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
+        model: str
         capabilities: Capabilities
         telemetry: Telemetry
         error: Optional[str] = None

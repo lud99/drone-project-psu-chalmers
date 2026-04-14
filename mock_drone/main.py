@@ -129,8 +129,8 @@ async def run_drone_client(drone_id: str):
 
             reg_msg = json_schemas.DroneRegistrationMessage(
                 msg_type="drone_registration",
-                drone_type="quadcopter",
                 model="DJI-Mavic-Mock",
+                drone_type="DJI",
                 drone_id=drone_id,
                 capabilities=json_schemas.Capabilities(
                     camera=None,

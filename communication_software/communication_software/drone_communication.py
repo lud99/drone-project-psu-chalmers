@@ -422,6 +422,7 @@ class DroneCommunication:
         self.connections.pop(connection_id, None)
 
         r.delete(f"telemetry_drone{connection_id}")
+        r.delete(f"model_drone{connection_id}")
         r.delete(f"capabilities_drone{connection_id}")
 
         print(f"Connection {connection_id} removed.")
@@ -509,6 +510,7 @@ class DroneCommunication:
                 message.telemetry.model_dump_json(),
                 ex=60,
             )
+            r.set(f"model_drone{message.drone_id}", message.model)
 
             if message.capabilities.camera is not None:
                 self.create_peer_connection(message.drone_id)
@@ -531,6 +533,7 @@ class DroneCommunication:
                     drone_id=message.drone_id,
                     capabilities=message.capabilities,
                     telemetry=message.telemetry,
+                    model=message.model,
                 ).model_dump_json(),
             )
 

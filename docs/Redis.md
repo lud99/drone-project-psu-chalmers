@@ -6,6 +6,7 @@
 | frame_drone{id}\_detections   | DetectionsSchema        | |
 | telemetry_drone{id}   | TelemetrySchema        | if it exists, the drone is connected |
 | capabilities_drone{id}   | CapabilitiesSchema        | If it exists, the drone is connected    |
+| model_drone{id}   | CapabilitiesSchema        | If it exists, the drone is connected    |
 | watch_area  | Points | polygon area the drone should monitor | 
 
 For schemas, see ```json_schemas.py```
