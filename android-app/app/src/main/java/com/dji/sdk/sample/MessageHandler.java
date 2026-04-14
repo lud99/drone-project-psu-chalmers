@@ -195,7 +195,7 @@ class MessageHandler {
 
         try {
             cameraJson.put("aspect_ratio", camera.aspect_ratio);
-            cameraJson.put("horizontal_fov", camera.horizontal_fov);
+            cameraJson.put("diagonal_fov", camera.diagonal_fov);
             cameraJson.put("resolution_height", camera.resolution_height);
             cameraJson.put("resolution_width", camera.resolution_width);
         } catch (Exception e) {

@@ -47,7 +47,6 @@
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         Live Feed
-                        <span id="atosStatus" class="badge bg-warning float-end">TEST INACTIVE</span>
                     </div>
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
@@ -228,7 +227,10 @@
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
-        let activePolygon = null;
+        let activePolygon = null;  // Surveillance area polygon
+        let coveragePolygon = null;  // Drone coverage area polygon
+        let userMarker = null;
+        let watchAreaMarker = null;
 
         async function dispatchMission(missionId) {
             try {
@@ -729,6 +731,7 @@
         // Initialize Surviellance area map
         const map = L.map('map').setView(DEFAULT_MAP_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
         const markers = {};
 
         function ensureDroneMarker(droneId, lat, lon) {
@@ -751,34 +754,46 @@
             return markers[droneId];
         }
 
-        // Retrieve the users position
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
+        /**
+          * Function to fetch and display user location
+          * @param {boolean} centerMap - Whether to pan the map to the user
+          */
+        function locateUser(centerMap = false) {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
 
-                    map.setView([lat, lng], 15);
+                        if (centerMap) map.setView([lat, lng], 15);
 
-                    // Add marker to your position
-                    L.marker([lat, lng]).addTo(map)
-                        .bindPopup("You are here")
-                        .openPopup();
-                },
-                (error) => {
-                    console.log("Could not fetch your position:", error);
-
-                    // fallback (t.ex. Lindholmen)
-                    map.setView(DEFAULT_MAP_CENTER, 15);
-                }
-            );
-        } else {
-            console.log("Geolocation is not supported");
-            map.setView(DEFAULT_MAP_CENTER, 15);
+                        // Use a CircleMarker instead of a standard Marker
+                        if (!userMarker) {
+                            userMarker = L.circleMarker([lat, lng], {
+                                radius: 10,
+                                fillColor: "#007bff",
+                                color: "#fff",
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            }).addTo(map).bindPopup("You are here");
+                        } else {
+                            userMarker.setLatLng([lat, lng]);
+                        }
+                    },
+                    (error) => {
+                        console.log("Could not fetch position:", error);
+                        if (centerMap) map.setView([57.705841, 11.938096], 15);
+                    }
+                );
+            }
         }
 
+        // Initial location fetch (without centering unless required)
+        locateUser(true);
+
         //  Map changes
-        // Save the last polygon that was made when updating the website
+        // Load surveillance area and coverage overlays
         async function loadWatchArea() {
 
             try {
@@ -798,6 +813,22 @@
                     map.fitBounds(activePolygon.getBounds());
                 }
 
+                // Display coverage rectangle
+                if (data.coverage && data.coverage.length > 0) {
+                    if (coveragePolygon) {
+                        map.removeLayer(coveragePolygon);
+                    }
+                    const droneCorners = data.coverage[0];
+                    const coverageLatlngs = droneCorners.map(p => [p[0], p[1]]);
+                    coveragePolygon = L.polygon(coverageLatlngs, {
+                        color: "#0000AA",
+                        weight: 2,
+                        dashArray: "5, 5",
+                        fillColor: "#0000AA",
+                        fillOpacity: 0.1
+                    }).addTo(map);
+                }
+
             } catch (error) {
                 console.error("Failed to load watch area:", error);
             }
@@ -814,6 +845,27 @@
 
         // -------- CUSTOM CONTROL --------
 
+        const LocateControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function (map) {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                container.style.backgroundColor = 'white';
+                container.style.width = '34px';
+                container.style.height = '34px';
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.justifyContent = 'center';
+                container.style.cursor = 'pointer';
+                container.title = "Go to my location";
+                container.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 16.5017C14.4853 16.5017 16.5 14.487 16.5 12.0017C16.5 9.5164 14.4853 7.50168 12 7.50168C9.51472 7.50168 7.5 9.5164 7.5 12.0017C7.5 14.487 9.51472 16.5017 12 16.5017ZM12 14.5034C10.6184 14.5034 9.49832 13.3833 9.49832 12.0017C9.49832 10.62 10.6184 9.5 12 9.5C13.3816 9.5 14.5017 10.62 14.5017 12.0017C14.5017 13.3833 13.3816 14.5034 12 14.5034Z" fill="#0F0F0F"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11 1C11 0.447715 11.4477 0 12 0C12.5523 0 13 0.447715 13 1V2.04938C17.7244 2.51844 21.4816 6.27558 21.9506 11H23C23.5523 11 24 11.4477 24 12C24 12.5523 23.5523 13 23 13H21.9506C21.4816 17.7244 17.7244 21.4816 13 21.9506V23C13 23.5523 12.5523 24 12 24C11.4477 24 11 23.5523 11 23V21.9506C6.27558 21.4816 2.51844 17.7244 2.04938 13H1C0.447715 13 0 12.5523 0 12C-1.19209e-07 11.4477 0.447715 11 1 11H2.04938C2.51844 6.27558 6.27558 2.51844 11 2.04938V1ZM12 20.0016C7.58083 20.0016 3.99839 16.4192 3.99839 12C3.99839 7.58083 7.58083 3.99839 12 3.99839C16.4192 3.99839 20.0016 7.58083 20.0016 12C20.0016 16.4192 16.4192 20.0016 12 20.0016Z" fill="#0F0F0F"/></svg>';
+
+                L.DomEvent.disableClickPropagation(container);
+                container.onclick = () => locateUser(true);
+                return container;
+            }
+        });
+        map.addControl(new LocateControl());
+
         const customControl = L.Control.extend({
             options: { position: 'topleft' },
 
@@ -828,7 +880,7 @@
                 container.style.justifyContent = 'center';
                 container.style.cursor = 'pointer';
                 container.title = "Click to mark an area";
-                container.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 16.5017C14.4853 16.5017 16.5 14.487 16.5 12.0017C16.5 9.5164 14.4853 7.50168 12 7.50168C9.51472 7.50168 7.5 9.5164 7.5 12.0017C7.5 14.487 9.51472 16.5017 12 16.5017ZM12 14.5034C10.6184 14.5034 9.49832 13.3833 9.49832 12.0017C9.49832 10.62 10.6184 9.5 12 9.5C13.3816 9.5 14.5017 10.62 14.5017 12.0017C14.5017 13.3833 13.3816 14.5034 12 14.5034Z" fill="#0F0F0F"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11 1C11 0.447715 11.4477 0 12 0C12.5523 0 13 0.447715 13 1V2.04938C17.7244 2.51844 21.4816 6.27558 21.9506 11H23C23.5523 11 24 11.4477 24 12C24 12.5523 23.5523 13 23 13H21.9506C21.4816 17.7244 17.7244 21.4816 13 21.9506V23C13 23.5523 12.5523 24 12 24C11.4477 24 11 23.5523 11 23V21.9506C6.27558 21.4816 2.51844 17.7244 2.04938 13H1C0.447715 13 0 12.5523 0 12C-1.19209e-07 11.4477 0.447715 11 1 11H2.04938C2.51844 6.27558 6.27558 2.51844 11 2.04938V1ZM12 20.0016C7.58083 20.0016 3.99839 16.4192 3.99839 12C3.99839 7.58083 7.58083 3.99839 12 3.99839C16.4192 3.99839 20.0016 7.58083 20.0016 12C20.0016 16.4192 16.4192 20.0016 12 20.0016Z" fill="#0F0F0F"/></svg>';
+                container.innerHTML = '<img src="/images/penna_with_sträck.jpg" width=28>'
 
                 L.DomEvent.disableClickPropagation(container);
 
@@ -964,7 +1016,7 @@
                         const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/set_watch_area`, {
                             method: "POST",
                             headers: {
-                                "Content-Type": "application/text"
+                                "Content-Type": "text/plain"
                             },
                             body: JSON.stringify({
                                 msg_type: "set_watch_area",
@@ -981,11 +1033,61 @@
                         const result = await response.json();
                         console.log(result)
 
-                        if (!result.error) {
-                            alert("Coordinates sent ok");
-                        }
-                        else {
+                        if (result.error) {
                             alert("Error: " + result.error);
+                            return;
+                        }
+
+                        if (result.data && result.data.mission.length === 0) {
+                            alert(result.data.message || "No drone available for GotoSurveil mission");
+                            return
+                        }
+
+                        alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`)
+
+
+
+                        // If the backend returned valid coordinates, add a marker to the map
+                        const coords = [result.data.mission.coordinates.lat, result.data.mission.coordinates.lon];
+                        const altitude = result.data.mission.coordinates.alt;
+                        if (coords) {
+                            const watchAreaIcon = L.icon({
+                                iconUrl: '/images/camera.png',
+                                iconSize: [20, 15], // Maintain aspect ratio to prevent stretching
+                                iconAnchor: [10, 15],
+                                popupAnchor: [0, -28]
+                            });
+
+                            if (watchAreaMarker) {
+                                watchAreaMarker.setLatLng(coords);
+                            } else {
+                                watchAreaMarker = L.marker(coords, {
+                                    icon: watchAreaIcon,
+                                    title: 'Watch Area Coordinates'
+                                }).addTo(map)
+                                    .bindPopup(`Target altitude: ${altitude}m`)
+                            }
+                        }
+
+                        // Draw coverage polygon if available
+                        if (result.data.coverage_corners && result.data.coverage_corners.length > 0) {
+                            const corners = result.data.coverage_corners[0];
+                            const latlngs = corners.map(corner => [corner[0], corner[1]]);
+
+                            if (coveragePolygon) {
+                                map.removeLayer(coveragePolygon);
+                            }
+
+                            coveragePolygon = L.polygon(latlngs, {
+                                color: '#0000AA',
+                                title: 'Estimated coverage area',
+                                weight: 2,
+                                dashArray: '5, 5',
+                                fillColor: '#0000AA',
+                                fillOpacity: 0.1
+                            }).addTo(map);
+
+                            coveragePolygon.bindPopup(`Drone ${result.data.mission.drone_id} estimated coverage area. Target altitude: ${altitude}m`);
                         }
 
                     } catch (error) {
@@ -1164,13 +1266,6 @@
             atosWS.send(JSON.stringify({ command: 'stop' }));
         });
 
-        // Handle ATOS Status
-        atosWS.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const statusElement = document.getElementById('atosStatus');
-            statusElement.textContent = data.test_active ? "TEST ACTIVE" : "TEST INACTIVE";
-            statusElement.className = `badge ${data.test_active ? 'bg-success' : 'bg-secondary'} float-end`;
-        };
 
         function sendFlightCommand(droneId, command) {
             if (flightmanagerWS.readyState === WebSocket.OPEN) {
