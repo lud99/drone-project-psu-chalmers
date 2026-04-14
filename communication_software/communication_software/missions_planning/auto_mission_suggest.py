@@ -23,6 +23,7 @@ from communication_software.missions_planning.mission_registry import MissionReg
 COOLDOWN_SECONDS = 60.0
 DEDUP_DISTANCE_METERS = 10.0
 GROUND_ALTITUDE = 0.0
+BATTERY_THRESHOLD = 20.0  # Battery level threshold for replacement
 
 
 class AutoMissionSuggester:
@@ -63,6 +64,8 @@ class AutoMissionSuggester:
         self._recent_detection_events: list[json_schemas.SingleDetection] = []
         self._stop_event = threading.Event()
         self._drone_id_on_surveil = None
+        self._battery_monitor_thread = threading.Thread(target=self.battery_monitor)
+        self._battery_monitor_thread.start()
 
     def request_stop(self) -> None:
         """Signals listeners to stop gracefully."""
@@ -247,8 +250,9 @@ class AutoMissionSuggester:
                         continue
 
                     print("[area_listener] Ny watch_area hittad, bearbetar...")
-                    coordinates, coverage_corners, min_rect_corners = (
-                        self._get_area_surveil_coordinates(points, diagonal_fov=82.6)
+                    # Initial coordinates for potential error response
+                    initial_coordinates, _, _ = self._get_area_surveil_coordinates(
+                        points, diagonal_fov=82.6
                     )
 
                     if (self._drone_id_on_surveil is not None) and (
@@ -259,47 +263,20 @@ class AutoMissionSuggester:
                         )
                         self.send_response(
                             request_id,
-                            coordinates,
+                            initial_coordinates,
                             "A drone is already on a GotoAndSurveil mission, will not dispatch a new one",
                         )
                         continue
 
-                    surveil_mission = select_drone_for_mission(
-                        mission_type=GotoAndSurveil,
-                        coordinates=coordinates,
-                        params={"duration_seconds": None},
+                    surveil_mission, coverage_corners, min_rect_corners, message = (
+                        self._create_surveil_mission(points)
                     )
-
-                    if surveil_mission:
-                        # As we must know the fov to be able to determine the area, but we also must have a coordinate to decide what drone to use,
-                        # we have to do a preliminary coordinate calculation here to be able to select a drone, and then recalculate the coordinates with the correct fov for the selected drone.
-                        drone_id = surveil_mission.drone_id
-                        diagonal_fov = json_schemas.parse_capabilities(
-                            self._redis.get(f"capabilities_drone{drone_id}")
-                        ).camera.diagonal_fov
-
-                        coordinates, coverage_corners, min_rect_corners = (
-                            self._get_area_surveil_coordinates(
-                                points, diagonal_fov=diagonal_fov
-                            )
-                        )
-
-                        surveil_mission = select_drone_for_mission(
-                            mission_type=GotoAndSurveil,
-                            coordinates=coordinates,
-                            params={"duration_seconds": None},
-                        )
-
-                        if surveil_mission is None:
-                            print(
-                                f"[area_listener] No drone available for GotoAndSurveil after recalculating coordinates with correct FOV"
-                            )
 
                     if surveil_mission is None:
                         self.send_response(
                             request_id,
-                            coordinates,
-                            "No drone available for GotoAndSurveil mission",
+                            initial_coordinates,
+                            message,
                         )
                         continue
 
@@ -336,6 +313,117 @@ class AutoMissionSuggester:
 
         except Exception as exc:
             print(f"[area_listener] Error in Redis listener: {exc}")
+
+    def _create_surveil_mission(self, normalized_points, exclude_drone_id=None):
+        """
+        Creates a surveil mission for the given points, selecting an appropriate drone.
+        Returns mission, coverage_corners, min_rect_corners, error_message (None if success).
+        """
+        if len(normalized_points) < 3:
+            return None, None, None, "Not enough points"
+
+        # Initial calculation with default FOV
+        coordinates, coverage_corners, min_rect_corners = (
+            self._get_area_surveil_coordinates(normalized_points, diagonal_fov=82.6)
+        )
+
+        surveil_mission = select_drone_for_mission(
+            mission_type=GotoAndSurveil,
+            coordinates=coordinates,
+            params={"duration_seconds": None},
+        )
+
+        if surveil_mission is None:
+            return None, None, None, "No drone available"
+
+        if exclude_drone_id and surveil_mission.drone_id == exclude_drone_id:
+            return None, None, None, "Only excluded drone available"
+
+        # Recalculate with correct FOV
+        drone_id = surveil_mission.drone_id
+        diagonal_fov = json_schemas.parse_capabilities(
+            self._redis.get(f"capabilities_drone{drone_id}")
+        ).camera.diagonal_fov
+
+        coordinates, coverage_corners, min_rect_corners = (
+            self._get_area_surveil_coordinates(
+                normalized_points, diagonal_fov=diagonal_fov
+            )
+        )
+
+        surveil_mission = select_drone_for_mission(
+            mission_type=GotoAndSurveil,
+            coordinates=coordinates,
+            params={"duration_seconds": None},
+        )
+
+        if surveil_mission is None or (
+            exclude_drone_id and surveil_mission.drone_id == exclude_drone_id
+        ):
+            return None, None, None, "No suitable drone after FOV adjustment"
+
+        return surveil_mission, coverage_corners, min_rect_corners, None
+
+    def battery_monitor(self):
+        """
+        Continuously monitors battery levels of all drones.
+        If the surveil drone's battery is below threshold, dispatches a new surveil mission with another drone.
+        """
+        while not self._stop_event.is_set():
+            if self._drone_id_on_surveil is not None:
+                for key in self._redis.scan_iter(match="telemetry_drone*"):
+                    drone_id = key.replace("telemetry_drone", "")
+                    raw = self._redis.get(key)
+                    if raw:
+                        try:
+                            telemetry = json_schemas.parse_telemetry(raw)
+                            if (
+                                telemetry.battery_percent < BATTERY_THRESHOLD
+                                and drone_id == self._drone_id_on_surveil
+                            ):
+                                print(
+                                    f"Battery low for drone {drone_id} ({telemetry.battery_percent}%), attempting to replace surveil mission."
+                                )
+                                self._replace_surveil_mission()
+                        except Exception as exc:
+                            print(
+                                f"Failed to parse telemetry for drone {drone_id}: {exc}"
+                            )
+            self._sleep_with_stop_check(5.0)  # Check every 5 seconds
+
+    def _replace_surveil_mission(self):
+        """
+        Replaces the current surveil mission with a new one using a different drone.
+        """
+        points_raw = self._redis.get("watch_area")
+        if not points_raw:
+            print("No watch area stored, cannot replace surveil mission.")
+            return
+
+        points = json.loads(points_raw)["points"]
+        normalized_points = self._extract_watch_area_points(points)
+
+        surveil_mission, coverage_corners, _min_rect_corners, message = (
+            self._create_surveil_mission(
+                normalized_points, exclude_drone_id=self._drone_id_on_surveil
+            )
+        )
+
+        if surveil_mission is None:
+            print(f"Failed to replace surveil mission: {message}")
+            return
+
+        MissionRegistry.store(surveil_mission)
+        MissionRegistry.dispatch_mission(surveil_mission.mission_id)
+        old_drone = self._drone_id_on_surveil
+        self._drone_id_on_surveil = surveil_mission.drone_id
+        self._redis.set(
+            "watch_area_coverage",
+            json.dumps(coverage_corners),
+        )
+        print(
+            f"Replaced surveil mission: old drone {old_drone} -> new drone {surveil_mission.drone_id}"
+        )
 
     def object_listener(self):
         """
