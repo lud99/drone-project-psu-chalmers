@@ -61,39 +61,51 @@
                     </div>
                 </div>
                 <!-- Control Panel -->
-                <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        Controls
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                Controls
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <h5>Shown Video Stream</h5>
+                                    <select id="layoutSelect" class="form-select">
+                                        <option value="sidebyside">Side by Side (First 2 Drones)</option>
+                                        <hr>
+                                    </select>
+                                </div>
+                                <div id="drone-status-container">
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button id="startBtn" class="btn btn-success btn-lg">Start Test</button>
+                                    <button id="stopBtn" class="btn btn-danger btn-lg">Emergency Stop</button>
+                                </div>
+
+                                <div class="mt-3 all-drone-controls text-center">
+                                    <hr>
+                                    <h5>All Drone Commands</h5>
+                                    <button id="armAllBtn" data-command="flight_arm"
+                                        class="btn btn-success all-drone-command-btn">Take Off All</button>
+                                    <button id="rthAllBtn" data-command="flight_return_to_home"
+                                        class="btn btn-info all-drone-command-btn">Return Home All</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <!-- Video Layout Control -->
-                        <div class="mb-3">
-                            <h5>Video Layout</h5>
-                            <select id="layoutSelect" class="form-select">
-                                <option value="drone1">Drone 1</option>
-                                <option value="drone2">Drone 2</option>
-                                <option value="single">Merged picture</option>
-                                <option value="sidebyside">Side by Side</option>
-                            </select>
-                        </div>
-                        <!-- Connecter Drones -->
-                        <div id="drone-status-container">
-                        </div>
 
-                        <!-- Control Buttons -->
-                        <div class="d-grid gap-2">
-                            <button id="startBtn" class="btn btn-success btn-lg">Start Test</button>
-                            <button id="stopBtn" class="btn btn-danger btn-lg">Emergency Stop</button>
+                    <div class="col-lg-6">
+                        <div class="card mb-3 h-100">
+                            <div class="card-header bg-primary text-white">
+                                Active missions
+                            </div>
+                            <div class="card-body">
+                                <div id="active-missions-list">
+                                    <p class="text-muted">No active missions...</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mt-3 all-drone-controls text-center">
-                            <hr>
-                            <h5>All Drone Commands</h5>
-                            <button id="armAllBtn" data-command="flight_arm"
-                                class="btn btn-success all-drone-command-btn">Take Off All</button>
-                            <button id="rthAllBtn" data-command="flight_return_to_home"
-                                class="btn btn-info all-drone-command-btn">Return Home All</button>
-                        </div>
-
                     </div>
                 </div>
 
@@ -155,6 +167,7 @@
         let coveragePolygon = null;  // Drone coverage area polygon
         let userMarker = null;
         let watchAreaMarker = null;
+        let markers = {}
 
         let proposedMissions = new Map()
 
@@ -201,9 +214,9 @@
 
         // Create drone cards for connected drones
         function createDroneStatusCard(droneId) {
-            console.log("Försöker skapa kort för:", droneId);
+            console.log("Trying to create card for:", droneId);
             const container = document.getElementById('drone-status-container');
-            console.log("Container hittad:", container);
+            console.log("Container found:", container);
 
             if (document.getElementById(`alt${droneId}`)) return;
 
@@ -225,8 +238,6 @@
                             <div>Spotlight: <span id="spotlight${droneId}">--</span></div>
                         </div>
                         <div class="drone-controls mt-2">
-                            <button data-drone-id="${droneId}" data-command="flight_take_off"
-                                class="btn btn-success btn-sm drone-command-btn">Take Off</button>
                             <button data-drone-id="${droneId}" data-command="flight_return_to_home"
                                 class="btn btn-info btn-sm drone-command-btn">Return Home</button>
                         </div>
@@ -234,7 +245,7 @@
                 </div>
             `;
 
-            container.insertAdjacentHTML('beforeend', cardHtml);
+            container.insertAdjacentHTML('afterbegin', cardHtml);
 
             setupNewButtons(droneId);
         }
@@ -248,7 +259,6 @@
                 };
             });
         }
-
 
         // Creates mission buttons
         const container = document.getElementById('mission-list-container');
@@ -791,74 +801,97 @@
             // Handle Layout Changes
             document.getElementById('layoutSelect').addEventListener('change', function () {
                 const layout = this.value;
-                const videoContainer = document.getElementById('videoContainer');
                 const video1 = document.getElementById('video1');
                 const video2 = document.getElementById('video2');
-                const merged = document.getElementById('merged')
+                const videoContainer = document.getElementById('videoContainer');
 
-                if (layout === 'single') {          // Merged
-                    merged.style.display = 'block'
-                    video1.style.display = 'none';
-                    video2.style.display = 'none';
-                    videoContainer.style.gridTemplateColumns = '1fr';
-                } else if (layout === 'sidebyside') {
-                    merged.style.display = 'none'
+                video1.style.display = 'none';
+                video2.style.display = 'none';
+                videoContainer.style.gridTemplateColumns = '1fr';
+
+                if (layout === 'sidebyside') {
+                    if (connectedDroneIds.length >= 2) {
+                        video1.src = `/api/v1/video_feed/${connectedDroneIds[0]}`;
+                        video2.src = `/api/v1/video_feed/${connectedDroneIds[1]}`;
+
+                        video1.style.display = 'block';
+                        video2.style.display = 'block';
+                        videoContainer.style.gridTemplateColumns = '1fr 1fr';
+                    } else {
+                        alert("Need at least 2 drones for Side by Side");
+                        video1.style.display = 'block';
+                    }
+                } else {
+                    video1.src = `/api/v1/video_feed/${layout}`;
                     video1.style.display = 'block';
-                    video2.style.display = 'block';
-                    videoContainer.style.gridTemplateColumns = '1fr 1fr'; // Two columns
-                } else if (layout === 'drone1') {
-                    merged.style.display = 'none'
-                    video1.style.display = 'block';
-                    video2.style.display = 'none';
-                    videoContainer.style.gridTemplateColumns = '1fr';
-                } else if (layout === 'drone2') {
-                    merged.style.display = 'none'
-                    video1.style.display = 'none';
-                    video2.style.display = 'block';
-                    videoContainer.style.gridTemplateColumns = '1fr';
                 }
             });
+
 
             // Handle Drone Data
             const specsLoaded = {};
 
+            let connectedDroneIds = [];
+
+            function updateVideoDropdown(droneId) {
+                const select = document.getElementById('layoutSelect');
+
+                if (!connectedDroneIds.includes(droneId)) {
+                    connectedDroneIds.push(droneId);
+
+                    if (select.querySelector(`option[value="${droneId}"]`)) return;
+
+                    const option = document.createElement('option');
+                    option.value = droneId;
+                    option.textContent = `Drone: ${droneId}`;
+
+                    select.appendChild(option);
+                }
+            }
+
             function handleDroneUpdate(data) {
                 const droneId = data.drone_id;
+                console.log("All data", data)
                 if (!droneId) return;
 
                 if (!document.getElementById(`card-${droneId}`)) {
                     createDroneStatusCard(droneId);
+                    updateVideoDropdown(droneId);
                 }
 
-                // Handle static data
-                if (data.capabilities && !specsLoaded[droneId]) {
-                    const typeElem = document.getElementById(`dronetype${droneId}`);
-                    if (typeElem) {
-                        typeElem.textContent = (data.drone_type || "") + " " + (data.model || "");
+                const typeElem = document.getElementById(`dronetype${droneId}`);
 
-                        const hasCamera = data.capabilities.camera;
-                        document.getElementById(`camera${droneId}`).textContent = hasCamera ? "Yes" : "No";
+                if (typeElem && (data.drone_type || data.model)) {
+                    const typeText = data.drone_type || "";
+                    const modelText = data.model || "";
+                    const combinedName = (typeText + " " + modelText).trim();
 
-                        if (hasCamera) {
-                            const res = data.capabilities.camera;
-                            document.getElementById(`res${droneId}`).textContent = res.resolution_width + "x" + res.resolution_height;
-                        } else {
-                            document.getElementById(`res${droneId}`).textContent = "N/A";
-                        }
-
-                        const hasSpeaker = data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
-                        document.getElementById(`speaker${droneId}`).textContent = hasSpeaker ? "Yes" : "No";
-
-                        document.getElementById(`spotlight${droneId}`).textContent = data.capabilities.spotlight ? "Yes" : "No";
-
-                        specsLoaded[droneId] = true;
+                    if (combinedName) {
+                        typeElem.textContent = combinedName;
                     }
                 }
 
-                // Handle Dynamic data
+                if (data.capabilities && !specsLoaded[droneId]) {
+                    const caps = data.capabilities;
+
+                    const hasCamera = caps.camera;
+                    document.getElementById(`camera${droneId}`).textContent = hasCamera ? "Yes" : "No";
+                    if (hasCamera) {
+                        document.getElementById(`res${droneId}`).textContent =
+                            caps.camera.resolution_width + "x" + caps.camera.resolution_height;
+                    } else {
+                        document.getElementById(`res${droneId}`).textContent = "N/A";
+                    }
+
+                    const hasSpeaker = caps.speaker && caps.speaker.audio_files && caps.speaker.audio_files.length > 0;
+                    document.getElementById(`speaker${droneId}`).textContent = hasSpeaker ? "Yes" : "No";
+                    document.getElementById(`spotlight${droneId}`).textContent = caps.spotlight ? "Yes" : "No";
+
+                    specsLoaded[droneId] = true;
+                }
+
                 if (data.telemetry) {
                     const t = data.telemetry;
-
                     lastDronePositions[droneId] = [t.lat, t.lon];
 
                     const altElem = document.getElementById(`alt${droneId}`);
@@ -876,9 +909,10 @@
                 }
             }
 
+
             flightmanagerWS.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                console.log("Mottaget:", data);
+                console.log("From server:", data);
 
                 if (data.msg_type === "error") {
                     alert(data.error);

@@ -283,6 +283,7 @@ class Points(BaseModel):
 
 class DroneInfo(BaseModel):
     drone_id: str
+    model: str
     capabilities: Capabilities
     telemetry: Telemetry
 
@@ -316,6 +317,7 @@ class FrontendMessages:
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
+        model: str
         capabilities: Capabilities
         telemetry: Telemetry
         error: Optional[str] = None
