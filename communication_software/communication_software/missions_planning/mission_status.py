@@ -6,3 +6,4 @@ class MissionStatus(Enum):
     DISPATCHED = "DISPATCHED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    ABORTED = "ABORTED"

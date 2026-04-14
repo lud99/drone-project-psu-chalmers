@@ -459,6 +459,23 @@ async def merged_feed():
     )
 
 
+@app.post("/api/v1/missions/abort/{mission_id}")
+def abort_mission(mission_id: str):
+    mission = MissionRegistry.get(mission_id)
+    if not mission:
+        return {"error": "Mission not found"}
+
+    MissionRegistry.update_status(mission_id, MissionStatus.ABORTED)
+
+    abort_message = json_schemas.AbortTaskMessage(
+        drone_id=mission["drone_id"], mission_id=mission_id, task_action="all"
+    )
+
+    r.publish("drone_commands", abort_message.model_dump_json())
+
+    return {"status": "aborted", "mission_id": mission_id}
+
+
 @app.get("/api/v1/health")
 def health_check():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}

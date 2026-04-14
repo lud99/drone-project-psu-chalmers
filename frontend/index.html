@@ -97,6 +97,8 @@
                                 <div class="drone-controls mt-2">
                                     <button id="takeoffBtn1" data-drone-id="1" data-command="flight_take_off"
                                         class="btn btn-success btn-sm">Take Off</button>
+                                    <button id="abortBtn1" data-drone-id="1" data-command="flight_abort"
+                                        class="btn btn-danger btn-sm">Abort Mission</button>
                                     <button id="rthBtn1" data-drone-id="1" data-command="flight_return_to_home"
                                         class="btn btn-info btn-sm">Return Home</button>
                                 </div>
@@ -121,6 +123,8 @@
                                 <div class="drone-controls mt-2">
                                     <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
                                         class="btn btn-success btn-sm">Take Off</button>
+                                    <button id="abortBtn2" data-drone-id="1" data-command="flight_abort"
+                                        class="btn btn-danger btn-sm">Abort Mission</button>
                                     <button id="rthBtn2" data-drone-id="2" data-command="flight_return_to_home"
                                         class="btn btn-info btn-sm">Return Home</button>
                                 </div>
@@ -884,6 +888,94 @@
         document.getElementById('stopBtn').addEventListener('click', () => {
             atosWS.send(JSON.stringify({ command: 'stop' }));
         });
+
+
+        document.getElementById("abortBtn1").addEventListener("click", async () => {
+
+            if (!currentMissionId) {
+                alert("No active mission to abort.", "warning");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to abort mission ${currentMissionId}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${currentMissionId}`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    alert(data.error || "Failed to abort mission.", "danger");
+                    return;
+                }
+
+                alert(`Mission ${currentMissionId} aborted successfully.`, "success");
+                console.log("Abort response:", data);
+
+                // Uppdatera local status
+                currentMissionStatus = "ABORTED";
+                currentMissionId = null;
+
+            } catch (error) {
+                console.error("Abort request failed:", error);
+                alert("Failed to communicate with backend.", "danger");
+            }
+        });
+
+
+
+        document.getElementById("abortBtn1").addEventListener("click", async () => {
+
+            if (!currentMissionId) {
+                alert("No active mission to abort.", "warning");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to abort mission ${currentMissionId}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${currentMissionId}`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    alert(data.error || "Failed to abort mission.", "danger");
+                    return;
+                }
+
+                alert(`Mission ${currentMissionId} aborted successfully.`, "success");
+                console.log("Abort response:", data);
+
+                // Uppdatera local status
+                currentMissionStatus = "ABORTED";
+                currentMissionId = null;
+
+            } catch (error) {
+                console.error("Abort request failed:", error);
+                alert("Failed to communicate with backend.", "danger");
+            }
+        });
+
 
 
         function sendFlightCommand(droneId, command) {
