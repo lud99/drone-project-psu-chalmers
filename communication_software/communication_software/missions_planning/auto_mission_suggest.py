@@ -61,6 +61,7 @@ class AutoMissionSuggester:
         self._recent_detection_ids: dict[str, float] = {}
         self._recent_detection_events: list[json_schemas.SingleDetection] = []
         self._stop_event = threading.Event()
+        self._drone_id_on_surveil = None
 
     def request_stop(self) -> None:
         """Signals listeners to stop gracefully."""
@@ -93,22 +94,28 @@ class AutoMissionSuggester:
 
     def _get_area_surveil_coordinates(
         self, points: list[dict[str, float]], diagonal_fov: float
-    ) -> tuple[json_schemas.GoToParams, list]:
+    ) -> tuple[
+        json_schemas.GoToParams, list[tuple[float, float]], list[tuple[float, float]]
+    ]:
         hull_points = [Coordinate(lat=p["lat"], lng=p["lon"]) for p in points]
         center_lat = sum(p["lat"] for p in points) / len(points)
         center_lon = sum(p["lon"] for p in points) / len(points)
         origin = Coordinate(lat=center_lat, lng=center_lon, alt=30)
 
-        fly_to_coords, angle, coverage_corners = get_drones_location(
+        fly_to_coords, angle, coverage_corners, min_rect_corners = get_drones_location(
             corner_coords=hull_points,
             drone_origin=origin,
             n_drones=1,
             diagonal_fov=diagonal_fov,
         )
         best = fly_to_coords[0]
-        return json_schemas.GoToParams(
-            lat=best.lat, lon=best.lng, alt=best.alt, heading=int(angle)
-        ), coverage_corners
+        return (
+            json_schemas.GoToParams(
+                lat=best.lat, lon=best.lng, alt=best.alt, heading=int(angle)
+            ),
+            coverage_corners,
+            min_rect_corners,
+        )
 
     @staticmethod
     def _distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -117,6 +124,47 @@ class AutoMissionSuggester:
         dy = (lat2 - lat1) * m_per_deg
         dx = (lon2 - lon1) * m_per_deg * math.cos(math.radians(lat1))
         return math.sqrt(dx**2 + dy**2)
+
+    @staticmethod
+    def _point_in_polygon(
+        point: tuple[float, float], polygon: list[tuple[float, float]]
+    ) -> bool:
+        """Returns True if a point is inside a polygon using ray casting."""
+        lat, lng = point
+        x = lng
+        y = lat
+        inside = False
+        n = len(polygon)
+        for i in range(n):
+            lat_i, lng_i = polygon[i]
+            lat_j, lng_j = polygon[(i + 1) % n]
+            xi = lng_i
+            yi = lat_i
+            xj = lng_j
+            yj = lat_j
+            intersects = ((yi > y) != (yj > y)) and (
+                x < (xj - xi) * (y - yi) / (yj - yi + 1e-16) + xi
+            )
+            if intersects:
+                inside = not inside
+        return inside
+
+    def _load_watch_area_min_rect(self) -> list[tuple[float, float]] | None:
+        """Load the stored watch area minimum rectangle from Redis."""
+        raw = self._redis.get("watch_area_min_rect")
+        if not raw:
+            return None
+        rect = json.loads(raw)
+        return [(float(lat), float(lng)) for lat, lng in rect]
+
+    def _is_detection_within_watch_area(
+        self, detection_gps_position: tuple[float, float]
+    ) -> bool:
+        """Check whether a detection falls inside the stored watch area rectangle."""
+        polygon = self._load_watch_area_min_rect()
+        if not polygon:
+            return False
+        return self._point_in_polygon(detection_gps_position, polygon)
 
     def _should_skip_detection(self, detection: json_schemas.SingleDetection) -> bool:
         now = time.time()
@@ -163,7 +211,25 @@ class AutoMissionSuggester:
 
         return False
 
+    def send_response(
+        self,
+        request_id: str,
+        coordinates: json_schemas.GoToParams,
+        message: Optional[str] = None,
+    ) -> None:
+        # Notify that no drone was available
+        response_key = f"response_{request_id}"
+        self._redis.rpush(
+            response_key,
+            json.dumps({"mission": [], "coverage_corners": [], "message": message}),
+        )
+        self._redis.expire(response_key, 20)
+
+        print("[area_listener] No drone with camera available")
+        self.send_mission_unavailable("GotoAndSurveil", coordinates)
+
     async def redis_area_listener(self):
+
         try:
             pubsub = self._redis_async.pubsub()
             await pubsub.subscribe(SURVEIL_AREA_CHANNEL)
@@ -180,9 +246,22 @@ class AutoMissionSuggester:
                         continue
 
                     print("[area_listener] Ny watch_area hittad, bearbetar...")
-                    coordinates, coverage_corners = self._get_area_surveil_coordinates(
-                        points, diagonal_fov=82.6
+                    coordinates, coverage_corners, min_rect_corners = (
+                        self._get_area_surveil_coordinates(points, diagonal_fov=82.6)
                     )
+
+                    if (self._drone_id_on_surveil is not None) and (
+                        MissionRegistry.is_drone_dispatched(self._drone_id_on_surveil)
+                    ):
+                        print(
+                            "[area_listener] A drone is already on a GotoAndSurveil mission, will not dispatch a new one"
+                        )
+                        self.send_response(
+                            request_id,
+                            coordinates,
+                            "A drone is already on a GotoAndSurveil mission, will not dispatch a new one",
+                        )
+                        continue
 
                     surveil_mission = select_drone_for_mission(
                         mission_type=GotoAndSurveil,
@@ -198,7 +277,7 @@ class AutoMissionSuggester:
                             self._redis.get(f"capabilities_drone{drone_id}")
                         ).camera.diagonal_fov
 
-                        coordinates, coverage_corners = (
+                        coordinates, coverage_corners, min_rect_corners = (
                             self._get_area_surveil_coordinates(
                                 points, diagonal_fov=diagonal_fov
                             )
@@ -210,42 +289,50 @@ class AutoMissionSuggester:
                             params={"duration_seconds": None},
                         )
 
-                        # Kolla om just denna drönare redan har en DISPATCHED mission
-                        if MissionRegistry.is_drone_dispatched(drone_id):
+                        if surveil_mission is None:
                             print(
-                                f"[area_listener] Drönare {drone_id} är redan aktiv - ignorerar"
+                                f"[area_listener] No drone available for GotoAndSurveil after recalculating coordinates with correct FOV"
                             )
-                            continue
 
-                        print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
-                        MissionRegistry.store(surveil_mission)
-                        MissionRegistry.dispatch_mission(surveil_mission.mission_id)
-                        print(f"[area_listener] First task sent")
+                    if surveil_mission is None:
+                        self.send_response(
+                            request_id,
+                            coordinates,
+                            "No drone available for GotoAndSurveil mission",
+                        )
+                        continue
 
-                        if request_id:
-                            response_key = f"response_{request_id}"
-                            print(f"Sending redis response for{request_id}")
-                            self._redis.rpush(
-                                response_key,
-                                json.dumps(
-                                    {
-                                        "mission": surveil_mission.to_dict(),
-                                        "coverage_corners": coverage_corners,
-                                    }
-                                ),
-                            )
-                            self._redis.expire(response_key, 20)
-                    else:
-                        # Notify that no drone was available
+                    print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
+
+                    self._drone_id_on_surveil = surveil_mission.drone_id
+                    MissionRegistry.store(surveil_mission)
+                    MissionRegistry.dispatch_mission(surveil_mission.mission_id)
+                    print(f"[area_listener] First task sent")
+
+                    self._redis.set("watch_area", json.dumps({"points": points}))
+                    self._redis.set(
+                        "watch_area_min_rect",
+                        json.dumps(min_rect_corners),
+                    )
+                    self._redis.set(
+                        "watch_area_coverage",
+                        json.dumps(coverage_corners),
+                    )
+
+                    if request_id:
                         response_key = f"response_{request_id}"
+                        print(f"Sending redis response for {request_id}")
                         self._redis.rpush(
                             response_key,
-                            json.dumps({"mission": [], "coverage_corners": []}),
+                            json.dumps(
+                                {
+                                    "mission": surveil_mission.to_dict(),
+                                    "coverage_corners": coverage_corners,
+                                }
+                            ),
                         )
                         self._redis.expire(response_key, 20)
 
-                        print("[area_listener] No drone with camera available")
-                        self.send_mission_unavailable("GotoAndSurveil", coordinates)
         except Exception as exc:
             print(f"[area_listener] Error in Redis listener: {exc}")
 
@@ -362,6 +449,12 @@ class AutoMissionSuggester:
         """
 
         if self._should_skip_detection(detection):
+            return
+
+        if not self._is_detection_within_watch_area(detection.gps_position):
+            print(
+                f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
+            )
             return
 
         print(

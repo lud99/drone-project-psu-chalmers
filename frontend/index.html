@@ -213,7 +213,8 @@
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
-        let activePolygon = null;
+        let activePolygon = null;  // Surveillance area polygon
+        let coveragePolygon = null;  // Drone coverage area polygon
         let userMarker = null;
         let watchAreaMarker = null;
 
@@ -473,7 +474,7 @@
         locateUser(true);
 
         //  Map changes
-        // Save the last polygon that was made when updating the website
+        // Load surveillance area and coverage overlays
         async function loadWatchArea() {
 
             try {
@@ -491,6 +492,22 @@
                     }).addTo(map);
 
                     map.fitBounds(activePolygon.getBounds());
+                }
+
+                // Display coverage rectangle
+                if (data.coverage && data.coverage.length > 0) {
+                    if (coveragePolygon) {
+                        map.removeLayer(coveragePolygon);
+                    }
+                    const droneCorners = data.coverage[0];
+                    const coverageLatlngs = droneCorners.map(p => [p[0], p[1]]);
+                    coveragePolygon = L.polygon(coverageLatlngs, {
+                        color: "#0000AA",
+                        weight: 2,
+                        dashArray: "5, 5",
+                        fillColor: "#0000AA",
+                        fillOpacity: 0.1
+                    }).addTo(map);
                 }
 
             } catch (error) {
@@ -703,9 +720,13 @@
                         }
 
                         if (result.data && result.data.mission.length === 0) {
-                            alert("No drone connected and available for surveil mission")
+                            alert(result.data.message || "No drone available for GotoSurveil mission");
                             return
                         }
+
+                        alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`)
+
+
 
                         // If the backend returned valid coordinates, add a marker to the map
                         const coords = [result.data.mission.coordinates.lat, result.data.mission.coordinates.lon];
@@ -729,24 +750,25 @@
                             }
                         }
 
-                        // Draw coverage corner polygons if available
-                        if (result.data.coverage_corners) {
-                            result.data.coverage_corners.forEach((corners, index) => {
-                                // Convert tuples to [lat, lng] format for Leaflet
-                                const latlngs = corners.map(corner => [corner[0], corner[1]]);
+                        // Draw coverage polygon if available
+                        if (result.data.coverage_corners && result.data.coverage_corners.length > 0) {
+                            const corners = result.data.coverage_corners[0];
+                            const latlngs = corners.map(corner => [corner[0], corner[1]]);
 
-                                // Create polygon with green color and dotted line
-                                const polygon = L.polygon(latlngs, {
-                                    color: '#0000AA',
-                                    title: 'Estimated coverage area',
-                                    weight: 2,
-                                    dashArray: '5, 5', // Dotted line pattern
-                                    fillColor: '#0000AA',
-                                    fillOpacity: 0.1
-                                }).addTo(map);
+                            if (coveragePolygon) {
+                                map.removeLayer(coveragePolygon);
+                            }
 
-                                polygon.bindPopup(`Drone ${result.data.mission.drone_id} estimated coverage area. Target altitude: ${altitude}m`);
-                            });
+                            coveragePolygon = L.polygon(latlngs, {
+                                color: '#0000AA',
+                                title: 'Estimated coverage area',
+                                weight: 2,
+                                dashArray: '5, 5',
+                                fillColor: '#0000AA',
+                                fillOpacity: 0.1
+                            }).addTo(map);
+
+                            coveragePolygon.bindPopup(`Drone ${result.data.mission.drone_id} estimated coverage area. Target altitude: ${altitude}m`);
                         }
 
                     } catch (error) {

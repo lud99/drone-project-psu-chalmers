@@ -71,7 +71,9 @@ def get_drones_location(
     n_drones: int = 2,
     overlap: float = 0.5,
     aspect_ratio: float = 16 / 9,
-) -> tuple[list[Coordinate], float, list[list[Coordinate]]]:
+) -> tuple[
+    list[Coordinate], float, list[tuple[float, float]], list[tuple[float, float]]
+]:
     """
     Calculates the drone coverage area and returns the coordinates for the drones to fly to.
 
@@ -84,7 +86,11 @@ def get_drones_location(
         aspect_ratio (float): Camera aspect ratio (default 16/9).
 
     Returns:
-        tuple: A tuple containing a list of coordinates for the drones to fly to, the angle of the rectangle, and a list of lists of the 4 coverage corners for each drone.
+        tuple: A tuple containing:
+            - list[Coordinate]: coordinates for the drones to fly to
+            - float: angle of the rectangle in degrees
+            - list[list[Coordinate]]: coverage corners for each drone
+            - list[Coordinate]: the minimum bounding rectangle corners for the original hull
     """
 
     # Overlap has to be between 0 and 1
@@ -325,5 +331,30 @@ def get_drones_location(
 
         coverage_corners.append(corners_lat_lng)
 
+    min_rect_corners_local = np.array(
+        [
+            rect.center + rect.extent[0] * rect.axis[0] + rect.extent[1] * rect.axis[1],
+            rect.center + rect.extent[0] * rect.axis[0] - rect.extent[1] * rect.axis[1],
+            rect.center - rect.extent[0] * rect.axis[0] - rect.extent[1] * rect.axis[1],
+            rect.center - rect.extent[0] * rect.axis[0] + rect.extent[1] * rect.axis[1],
+        ]
+    )
+
+    min_rect_corners = []
+    for x, y in min_rect_corners_local:
+        delta_lat = y / 6371000 * (180 / np.pi)
+        delta_long = (x / (6371000 * np.cos(np.radians(drone_origin.lat)))) * (
+            180 / np.pi
+        )
+
+        lat = drone_origin.lat + delta_lat
+        lng = drone_origin.lng + delta_long
+        min_rect_corners.append((lat, lng))
+
     angle_radians = np.arctan2(angle_axis[1], angle_axis[0])
-    return fly_to_coords, round(np.degrees(angle_radians)), coverage_corners
+    return (
+        fly_to_coords,
+        round(np.degrees(angle_radians)),
+        coverage_corners,
+        min_rect_corners,
+    )

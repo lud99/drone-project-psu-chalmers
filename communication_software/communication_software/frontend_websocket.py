@@ -288,7 +288,6 @@ async def set_watch_area(payload: str = Body(...)):
             # Add the request_id to the payload so B knows where to send the answer
             payload_data = {"points": coords, "request_id": request_id}
             raw_watch_area = json.dumps(payload_data)
-            r.set("watch_area", json.dumps({"points": coords}))
 
             # 1. Publish to B
             r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
@@ -354,9 +353,33 @@ async def get_watch_area():
     try:
         data = r.get("watch_area")
         if not data:
-            return {"msg_type": "response", "points": [], "error": None}
+            return {
+                "msg_type": "response",
+                "points": [],
+                "coverage": [],
+                "min_rect": [],
+                "error": None,
+            }
+
         watch_area = json.loads(data)
-        return {"msg_type": "response", "points": watch_area["points"], "error": None}
+        coverage = []
+        min_rect = []
+
+        coverage_data = r.get("watch_area_coverage")
+        if coverage_data:
+            coverage = json.loads(coverage_data)
+
+        min_rect_data = r.get("watch_area_min_rect")
+        if min_rect_data:
+            min_rect = json.loads(min_rect_data)
+
+        return {
+            "msg_type": "response",
+            "points": watch_area["points"],
+            "coverage": coverage,
+            "min_rect": min_rect,
+            "error": None,
+        }
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 
