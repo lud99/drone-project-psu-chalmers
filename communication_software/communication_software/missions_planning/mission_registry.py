@@ -101,3 +101,11 @@ class MissionRegistry:
     def remove(mission_id: str):
         r.delete(f"mission_{mission_id}_state")
         r.delete(f"mission_{mission_id}_task_queue")
+
+    @staticmethod
+    def remove_many(mission_ids: list[str]) -> list[str]:
+        removed_ids = []
+        for mission_id in dict.fromkeys(mission_ids):
+            MissionRegistry.remove(mission_id)
+            removed_ids.append(mission_id)
+        return removed_ids

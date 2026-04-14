@@ -17,9 +17,35 @@
     // Received
     {
         "msg_type": "proposed_missions",
+        "detection_id": 123,
+        "object_type": "person",
+        "gps_position": [57.7089, 11.9746],
+        "timestamp": 1713000000000,
         "missions": [
             {
-                
+                "drone_id": "1",
+                "mission_id": "f7c2fa0d-44e0-4ad4-bf16-5bb35b501730",
+                "mission_type": "GotoAndSurveil",
+                "description": "[drone 1] GoTo and Surveil for ∞s",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.7089,
+                            "lon": 11.9746,
+                            "alt": 30,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "angle_camera",
+                        "params": {
+                            "pitch": -90,
+                            "yaw": 0,
+                            "duration_seconds": null
+                        }
+                    }
+                ]
             }
         ]
     },
