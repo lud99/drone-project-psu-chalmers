@@ -367,13 +367,7 @@ async def set_detections(payload: str = Body(...)):
 async def get_proposed_missions():
     try:
         # todo: get from redis
-        return json_schemas.FrontendMessages.ProposedMissions(
-            detection_id=0,
-            object_type="unknown",
-            gps_position=(0.0, 0.0),
-            timestamp=0,
-            missions=[],
-        )
+        return json_schemas.FrontendMessages.ProposedMissions(missions=[dict()])
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 
