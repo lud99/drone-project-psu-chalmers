@@ -123,7 +123,7 @@
                                 <div class="drone-controls mt-2">
                                     <button id="takeoffBtn2" data-drone-id="2" data-command="flight_take_off"
                                         class="btn btn-success btn-sm">Take Off</button>
-                                    <button id="abortBtn2" data-drone-id="1" data-command="flight_abort"
+                                    <button id="abortBtn2" data-drone-id="2" data-command="flight_abort"
                                         class="btn btn-danger btn-sm">Abort Mission</button>
                                     <button id="rthBtn2" data-drone-id="2" data-command="flight_return_to_home"
                                         class="btn btn-info btn-sm">Return Home</button>
@@ -889,9 +889,9 @@
             atosWS.send(JSON.stringify({ command: 'stop' }));
         });
 
-
-        document.getElementById("abortBtn1").addEventListener("click", async () => {
-
+        //Abort button
+        document.getElementById("abortBtn1").addEventListener("click", async (event) => {
+            console.log(event.currentTarget.getAttribute("data-drone-id"))
             if (!currentMissionId) {
                 alert("No active mission to abort.", "warning");
                 return;
@@ -934,7 +934,8 @@
 
 
 
-        document.getElementById("abortBtn1").addEventListener("click", async () => {
+        document.getElementById("abortBtn2").addEventListener("click", async () => {
+            console.log(event.currentTarget.getAttribute("data-drone-id"))
 
             if (!currentMissionId) {
                 alert("No active mission to abort.", "warning");
