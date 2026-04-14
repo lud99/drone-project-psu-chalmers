@@ -146,10 +146,17 @@ def get_connected_drones_helper():
 
             telemetry = json_schemas.parse_telemetry(telemetry_str)
             capabilities = json_schemas.parse_capabilities(capabilities_str)
+            model = r.get(f"model_drone{drone_id}")
+            if model is None:
+                print(f"Model not found for drone {drone_id}")
+                raise Exception(f"Model not found for drone {drone_id}")
 
             drone_list.drones.append(
                 json_schemas.DroneInfo(
-                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                    drone_id=drone_id,
+                    capabilities=capabilities,
+                    telemetry=telemetry,
+                    model=model,
                 )
             )
 
@@ -464,10 +471,17 @@ async def get_connected_drones():
 
             telemetry = json_schemas.parse_telemetry(telemetry_str)
             capabilities = json_schemas.parse_capabilities(capabilities_str)
+            model = r.get(f"model_drone{drone_id}")
+            if model is None:
+                print(f"Model not found for drone {drone_id}")
+                raise Exception(f"Model not found for drone {drone_id}")
 
             drone_list.drones.append(
                 json_schemas.DroneInfo(
-                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                    drone_id=drone_id,
+                    capabilities=capabilities,
+                    telemetry=telemetry,
+                    model=model,
                 )
             )
 
