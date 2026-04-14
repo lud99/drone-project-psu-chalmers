@@ -353,9 +353,33 @@ async def get_watch_area():
     try:
         data = r.get("watch_area")
         if not data:
-            return {"msg_type": "response", "points": [], "error": None}
+            return {
+                "msg_type": "response",
+                "points": [],
+                "coverage": [],
+                "min_rect": [],
+                "error": None,
+            }
+
         watch_area = json.loads(data)
-        return {"msg_type": "response", "points": watch_area["points"], "error": None}
+        coverage = []
+        min_rect = []
+
+        coverage_data = r.get("watch_area_coverage")
+        if coverage_data:
+            coverage = json.loads(coverage_data)
+
+        min_rect_data = r.get("watch_area_min_rect")
+        if min_rect_data:
+            min_rect = json.loads(min_rect_data)
+
+        return {
+            "msg_type": "response",
+            "points": watch_area["points"],
+            "coverage": coverage,
+            "min_rect": min_rect,
+            "error": None,
+        }
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 

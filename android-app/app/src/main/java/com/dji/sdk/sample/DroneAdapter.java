@@ -39,7 +39,7 @@ public interface DroneAdapter {
 
         public static class Camera {
             public Float aspect_ratio = null;
-            public Float horizontal_fov = null;
+            public Float diagonal_fov = null;
             public Integer resolution_height = null;
             public Integer resolution_width = null;
         }

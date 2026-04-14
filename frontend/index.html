@@ -49,7 +49,6 @@
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         Live Feed
-                        <span id="atosStatus" class="badge bg-warning float-end">TEST INACTIVE</span>
                     </div>
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
@@ -214,8 +213,10 @@
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
-        let activePolygon = null;
+        let activePolygon = null;  // Surveillance area polygon
+        let coveragePolygon = null;  // Drone coverage area polygon
         let userMarker = null;
+        let watchAreaMarker = null;
 
         let proposedMissions = new Map()
 
@@ -473,7 +474,7 @@
         locateUser(true);
 
         //  Map changes
-        // Save the last polygon that was made when updating the website
+        // Load surveillance area and coverage overlays
         async function loadWatchArea() {
 
             try {
@@ -491,6 +492,22 @@
                     }).addTo(map);
 
                     map.fitBounds(activePolygon.getBounds());
+                }
+
+                // Display coverage rectangle
+                if (data.coverage && data.coverage.length > 0) {
+                    if (coveragePolygon) {
+                        map.removeLayer(coveragePolygon);
+                    }
+                    const droneCorners = data.coverage[0];
+                    const coverageLatlngs = droneCorners.map(p => [p[0], p[1]]);
+                    coveragePolygon = L.polygon(coverageLatlngs, {
+                        color: "#0000AA",
+                        weight: 2,
+                        dashArray: "5, 5",
+                        fillColor: "#0000AA",
+                        fillOpacity: 0.1
+                    }).addTo(map);
                 }
 
             } catch (error) {
@@ -702,8 +719,56 @@
                             return;
                         }
 
-                        if (result.data.length == 0) {
-                            alert("No drone connected and available for surveil mission")
+                        if (result.data && result.data.mission.length === 0) {
+                            alert(result.data.message || "No drone available for GotoSurveil mission");
+                            return
+                        }
+
+                        alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`)
+
+
+
+                        // If the backend returned valid coordinates, add a marker to the map
+                        const coords = [result.data.mission.coordinates.lat, result.data.mission.coordinates.lon];
+                        const altitude = result.data.mission.coordinates.alt;
+                        if (coords) {
+                            const watchAreaIcon = L.icon({
+                                iconUrl: '/images/camera.png',
+                                iconSize: [20, 15], // Maintain aspect ratio to prevent stretching
+                                iconAnchor: [10, 15],
+                                popupAnchor: [0, -28]
+                            });
+
+                            if (watchAreaMarker) {
+                                watchAreaMarker.setLatLng(coords);
+                            } else {
+                                watchAreaMarker = L.marker(coords, {
+                                    icon: watchAreaIcon,
+                                    title: 'Watch Area Coordinates'
+                                }).addTo(map)
+                                    .bindPopup(`Target altitude: ${altitude}m`)
+                            }
+                        }
+
+                        // Draw coverage polygon if available
+                        if (result.data.coverage_corners && result.data.coverage_corners.length > 0) {
+                            const corners = result.data.coverage_corners[0];
+                            const latlngs = corners.map(corner => [corner[0], corner[1]]);
+
+                            if (coveragePolygon) {
+                                map.removeLayer(coveragePolygon);
+                            }
+
+                            coveragePolygon = L.polygon(latlngs, {
+                                color: '#0000AA',
+                                title: 'Estimated coverage area',
+                                weight: 2,
+                                dashArray: '5, 5',
+                                fillColor: '#0000AA',
+                                fillOpacity: 0.1
+                            }).addTo(map);
+
+                            coveragePolygon.bindPopup(`Drone ${result.data.mission.drone_id} estimated coverage area. Target altitude: ${altitude}m`);
                         }
 
                     } catch (error) {
@@ -820,13 +885,6 @@
             atosWS.send(JSON.stringify({ command: 'stop' }));
         });
 
-        // Handle ATOS Status
-        atosWS.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const statusElement = document.getElementById('atosStatus');
-            statusElement.textContent = data.test_active ? "TEST ACTIVE" : "TEST INACTIVE";
-            statusElement.className = `badge ${data.test_active ? 'bg-success' : 'bg-secondary'} float-end`;
-        };
 
         function sendFlightCommand(droneId, command) {
             if (flightmanagerWS.readyState === WebSocket.OPEN) {

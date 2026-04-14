@@ -219,4 +219,95 @@ public class DJIDroneSpecs {
         }
         return modelFov;
     }
+
+    static double getDiagonalFov(Model model, VideoFov vFov) {
+        double baseDFov = 94.0;
+        if (model == null) return baseDFov;
+
+        String modelName = model.name();
+        double diagonalFov;
+
+        switch (modelName) {
+            case "INSPIRE_1":
+            case "PHANTOM_3_PROFESSIONAL":
+            case "PHANTOM_3_ADVANCED":
+            case "PHANTOM_3_STANDARD":
+            case "PHANTOM_3_4K":
+            case "PHANTOM_4":
+            case "MATRICE_100":
+            case "MATRICE_600":
+            case "MATRICE_600_PRO":
+            case "OSMO":
+                diagonalFov = 94.0;
+                break;
+            case "INSPIRE_2":
+            case "PHANTOM_4_PRO":
+            case "PHANTOM_4_PRO_V2":
+            case "MAVIC_AIR_2":
+            case "MAVIC_2_ENTERPRISE_ADVANCED":
+            case "MATRICE_210":
+            case "MATRICE_210_RTK":
+            case "MATRICE_200_V2":
+            case "MATRICE_210_V2":
+            case "MATRICE_210_RTK_V2":
+                diagonalFov = 84.0;
+                break;
+            case "MAVIC_2_PRO":
+            case "MAVIC_2":
+                diagonalFov = 77.0;
+                break;
+            case "MAVIC_PRO":
+                diagonalFov = 78.8;
+                break;
+            case "DJI_AIR_2S":
+                diagonalFov = 88.0;
+                break;
+            case "MAVIC_AIR":
+            case "MAVIC_2_ENTERPRISE_DUAL":
+                diagonalFov = 85.0;
+                break;
+            case "DJI_MINI_SE":
+            case "DJI_MINI_2":
+            case "MAVIC_MINI":
+            case "MAVIC_2_ZOOM":
+            case "MAVIC_2_ENTERPRISE":
+                diagonalFov = 83.0;
+                break;
+            case "INSPIRE_1_PRO":
+            case "INSPIRE_1_RAW":
+            case "OSMO_PRO":
+            case "OSMO_RAW":
+                diagonalFov = 72.0;
+                break;
+            case "SPARK":
+                diagonalFov = 81.9;
+                break;
+            case "OSMO_PLUS":
+                diagonalFov = 92.0;
+                break;
+            case "P_4_MULTISPECTRAL":
+                diagonalFov = 62.7;
+                break;
+            case "MATRICE_300_RTK":
+                diagonalFov = 82.9; // H20 Wide Camera
+                break;
+            case "A3":
+            case "N3":
+                diagonalFov = 58.0; // Estimated for 50° HFOV
+                break;
+            case "UNKNOWN_HANDHELD":
+            case "OSMO_MOBILE":
+            case "OSMO_MOBILE_2":
+                diagonalFov = 0.0;
+                break;
+            default:
+                diagonalFov = baseDFov;
+                break;
+        }
+
+        if (vFov == VideoFov.NARROW && diagonalFov > 0.0) {
+            return diagonalFov * 0.58; // Maintaining your specific crop ratio
+        }
+        return diagonalFov;
+    }
 }

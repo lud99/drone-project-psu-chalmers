@@ -181,7 +181,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                 capabilities=json_schemas.Capabilities(
                     camera=json_schemas.CameraCapabilities(
                         aspect_ratio=1.777,
-                        horizontal_fov=84.0,
+                        diagonal_fov=84.0,
                         resolution_height=1080,
                         resolution_width=1920,
                     ),

@@ -48,7 +48,7 @@ BASE_DRONES: list[Drone] = [
         capabilities=json_schemas.Capabilities(
             camera=json_schemas.CameraCapabilities(
                 aspect_ratio=1.77,
-                horizontal_fov=84.0,
+                diagonal_fov=84.0,
                 resolution_width=1920,
                 resolution_height=1080,
             ),
@@ -71,7 +71,7 @@ BASE_DRONES: list[Drone] = [
         capabilities=json_schemas.Capabilities(
             camera=json_schemas.CameraCapabilities(
                 aspect_ratio=1.77,
-                horizontal_fov=84.0,
+                diagonal_fov=84.0,
                 resolution_width=1920,
                 resolution_height=1080,
             ),

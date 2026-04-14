@@ -1,7 +1,7 @@
 import asyncio
 import os
 import threading
-from communication_software.convex_hull_scalable import Coordinate, get_drones_location
+from communication_software.convex_hull_scalable import Coordinate
 from communication_software.frontend_websocket import run_server
 from communication_software.drone_communication import DroneCommunication
 from communication_software.missions_planning.auto_mission_suggest import (
@@ -70,22 +70,6 @@ def start_frontend_websocket_server(atos_communicator):
     )
     server_thread.start()
     print("FastAPI server started in a separate thread!")
-
-
-def get_drone_coordinates(atos_communicator):
-    origo = get_origo_coords(atos_communicator)
-
-    trajectory_list = get_trajectory_list(atos_communicator)
-
-    n_drones = int(os.environ.get("N_DRONES", 2))
-    overlap = float(os.environ.get("OVERLAP", 0.5))
-    fly_to_list, angle = get_drones_location(trajectory_list, origo, n_drones, overlap)
-
-    print_fly_to_list(fly_to_list, angle)
-
-    drone_origins = tuple([coord for coord in fly_to_list])
-    angles = angle, angle
-    return (drone_origins, angles)
 
 
 def start_communication_websocket_server(ip):
