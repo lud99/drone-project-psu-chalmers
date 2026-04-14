@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 
+MIN_ALTITUDE = 10
+MAX_ALTITUDE = 80
+
 
 class Coordinate:
     def __init__(self, lat, lng, alt=0):
@@ -38,13 +41,13 @@ def calculate_altitude(width: float, height: float, diagonal_fov: float) -> floa
     # Height = (Diagonal / 2) / tan(FOV / 2)
     alt = (diagonal / 2) / np.tan(theta)
     alt = round(alt)
-    if alt < 30:
-        return 30
+    if alt < MIN_ALTITUDE:
+        return MIN_ALTITUDE
 
-    if alt < 99:
+    if alt < MAX_ALTITUDE:
         return alt
     else:
-        return 99
+        return MAX_ALTITUDE
 
 
 class ProximityError(Exception):

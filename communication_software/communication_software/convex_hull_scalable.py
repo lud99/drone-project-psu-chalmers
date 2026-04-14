@@ -3,8 +3,8 @@ from scipy.spatial import ConvexHull
 
 # Exception classes
 
-MIN_ALTITUDE = 30
-MAX_ALTITUDE = 70
+MIN_ALTITUDE = 10
+MAX_ALTITUDE = 80
 
 
 class HeightError(Exception):
