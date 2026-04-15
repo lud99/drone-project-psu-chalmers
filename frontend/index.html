@@ -217,6 +217,28 @@
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
         // Initialize Map
+
+        const droneIdMap = {};     // { slotNumber: "drone_id" }
+        const activeMissions = {}; // { "drone_id": "mission_id" }
+        const markers = {};
+        let droneCounter = 1;
+
+        async function fetchActiveMissions() {
+            try {
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
+                const missions = await response.json();
+                missions.forEach(mission => {
+                    if (mission.status === "DISPATCHED" || mission.status === "PENDING") {
+                        activeMissions[mission.drone_id] = mission.mission_id;
+                    }
+                });
+            } catch (error) {
+                console.error("Failed to fetch missions:", error); // If missionId not found
+            }
+        }
+        fetchActiveMissions();
+        setInterval(fetchActiveMissions, 5000); // Trying every 5 seconds
+
         let activePolygon = null;  // Surveillance area polygon
         let coveragePolygon = null;  // Drone coverage area polygon
         let userMarker = null;
@@ -825,56 +847,108 @@
             }
         });
 
-        flightmanagerWS.onmessage = (event) => {
-            console.log(JSON.parse(event.data));
-        }
 
-        // Handle Drone Data
-        const specsLoaded = {};
 
         flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
-
             console.log(data);
 
-            if (data.msg_type == "error") {
-                alert(data.error)
+            if (data.msg_type === "error") {
+                alert(data.error);
             }
 
-            // TODO: Handle all the message types here
+            if (data.msg_type === "drone_connected") {
+                const slotNumber = droneCounter++;
+                droneIdMap[slotNumber] = data.drone_id;
 
-            if (data.msg_type == "telemetry") {
-                // TODO: This doesn't currently work 
+                document.getElementById(`dronetype${slotNumber}`).textContent = data.drone_id;
+                const hasCamera = data.capabilities?.camera;
+                document.getElementById(`camera${slotNumber}`).textContent = hasCamera ? "Yes" : "No";
+                if (hasCamera) {
+                    document.getElementById(`res${slotNumber}`).textContent =
+                        `${data.capabilities.camera.resolution_width}x${data.capabilities.camera.resolution_height}`;
+                } else {
+                    document.getElementById(`res${slotNumber}`).textContent = "N/A";
+                }
+                document.getElementById(`speaker${slotNumber}`).textContent =
+                    data.capabilities?.speaker ? "Yes" : "No";
+                document.getElementById(`spotlight${slotNumber}`).textContent =
+                    data.capabilities?.spotlight ? "Yes" : "No";
 
-                // Update specs one time (static data)
-                if (!specsLoaded[data.drone_id]) {
-                    document.getElementById(`dronetype${data.drone_id}`).textContent = data.drone_type + " " + data.model;
+                markers[slotNumber] = L.circleMarker([data.telemetry.lat, data.telemetry.lon], {
+                    radius: 8,
+                    fillColor: slotNumber === 1 ? "#ff3300" : "#0033ff",
+                    color: "#fff",
+                    weight: 2,
+                    fillOpacity: 0.8
+                }).addTo(map).bindTooltip(`Drone ${slotNumber}`, { permanent: true });
+            }
 
-                    const hasCamera = data.capabilities && data.capabilities.camera;
-                    document.getElementById(`camera${data.drone_id}`).textContent = hasCamera ? "Yes" : "No";
+            if (data.msg_type === "drone_disconnected") {
+                const slotNumber = Object.keys(droneIdMap).find(k => droneIdMap[k] === data.drone_id);
+                if (slotNumber) {
+                    delete droneIdMap[slotNumber];
+                    delete activeMissions[data.drone_id];
 
-                    if (hasCamera) {
-                        const res = data.capabilities.camera;
-                        document.getElementById(`res${data.drone_id}`).textContent = res.resolution_width + "x" + res.resolution_height;
-                    } else {
-                        document.getElementById(`res${data.drone_id}`).textContent = "N/A";
+                    if (markers[slotNumber]) {
+                        map.removeLayer(markers[slotNumber]);
+                        delete markers[slotNumber];
                     }
 
-                    const hasSpeaker = data.capabilities && data.capabilities.speaker && data.capabilities.speaker.audio_files.length > 0;
-                    document.getElementById(`speaker${data.drone_id}`).textContent = hasSpeaker ? "Yes" : "No";
+                    document.getElementById(`alt${slotNumber}`).textContent = "--";
+                    document.getElementById(`speed${slotNumber}`).textContent = "--";
+                    document.getElementById(`battery${slotNumber}`).textContent = "--";
+                    document.getElementById(`dronetype${slotNumber}`).textContent = "--";
+                    document.getElementById(`camera${slotNumber}`).textContent = "--";
+                    document.getElementById(`res${slotNumber}`).textContent = "--";
+                    document.getElementById(`speaker${slotNumber}`).textContent = "--";
+                    document.getElementById(`spotlight${slotNumber}`).textContent = "--";
 
-                    document.getElementById(`spotlight${data.drone_id}`).textContent = data.spotlight ? "Yes" : "No"
+                    droneCounter = parseInt(slotNumber);
+                }
+            }
+            if (data.msg_type === "connected_drones") {
+                data.drones.forEach(drone => {
+                    const slotNumber = droneCounter++;
+                    droneIdMap[slotNumber] = drone.drone_id;
 
-                    specsLoaded[data.drone_id] = true;
-                };
+                    document.getElementById(`dronetype${slotNumber}`).textContent = drone.drone_id;
+                    const hasCamera = drone.capabilities?.camera;
+                    document.getElementById(`camera${slotNumber}`).textContent = hasCamera ? "Yes" : "No";
+                    if (hasCamera) {
+                        document.getElementById(`res${slotNumber}`).textContent =
+                            `${drone.capabilities.camera.resolution_width}x${drone.capabilities.camera.resolution_height}`;
+                    } else {
+                        document.getElementById(`res${slotNumber}`).textContent = "N/A";
+                    }
+                    document.getElementById(`speaker${slotNumber}`).textContent =
+                        drone.capabilities?.speaker ? "Yes" : "No";
+                    document.getElementById(`spotlight${slotNumber}`).textContent =
+                        drone.capabilities?.spotlight ? "Yes" : "No";
 
-                // Update map marker
-                markers[data.drone_id].setLatLng([data.telemetry.lat, data.telemetry.lon]);
+                    markers[slotNumber] = L.circleMarker([drone.telemetry.lat, drone.telemetry.lon], {
+                        radius: 8,
+                        fillColor: slotNumber === 1 ? "#ff3300" : "#0033ff",
+                        color: "#fff",
+                        weight: 2,
+                        fillOpacity: 0.8
+                    }).addTo(map).bindTooltip(`Drone ${slotNumber}`, { permanent: true });
+                });
             }
 
-            if (data.msg_type == "proposed_missions") {
+            if (data.msg_type === "telemetry") {
+                const slotNumber = Object.keys(droneIdMap).find(k => droneIdMap[k] === data.drone_id);
+                if (slotNumber) {
+                    document.getElementById(`alt${slotNumber}`).textContent = data.telemetry.alt.toFixed(1);
+                    document.getElementById(`speed${slotNumber}`).textContent = data.telemetry.speed.toFixed(1);
+                    document.getElementById(`battery${slotNumber}`).textContent = data.telemetry.battery_percent;
+                    markers[slotNumber]?.setLatLng([data.telemetry.lat, data.telemetry.lon]);
+                }
+            }
+
+            if (data.msg_type === "proposed_missions") {
                 data.missions.forEach(mission => {
-                    proposedMissions.set(mission.mission_id, mission)
+                    proposedMissions.set(mission.mission_id, mission);
                 });
                 createMissionButtons();
             }
@@ -890,94 +964,89 @@
         });
 
         //Abort button
-        document.getElementById("abortBtn1").addEventListener("click", async (event) => {
-            console.log(event.currentTarget.getAttribute("data-drone-id"))
-            if (!currentMissionId) {
-                alert("No active mission to abort.", "warning");
-                return;
-            }
-
-            if (!confirm(`Are you sure you want to abort mission ${currentMissionId}?`)) {
-                return;
-            }
+        document.getElementById("abortBtn1").addEventListener("click", async () => {
+            const realDroneId = droneIdMap[1];
+            console.log("droneIdMap:", droneIdMap);           // ← lägg till
+            console.log("activeMissions:", activeMissions);   // ← lägg till
+            console.log("realDroneId:", realDroneId);         // ← lägg till
+            if (!realDroneId) { alert("Ingen drönare ansluten på slot 1"); return; }
+            const missionId = activeMissions[realDroneId];
+            console.log("missionId:", missionId);
+            if (!missionId) { alert("Ingen aktiv mission för drone 1"); return; }
+            if (!confirm(`Avbryt mission för ${realDroneId}?`)) return;
 
             try {
                 const response = await fetch(
-                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${currentMissionId}`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        }
-                    }
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${missionId}`,
+                    { method: "POST" }
                 );
-
                 const data = await response.json();
-
-                if (!response.ok || data.error) {
-                    alert(data.error || "Failed to abort mission.", "danger");
-                    return;
-                }
-
-                alert(`Mission ${currentMissionId} aborted successfully.`, "success");
-                console.log("Abort response:", data);
-
-                // Uppdatera local status
-                currentMissionStatus = "ABORTED";
-                currentMissionId = null;
-
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Mission avbruten!");
+                delete activeMissions[realDroneId];
             } catch (error) {
-                console.error("Abort request failed:", error);
-                alert("Failed to communicate with backend.", "danger");
+                console.error("Abort misslyckades:", error);
             }
         });
-
-
 
         document.getElementById("abortBtn2").addEventListener("click", async () => {
-            console.log(event.currentTarget.getAttribute("data-drone-id"))
-
-            if (!currentMissionId) {
-                alert("No active mission to abort.", "warning");
-                return;
-            }
-
-            if (!confirm(`Are you sure you want to abort mission ${currentMissionId}?`)) {
-                return;
-            }
+            const realDroneId = droneIdMap[2];
+            if (!realDroneId) { alert("Ingen drönare ansluten på slot 2"); return; }
+            const missionId = activeMissions[realDroneId];
+            if (!missionId) { alert("Ingen aktiv mission för drone 2"); return; }
+            if (!confirm(`Avbryt mission för ${realDroneId}?`)) return;
 
             try {
                 const response = await fetch(
-                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${currentMissionId}`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        }
-                    }
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${missionId}`,
+                    { method: "POST" }
                 );
-
                 const data = await response.json();
-
-                if (!response.ok || data.error) {
-                    alert(data.error || "Failed to abort mission.", "danger");
-                    return;
-                }
-
-                alert(`Mission ${currentMissionId} aborted successfully.`, "success");
-                console.log("Abort response:", data);
-
-                // Uppdatera local status
-                currentMissionStatus = "ABORTED";
-                currentMissionId = null;
-
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Mission avbruten!");
+                delete activeMissions[realDroneId];
             } catch (error) {
-                console.error("Abort request failed:", error);
-                alert("Failed to communicate with backend.", "danger");
+                console.error("Abort misslyckades:", error);
             }
         });
 
+        document.getElementById("rthBtn1").addEventListener("click", async () => {
+            const realDroneId = droneIdMap[1];
+            if (!realDroneId) { alert("Ingen drönare ansluten på slot 1"); return; }
+            if (!confirm(`Skicka hem ${realDroneId}?`)) return;
 
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/return_home/${realDroneId}`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Drönaren åker hem!");
+                delete activeMissions[realDroneId];
+            } catch (error) {
+                console.error("Return home misslyckades:", error);
+            }
+        });
+
+        document.getElementById("rthBtn2").addEventListener("click", async () => {
+            const realDroneId = droneIdMap[2];
+            if (!realDroneId) { alert("Ingen drönare ansluten på slot 2"); return; }
+            if (!confirm(`Skicka hem ${realDroneId}?`)) return;
+
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/return_home/${realDroneId}`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Drönaren åker hem!");
+                delete activeMissions[realDroneId];
+            } catch (error) {
+                console.error("Return home misslyckades:", error);
+            }
+        });
 
         function sendFlightCommand(droneId, command) {
             if (flightmanagerWS.readyState === WebSocket.OPEN) {

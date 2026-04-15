@@ -570,7 +570,7 @@ class DroneCommunication:
                     message.model_dump_json(),
                 )
 
-                next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
+                next_task_raw = r.lpop(f"mission_queue:{message.mission_id}")
                 if next_task_raw:
                     next_task = json.loads(next_task_raw)
                     print(
@@ -589,9 +589,9 @@ class DroneCommunication:
                     await asyncio.sleep(30)
 
                     # Update mission status to be completed
-                    MissionRegistry.update_status(
-                        message.mission_id, MissionStatus.COMPLETED
-                    )
+                    reg = MissionRegistry()
+                    reg.update_status(message.mission_id, MissionStatus.COMPLETED)
+                    r.delete(f"drone_active:{connection_id}")
 
                     go_home = json_schemas.GoHomeMessage(
                         drone_id=connection_id,

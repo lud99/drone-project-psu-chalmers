@@ -461,19 +461,46 @@ async def merged_feed():
 
 @app.post("/api/v1/missions/abort/{mission_id}")
 def abort_mission(mission_id: str):
-    mission = MissionRegistry.get(mission_id)
+    reg = MissionRegistry()
+    mission = reg.get(mission_id)
     if not mission:
         return {"error": "Mission not found"}
 
-    MissionRegistry.update_status(mission_id, MissionStatus.ABORTED)
-
-    abort_message = json_schemas.AbortTaskMessage(
-        drone_id=mission["drone_id"], mission_id=mission_id, task_action="all"
-    )
-
-    r.publish("drone_commands", abort_message.model_dump_json())
+    r.delete(f"mission_queue:{mission_id}")
+    reg.update_status(mission_id, MissionStatus.ABORTED)
+    r.delete(f"drone_active:{mission['drone_id']}")
 
     return {"status": "aborted", "mission_id": mission_id}
+
+
+@app.post("/api/v1/missions/return_home/{drone_id}")
+def return_home(drone_id: str):
+    reg = MissionRegistry()
+
+    # Hitta aktivt mission för drönaren
+    all_missions = reg.get_all()
+    active_mission = next(
+        (
+            m
+            for m in all_missions
+            if m["drone_id"] == drone_id and m["status"] in ["DISPATCHED", "PENDING"]
+        ),
+        None,
+    )
+
+    if active_mission:
+        mission_id = active_mission["mission_id"]
+        r.delete(f"mission_queue:{mission_id}")
+        reg.update_status(mission_id, MissionStatus.ABORTED)
+        r.delete(f"drone_active:{drone_id}")
+
+    go_home = json_schemas.GoHomeMessage(
+        drone_id=drone_id,
+        mission_id=active_mission["mission_id"] if active_mission else "manual",
+    )
+    r.publish("drone_commands", go_home.model_dump_json())
+
+    return {"status": "returning_home", "drone_id": drone_id}
 
 
 @app.get("/api/v1/health")
