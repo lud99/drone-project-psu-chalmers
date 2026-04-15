@@ -17,9 +17,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
-from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
-from communication_software.missions_planning.mission_status import MissionStatus
 
 
 try:
@@ -581,27 +579,26 @@ class DroneCommunication:
 
                     r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
 
-                else:
-                    print(
-                        f"Mission {message.mission_id} done - waiting 30s before go_home"
-                    )
+                # else:
+                #     print(
+                #         f"Mission {message.mission_id} done - waiting 30s before go_home"
+                #     )
 
-                    await asyncio.sleep(30)
+                #     await asyncio.sleep(30)
 
-                    # Update mission status to be completed
-                    MissionRegistry.update_status(message.mission_id, MissionStatus.COMPLETED)
-                    
+                #     # Update mission status to be completed
+                #     MissionRegistry.update_status(message.mission_id, MissionStatus.COMPLETED)
 
-                    go_home = json_schemas.GoHomeMessage(
-                        drone_id=connection_id,
-                        mission_id=message.mission_id,
-                    )
-                    await self.connections[connection_id].send(
-                        go_home.model_dump_json()
-                    )
-                    r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+                #     go_home = json_schemas.GoHomeMessage(
+                #         drone_id=connection_id,
+                #         mission_id=message.mission_id,
+                #     )
+                #     await self.connections[connection_id].send(
+                #         go_home.model_dump_json()
+                #     )
+                #     r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
 
-                    print(f"go_home sent to {connection_id}")
+                #     print(f"go_home sent to {connection_id}")
             elif message.event == "task_failed":
                 error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
                 print(error)

@@ -319,19 +319,18 @@ class AutoMissionSuggester:
                         json.dumps(coverage_corners),
                     )
 
-                    if request_id:
-                        response_key = f"response_{request_id}"
-                        print(f"Sending redis response for {request_id}")
-                        self._redis.rpush(
-                            response_key,
-                            json.dumps(
-                                {
-                                    "mission": surveil_mission.to_dict(),
-                                    "coverage_corners": coverage_corners,
-                                }
-                            ),
-                        )
-                        self._redis.expire(response_key, 20)
+                    response_key = f"response_{request_id}"
+                    print(f"Sending redis response for {request_id}")
+                    self._redis.rpush(
+                        response_key,
+                        json.dumps(
+                            {
+                                "mission": surveil_mission.to_dict(),
+                                "coverage_corners": coverage_corners,
+                            }
+                        ),
+                    )
+                    self._redis.expire(response_key, 20)
 
         except Exception as exc:
             print(f"[area_listener] Error in Redis listener: {exc}")
