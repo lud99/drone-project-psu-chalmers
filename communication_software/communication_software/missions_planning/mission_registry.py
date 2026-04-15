@@ -67,6 +67,53 @@ class MissionRegistry:
         r.publish(DRONE_EVENT_CHANNEL, first_task_raw)
 
     @staticmethod
+    def abort_mission(mission_id: str):
+        mission = json.loads(r.get(f"mission_{mission_id}_state"))
+
+        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]):
+            raise Exception(
+                f"Cannot abort mission {mission_id}, drone {mission['drone_id']} is not on a mission"
+            )
+
+        mission["status"] = MissionStatus.ABORTED.value
+
+        r.set(f"mission_{mission_id}_state", json.dumps(mission))
+        r.delete(f"mission_{mission_id}_task_queue")
+
+        abort_message = json_schemas.AbortTaskMessage(
+            mission_id=mission_id, task_action="all", drone_id=mission["drone_id"]
+        )
+
+        r.publish(DRONE_COMMANDS_CHANNEL, abort_message.model_dump_json())
+        r.publish(DRONE_EVENT_CHANNEL, abort_message.model_dump_json())
+
+    @staticmethod
+    def abort_mission_and_go_home(drone_id: str):
+        # Hitta aktivt mission för drönaren
+        all_missions = MissionRegistry.get_all()
+        active_mission = next(
+            (
+                m
+                for m in all_missions
+                if m["drone_id"] == drone_id
+                and m["status"]
+                in [MissionStatus.DISPATCHED.value, MissionStatus.PENDING.value]
+            ),
+            None,
+        )
+
+        if active_mission:
+            MissionRegistry.abort_mission(active_mission["mission_id"])
+
+        go_home = json_schemas.GoHomeMessage(
+            drone_id=drone_id,
+            mission_id=active_mission["mission_id"] if active_mission else "manual",
+        )
+
+        r.publish(DRONE_COMMANDS_CHANNEL, go_home.model_dump_json())
+        r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+
+    @staticmethod
     def get(mission_id: str):
         data = r.get(f"mission_{mission_id}_state")
         return json.loads(data) if data else None

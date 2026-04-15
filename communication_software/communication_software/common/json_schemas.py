@@ -40,7 +40,9 @@ class Telemetry(BaseModel):
 
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed", "task_aborted"]
-TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
+TaskTypes = Literal[
+    "go_to", "led", "spotlight", "play_audio", "all", "angle_camera", "hover"
+]
 
 
 # Specific task definitions

@@ -589,9 +589,8 @@ class DroneCommunication:
                     await asyncio.sleep(30)
 
                     # Update mission status to be completed
-                    reg = MissionRegistry()
-                    reg.update_status(message.mission_id, MissionStatus.COMPLETED)
-                    r.delete(f"drone_active:{connection_id}")
+                    MissionRegistry.update_status(message.mission_id, MissionStatus.COMPLETED)
+                    
 
                     go_home = json_schemas.GoHomeMessage(
                         drone_id=connection_id,
