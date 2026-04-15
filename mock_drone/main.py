@@ -286,14 +286,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD
     drone_id = sys.argv[1] if len(sys.argv) > 1 else DRONE_ID
     video_path = sys.argv[2] if len(sys.argv) > 2 else VIDEO_PATH
 
     asyncio.run(run_drone_client(drone_id, video_path))
-=======
-    drone_id = DRONE_ID
-    if len(sys.argv) > 1:
-        drone_id = sys.argv[1]
-    asyncio.run(run_drone_client(drone_id))
->>>>>>> 0518f82 (dynamically adding the connected drones)
