@@ -108,6 +108,16 @@ class SpotlightTask(BaseModel):
     action: Literal["spotlight"] = "spotlight"
     params: SpotlightParams
 
+<<<<<<< HEAD
+=======
+
+class AngleCameraParams(BaseModel):
+    pitch: float
+    roll: float
+    yaw: float
+    duration_seconds: Optional[float] = None
+>>>>>>> origin/90-fetch-connected-drones-on-frontend
+
 
 class AngleCameraTask(BaseModel):
     action: Literal["angle_camera"] = "angle_camera"
