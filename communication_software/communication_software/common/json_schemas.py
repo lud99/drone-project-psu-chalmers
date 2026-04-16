@@ -41,7 +41,7 @@ class Telemetry(BaseModel):
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed", "task_aborted"]
 TaskTypes = Literal[
-    "go_to", "led", "spotlight", "play_audio", "all", "angle_camera", "hover"
+    "go_to", "led", "spotlight", "play_audio", "all", "angle_camera", "hover", "go_home"
 ]
 
 
@@ -175,12 +175,6 @@ class AbortTaskMessage(BackendToDroneMessage):
 
 
 # Backend -> app
-class GoHomeMessage(BackendToDroneMessage):
-    msg_type: Literal["go_home"] = "go_home"
-    mission_id: str
-
-
-# Backend -> app
 class LandMessage(BackendToDroneMessage):
     msg_type: Literal["land"] = "land"
     mission_id: str
@@ -245,7 +239,6 @@ AnyDroneMessage = Annotated[
         TelemetryMessage,
         TaskEventMessage,
         AbortTaskMessage,
-        GoHomeMessage,
         LandMessage,
         DebugMessage,
         PingMessage,

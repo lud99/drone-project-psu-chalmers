@@ -4,7 +4,7 @@ import json
 from .mission_status import MissionStatus
 
 import communication_software.common.json_schemas as json_schemas
-from communication_software.missions_planning.missions import Mission
+from communication_software.missions_planning.missions import GoHome, Mission
 
 from communication_software.constants import DRONE_COMMANDS_CHANNEL, DRONE_EVENT_CHANNEL
 
@@ -28,7 +28,6 @@ class MissionRegistry:
 
     @staticmethod
     def store(mission: Mission):
-        # tasks = mission.get_tasks()
         mission_dict = mission.to_dict()
         r.set(f"mission_{mission.mission_id}_state", json.dumps(mission_dict))
 
@@ -78,9 +77,7 @@ class MissionRegistry:
             else:
                 print(f"Mission {mission_id} is not dispatched, skipping abort")
 
-        MissionRegistry.update_status(mission_id, MissionStatus.ABORTED)
-
-        r.delete(f"mission_{mission_id}_task_queue")
+        MissionRegistry.remove(mission_id)
 
         abort_message = json_schemas.AbortTaskMessage(
             mission_id=mission_id, task_action="all", drone_id=mission["drone_id"]
@@ -111,13 +108,28 @@ class MissionRegistry:
                 active_mission["mission_id"], exception_on_not_dispatched=False
             )
 
-        go_home = json_schemas.GoHomeMessage(
+        go_home_mission = GoHome(
             drone_id=drone_id,
-            mission_id=active_mission["mission_id"] if active_mission else "manual",
+            capabilities=json_schemas.Capabilities(
+                camera=None, spotlight=False, led=None, speaker=None
+            ),
+            coordinates=json_schemas.GoToParams(lat=0, lon=0, alt=0),
         )
 
-        r.publish(DRONE_COMMANDS_CHANNEL, go_home.model_dump_json())
-        r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+        MissionRegistry.store(go_home_mission)
+        MissionRegistry.dispatch_mission(go_home_mission.mission_id)
+
+        # go_home = json_schemas.TaskMessage(
+        #     drone_id=drone_id,
+        #     mission_id=active_mission["mission_id"]
+        #     if active_mission
+        #     else "no_active_mission",
+        #     index=-1,
+        #     task_action=json_schemas.GoHomeTask(),
+        # )
+
+        # r.publish(DRONE_COMMANDS_CHANNEL, go_home.model_dump_json())
+        # r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
 
         print("[Mission Registry] Sent go home command for drone", drone_id)
 

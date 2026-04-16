@@ -462,12 +462,6 @@ public class WebsocketClientHandler {
             return;
         }
 
-        if ("go_home".equals(type)) {
-            refreshAdapterSelection();
-            Log.d(TAG, "Go home message received: " + rawMessage);
-            droneAdapter.goHome("manual", 0);
-            return;
-        }
 
         if ("land".equals(type)) {
             refreshAdapterSelection();
