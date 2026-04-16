@@ -136,9 +136,12 @@ def inject_watch_area(r: redis.Redis, points: list[dict[str, float]]) -> None:
 def make_logging_suggester(suggester: AutoMissionSuggester) -> None:
     """Monkey-patch send_proposed_missions to print instead of sending over WS."""
 
-    def logging_send(missions):
+    def logging_send(missions, detection):
         print(f"\n{'=' * 60}")
         print(f"[PROPOSED MISSIONS] {len(missions)} mission(s) suggested:")
+        print(
+            f"  detection_id={detection.detection_id}, object_type={detection.object_type}, gps={detection.gps_position}"
+        )
         for i, mission in enumerate(missions, 1):
             proposal = mission.get_frontend_mission_proposal()
             print(f"  [{i}] {json.dumps(proposal, indent=4)}")

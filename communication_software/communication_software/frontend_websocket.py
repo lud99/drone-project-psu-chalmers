@@ -276,6 +276,42 @@ async def reject_missions(mission_id: str):
         return {"msg_type": "response", "error": str(e)}
 
 
+@app.post("/api/v1/missions/discard")
+async def discard_missions(payload: str = Body(...)):
+    try:
+        message = json_schemas.parse_frontend_message(payload)
+        if not isinstance(message, json_schemas.FrontendMessages.DiscardMissions):
+            return {"msg_type": "response", "error": "Invalid discard payload"}
+
+        missions = []
+        for mission_id in message.mission_ids:
+            mission = MissionRegistry.get(mission_id)
+            if not mission:
+                return {
+                    "msg_type": "response",
+                    "error": f"Mission not found: {mission_id}",
+                }
+
+            mission_status = mission["status"]
+            if mission_status != MissionStatus.PENDING.value:
+                return {
+                    "msg_type": "response",
+                    "error": f"Cannot discard mission {mission_id}, it is in state '{mission_status}'",
+                }
+
+            missions.append(mission_id)
+
+        removed_ids = MissionRegistry.remove_many(missions)
+
+        return {
+            "msg_type": "response",
+            "error": None,
+            "removed_mission_ids": removed_ids,
+        }
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
 @app.post("/api/v1/set_watch_area")
 async def set_watch_area(payload: str = Body(...)):
     try:

@@ -289,6 +289,14 @@ class DroneInfo(BaseModel):
     telemetry: Telemetry
 
 
+class ProposedMission(BaseModel):
+    drone_id: str
+    mission_id: str
+    mission_type: str
+    description: str
+    tasks: list[AnyTaskAction]
+
+
 class FrontendMessages:
     class FrontendMessage(BaseModel, Generic[MsgTypeT]):
         msg_type: MsgTypeT
@@ -299,11 +307,19 @@ class FrontendMessages:
         msg_type: Literal["set_watch_area"] = "set_watch_area"
         area: Points
 
+    class DiscardMissions(FrontendMessage):
+        msg_type: Literal["discard_missions"] = "discard_missions"
+        mission_ids: Annotated[list[str], Field(min_length=1)]
+
     # Backend -> Frontend
 
     class ProposedMissions(FrontendMessage):
         msg_type: Literal["proposed_missions"] = "proposed_missions"
-        missions: list[dict]
+        detection_id: int
+        object_type: str
+        gps_position: tuple[float, float]
+        timestamp: int
+        missions: list[ProposedMission]
 
     class NoProposedMissions(FrontendMessage):
         msg_type: Literal["no_proposed_missions"] = "no_proposed_missions"
@@ -353,6 +369,7 @@ AnyFrontendMessage = Annotated[
         FrontendMessages.DroneConnected,
         FrontendMessages.DroneDisconnected,
         FrontendMessages.SetWatchArea,
+        FrontendMessages.DiscardMissions,
         FrontendMessages.GetWatchAreas,
         FrontendMessages.ConnectedDrones,
         FrontendMessages.ServerResponse,
