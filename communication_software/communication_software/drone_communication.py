@@ -612,6 +612,10 @@ class DroneCommunication:
                     DRONE_EVENT_CHANNEL,
                     json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
                 )
+            elif message.event == "task_aborted":
+                print(
+                    f"Aborted tasks for drone {message.drone_id} successfully with message '{message.message}'"
+                )
             else:
                 error = f"Unhandled task event '{message.event}' for drone {message.drone_id} with error '{message.message}'"
                 print(error)
