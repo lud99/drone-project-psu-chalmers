@@ -40,7 +40,9 @@ class Telemetry(BaseModel):
 
 # Sub-models for Tasks
 TaskEvents = Literal["task_complete", "task_failed", "task_aborted"]
-TaskTypes = Literal["go_to", "led", "spotlight", "play_audio"]
+TaskTypes = Literal[
+    "go_to", "led", "spotlight", "play_audio", "all", "angle_camera", "hover"
+]
 
 
 # Specific task definitions
@@ -283,6 +285,7 @@ class Points(BaseModel):
 
 class DroneInfo(BaseModel):
     drone_id: str
+    model: str
     capabilities: Capabilities
     telemetry: Telemetry
 
@@ -332,6 +335,7 @@ class FrontendMessages:
     class DroneConnected(FrontendMessage):
         msg_type: Literal["drone_connected"] = "drone_connected"
         drone_id: str
+        model: str
         capabilities: Capabilities
         telemetry: Telemetry
         error: Optional[str] = None

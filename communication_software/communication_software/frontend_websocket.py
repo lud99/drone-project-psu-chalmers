@@ -146,10 +146,17 @@ def get_connected_drones_helper():
 
             telemetry = json_schemas.parse_telemetry(telemetry_str)
             capabilities = json_schemas.parse_capabilities(capabilities_str)
+            model = r.get(f"model_drone{drone_id}")
+            if model is None:
+                print(f"Model not found for drone {drone_id}")
+                raise Exception(f"Model not found for drone {drone_id}")
 
             drone_list.drones.append(
                 json_schemas.DroneInfo(
-                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                    drone_id=drone_id,
+                    capabilities=capabilities,
+                    telemetry=telemetry,
+                    model=model,
                 )
             )
 
@@ -328,9 +335,9 @@ async def set_watch_area(payload: str = Body(...)):
             # 1. Publish to B
             r.publish(SURVEIL_AREA_CHANNEL, raw_watch_area)
 
-            # 2. Wait for B to respond on a unique list key (timeout after 5 seconds)
+            # 2. Wait for B to respond on a unique list key (timeout after 10 seconds)
             response_key = f"response_{request_id}"
-            response = r.blpop(response_key, timeout=5)
+            response = r.blpop(response_key, timeout=10)
             print("response", response)
 
             if response:
@@ -359,6 +366,30 @@ async def set_detections(payload: str = Body(...)):
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
     return {"msg_type": "response", "error": None}
+
+
+@app.post("/api/v1/missions/abort/{mission_id}")
+def abort_mission(mission_id: str):
+    try:
+        mission = MissionRegistry.get(mission_id)
+        if not mission:
+            return {"error": "Mission not found"}
+
+        MissionRegistry.abort_mission(mission_id)
+
+        return {"status": "aborted", "mission_id": mission_id}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.post("/api/v1/missions/return_home/{drone_id}")
+def return_home(drone_id: str):
+    try:
+        MissionRegistry.abort_mission_and_go_home(drone_id)
+
+        return {"status": "returning_home", "drone_id": drone_id}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
 
 
 ### GET routes
@@ -440,10 +471,17 @@ async def get_connected_drones():
 
             telemetry = json_schemas.parse_telemetry(telemetry_str)
             capabilities = json_schemas.parse_capabilities(capabilities_str)
+            model = r.get(f"model_drone{drone_id}")
+            if model is None:
+                print(f"Model not found for drone {drone_id}")
+                raise Exception(f"Model not found for drone {drone_id}")
 
             drone_list.drones.append(
                 json_schemas.DroneInfo(
-                    drone_id=drone_id, capabilities=capabilities, telemetry=telemetry
+                    drone_id=drone_id,
+                    capabilities=capabilities,
+                    telemetry=telemetry,
+                    model=model,
                 )
             )
 

@@ -67,6 +67,61 @@ class MissionRegistry:
         r.publish(DRONE_EVENT_CHANNEL, first_task_raw)
 
     @staticmethod
+    def abort_mission(mission_id: str, exception_on_not_dispatched: bool = True):
+        mission = json.loads(r.get(f"mission_{mission_id}_state"))
+
+        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]):
+            if exception_on_not_dispatched:
+                raise Exception(
+                    f"Cannot abort mission {mission_id}, drone {mission['drone_id']} is not on a mission"
+                )
+            else:
+                print(f"Mission {mission_id} is not dispatched, skipping abort")
+
+        MissionRegistry.update_status(mission_id, MissionStatus.ABORTED)
+
+        r.delete(f"mission_{mission_id}_task_queue")
+
+        abort_message = json_schemas.AbortTaskMessage(
+            mission_id=mission_id, task_action="all", drone_id=mission["drone_id"]
+        )
+
+        r.publish(DRONE_COMMANDS_CHANNEL, abort_message.model_dump_json())
+        r.publish(DRONE_EVENT_CHANNEL, abort_message.model_dump_json())
+
+        print("[Mission Registry] Sent abort command for drone", mission["drone_id"])
+
+    @staticmethod
+    def abort_mission_and_go_home(drone_id: str):
+        # Hitta aktivt mission för drönaren
+        all_missions = MissionRegistry.get_all()
+        active_mission = next(
+            (
+                m
+                for m in all_missions
+                if m["drone_id"] == drone_id
+                and m["status"]
+                in [MissionStatus.DISPATCHED.value, MissionStatus.PENDING.value]
+            ),
+            None,
+        )
+
+        if active_mission:
+            MissionRegistry.abort_mission(
+                active_mission["mission_id"], exception_on_not_dispatched=False
+            )
+
+        go_home = json_schemas.GoHomeMessage(
+            drone_id=drone_id,
+            mission_id=active_mission["mission_id"] if active_mission else "manual",
+        )
+
+        r.publish(DRONE_COMMANDS_CHANNEL, go_home.model_dump_json())
+        r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+
+        print("[Mission Registry] Sent go home command for drone", drone_id)
+
+    @staticmethod
     def get(mission_id: str):
         data = r.get(f"mission_{mission_id}_state")
         return json.loads(data) if data else None

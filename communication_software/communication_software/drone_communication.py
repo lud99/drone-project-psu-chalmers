@@ -17,9 +17,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
-from communication_software.missions_planning.mission_registry import MissionRegistry
 from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
-from communication_software.missions_planning.mission_status import MissionStatus
 
 
 try:
@@ -424,6 +422,7 @@ class DroneCommunication:
             print(f"[Video Recorder] Closed video file for drone {connection_id}")
 
         r.delete(f"telemetry_drone{connection_id}")
+        r.delete(f"model_drone{connection_id}")
         r.delete(f"capabilities_drone{connection_id}")
         r.delete(f"frame_drone_merged")
         r.delete(f"frame_drone{connection_id}")
@@ -509,6 +508,7 @@ class DroneCommunication:
                 message.telemetry.model_dump_json(),
                 ex=60,
             )
+            r.set(f"model_drone{message.drone_id}", message.model)
 
             if message.capabilities.camera is not None:
                 self.create_peer_connection(message.drone_id)
@@ -531,6 +531,7 @@ class DroneCommunication:
                     drone_id=message.drone_id,
                     capabilities=message.capabilities,
                     telemetry=message.telemetry,
+                    model=message.model,
                 ).model_dump_json(),
             )
 
@@ -570,7 +571,7 @@ class DroneCommunication:
                     message.model_dump_json(),
                 )
 
-                next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
+                next_task_raw = r.lpop(f"mission_queue:{message.mission_id}")
                 if next_task_raw:
                     next_task = json.loads(next_task_raw)
                     print(
@@ -581,28 +582,26 @@ class DroneCommunication:
 
                     r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
 
-                else:
-                    print(
-                        f"Mission {message.mission_id} done - waiting 30s before go_home"
-                    )
+                # else:
+                #     print(
+                #         f"Mission {message.mission_id} done - waiting 30s before go_home"
+                #     )
 
-                    await asyncio.sleep(30)
+                #     await asyncio.sleep(30)
 
-                    # Update mission status to be completed
-                    MissionRegistry.update_status(
-                        message.mission_id, MissionStatus.COMPLETED
-                    )
+                #     # Update mission status to be completed
+                #     MissionRegistry.update_status(message.mission_id, MissionStatus.COMPLETED)
 
-                    go_home = json_schemas.GoHomeMessage(
-                        drone_id=connection_id,
-                        mission_id=message.mission_id,
-                    )
-                    await self.connections[connection_id].send(
-                        go_home.model_dump_json()
-                    )
-                    r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
+                #     go_home = json_schemas.GoHomeMessage(
+                #         drone_id=connection_id,
+                #         mission_id=message.mission_id,
+                #     )
+                #     await self.connections[connection_id].send(
+                #         go_home.model_dump_json()
+                #     )
+                #     r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
 
-                    print(f"go_home sent to {connection_id}")
+                #     print(f"go_home sent to {connection_id}")
             elif message.event == "task_failed":
                 error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
                 print(error)

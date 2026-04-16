@@ -41,163 +41,92 @@
         <h1 class="text-center mb-4">ATOS Drone Platform</h1>
 
         <div class="row">
-            <!-- Left Side -->
             <div class="col-md-8">
-                <!-- Video Section -->
                 <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        Live Feed
-                    </div>
+                    <div class="card-header bg-primary text-white">Live Feed</div>
                     <div class="card-body p-0">
                         <div id="videoContainer" class="video-container">
-                            <img id="video1" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H">
-                            <img id="merged" class="video-stream" src="/api/v1/video_feed/merged"
-                                style="display: none;">
-                            <img id="video2" class="video-stream" src="/api/v1/video_feed/drone2763KAH0H1X35H_annotated"
-                                style="display: none;">
+                            <img id="video1" class="video-stream" src="">
+                            <img id="video2" class="video-stream" src="" style="display: none;">
                         </div>
                     </div>
                 </div>
-                <!-- Control Panel -->
+
                 <div class="row g-3 mb-3">
                     <div class="col-lg-6">
                         <div class="card h-100">
-                            <div class="card-header bg-primary text-white">
-                                Controls
-                            </div>
+                            <div class="card-header bg-primary text-white">Controls & Drone Status</div>
                             <div class="card-body">
-                                <!-- Video Layout Control -->
                                 <div class="mb-3">
                                     <h5>Video Layout</h5>
                                     <select id="layoutSelect" class="form-select">
-                                        <option value="drone1">Drone 1</option>
-                                        <option value="drone2">Drone 2</option>
-                                        <option value="single">Merged picture</option>
-                                        <option value="sidebyside">Side by Side</option>
+                                        <option value="sidebyside">Side by Side (Auto)</option>
                                     </select>
                                 </div>
 
-                                <!-- Status Display -->
-                                <div class="status-card mb-3">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <h5><span id="statusLabel1">Drone 1</span> Status</h5>
-                                            <div>Altitude: <span id="alt1">--</span> m</div>
-                                            <div>Speed: <span id="speed1">--</span> m/s</div>
-                                            <div>Battery: <span id="battery1">--</span>%</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h5><span id="specLabel1">Drone 1</span> Specs</h5>
-                                            <div>Drone Type: <span id="dronetype1">--</span></div>
-                                            <div>Camera: <span id="camera1">--</span></div>
-                                            <div>Camera resolution: <span id="res1">--</span></div>
-                                            <div>Speaker: <span id="speaker1">--</span></div>
-                                            <div>Spotlight: <span id="spotlight1">--</span></div>
-                                        </div>
-                                        <div class="drone-controls mt-2">
-                                            <button id="takeoffBtn1" data-drone-slot="1" data-command="flight_take_off"
-                                                class="btn btn-success btn-sm">Take Off</button>
-                                            <button id="rthBtn1" data-drone-slot="1" data-command="flight_return_to_home"
-                                                class="btn btn-info btn-sm">Return Home</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="status-card mb-3">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <h5><span id="statusLabel2">Drone 2</span> Status</h5>
-                                            <div>Altitude: <span id="alt2">--</span> m</div>
-                                            <div>Speed: <span id="speed2">--</span> m/s</div>
-                                            <div>Battery: <span id="battery2">--</span>%</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h5><span id="specLabel2">Drone 2</span> Specs</h5>
-                                            <div>Drone Type: <span id="dronetype2">--</span></div>
-                                            <div>Camera: <span id="camera2">--</span></div>
-                                            <div>Camera resolution: <span id="res2">--</span></div>
-                                            <div>Speaker: <span id="speaker2">--</span></div>
-                                            <div>Spotlight: <span id="spotlight2">--</span></div>
-                                        </div>
-                                        <div class="drone-controls mt-2">
-                                            <button id="takeoffBtn2" data-drone-slot="2" data-command="flight_take_off"
-                                                class="btn btn-success btn-sm">Take Off</button>
-                                            <button id="rthBtn2" data-drone-slot="2" data-command="flight_return_to_home"
-                                                class="btn btn-info btn-sm">Return Home</button>
-                                        </div>
-                                    </div>
-                                </div>
+                                <div id="drone-status-container"></div>
 
-                                <!-- Control Buttons -->
-                                <div class="d-grid gap-2">
-                                    <button id="startBtn" class="btn btn-success btn-lg">Start Test</button>
-                                    <button id="stopBtn" class="btn btn-danger btn-lg">Emergency Stop</button>
-                                </div>
                                 <div class="mt-3 all-drone-controls text-center">
                                     <hr>
                                     <h5>All Drone Commands</h5>
-                                    <button id="armAllBtn" data-command="flight_arm"
-                                        class="btn btn-success all-drone-command-btn">Take Off All</button>
-                                    <button id="rthAllBtn" data-command="flight_return_to_home"
-                                        class="btn btn-info all-drone-command-btn">Return Home All</button>
-                                    <button id="sendDetection">Send test detection</button>
-                                    <button id="clearDetection">Reset detections</button>
-                                    <div>
-                                        <input type="text" id="detection_id" />Tracker id
-                                        <!-- <input type="number" id="detection_lat" />lat -->
-                                        <!-- <input type="number" id="detection_lon" />lon -->
-                                        <input type="text" id="detection_drone_id" />Drone id
-                                        <select id="detection_class">
-                                            <option value="person">Person</option>
-                                            <option value="vehicle">Vehicle</option>
-                                            <option value="car">Car</option>
-                                            <option value="truck">Truck</option>
-                                            <option value="bus">Bus</option>
-                                        </select>
+                                    <div class="mb-2">
+                                        <button id="armAllBtn" data-command="flight_arm"
+                                            class="btn btn-success btn-sm all-drone-command-btn">Take Off All</button>
+                                        <button id="rthAllBtn" data-command="flight_return_to_home"
+                                            class="btn btn-info btn-sm all-drone-command-btn">Return Home All</button>
+                                    </div>
+
+                                    <div class="mt-3 p-2 border rounded bg-light">
+                                        <h6>Manual Test Detection</h6>
+                                        <button id="sendDetection" class="btn btn-secondary btn-sm">Send
+                                            Detection</button>
+                                        <button id="clearDetection"
+                                            class="btn btn-outline-secondary btn-sm">Clear</button>
+                                        <div class="mt-2 d-flex flex-wrap justify-content-center gap-1">
+                                            <input type="text" id="detection_id"
+                                                class="form-control form-control-sm w-auto" placeholder="Tracker ID" />
+                                            <input type="text" id="detection_drone_id"
+                                                class="form-control form-control-sm w-auto" placeholder="Drone ID" />
+                                            <select id="detection_class" class="form-select form-select-sm w-auto">
+                                                <option value="person">Person</option>
+                                                <option value="vehicle">Vehicle</option>
+                                                <option value="car">Car</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
+
                     <div class="col-lg-6">
                         <div class="card h-100">
-                            <div class="card-header bg-primary text-white">
-                                Active missions
-                            </div>
+                            <div class="card-header bg-primary text-white">Active Missions</div>
                             <div class="card-body">
+                                <div id="active-missions-list">
+                                    <p class="text-muted text-center">No missions currently active.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
             </div>
-
-            <!-- Right Side -->
             <div class="col-md-4">
-                <!-- Map Section -->
                 <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        Create Surveillance Area
-                    </div>
+                    <div class="card-header bg-primary text-white">Create Surveillance Area</div>
                     <div class="card-body p-0">
                         <div id="map"></div>
                     </div>
                 </div>
-                <!-- Mission planning section -->
                 <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        Mission Planning
-                    </div>
+                    <div class="card-header bg-primary text-white">Mission Planning</div>
                     <div class="card-body">
-                        <div id="mission-list-container" class="row">
-                        </div>
+                        <div id="mission-list-container" class="row"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Mission modal -->
     <div class="modal fade" id="missionModal" tabindex="-1" aria-labelledby="missionModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -206,29 +135,55 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="modal-content-area">
-                    <div class="select-mission-container">
-                    </div>
+                    <div class="select-mission-container"></div>
                     <div id="mission-dynamic-content">Info regarding the mission...</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" id="discardMissionModalBtn" class="btn btn-danger" data-bs-dismiss="modal">Discard</button>
+                    <button type="button" id="discardMissionModalBtn" class="btn btn-danger"
+                        data-bs-dismiss="modal">Discard</button>
                     <button type="button" class="btn btn-success" data-bs-dismiss="modal">Start Mission</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- <script src="/misc/bootstrap.bundle.min.js"></script> -->
+       
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- <script src="/misc/leaflet.js"></script> -->
+       
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+       
     <script>
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
-        // Initialize Map
-        let activePolygon = null;  // Surveillance area polygon
-        let coveragePolygon = null;  // Drone coverage area polygon
+
+        // ── State ──────────────────────────────────────────────────────────────
+        const activeMissions = {};      // { "drone_id": "mission_id" }
+        const markers = {};             // { "drone_id": leaflet marker }
+        const lastDronePositions = {};  // { "drone_id": [lat, lon] }
+        const specsLoaded = {};         // { "drone_id": true }
+        let connectedDroneIds = [];     // list of connected drone ids
+
+        // ── Fetch active missions every 5s ─────────────────────────────────────
+        async function fetchActiveMissions() {
+            try {
+                const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
+                const missions = await response.json();
+                missions.forEach(mission => {
+                    if (mission.status === "DISPATCHED" || mission.status === "PENDING") {
+                        activeMissions[mission.drone_id] = mission.mission_id;
+                    }
+                });
+            } catch (error) {
+                console.error("Failed to fetch missions:", error);
+            }
+        }
+        fetchActiveMissions();
+        setInterval(fetchActiveMissions, 5000);
+
+        // ── Map state ──────────────────────────────────────────────────────────
+        let activePolygon = null;
+        let coveragePolygon = null;
         let userMarker = null;
         let watchAreaMarker = null;
 
@@ -236,35 +191,137 @@
             try {
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/dispatch/${missionId}`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/text"
-                    },
+                    headers: { "Content-Type": "text/plain" },
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                 const result = await response.json();
-                console.log(result)
-
-                if (!result.error) {
-                    alert("Mission dispatched ok");
-                }
-                else {
-                    alert("Error: " + result.error);
-                }
-
+                if (!result.error) alert("Mission dispatched ok");
+                else alert("Error: " + result.error);
             } catch (error) {
                 console.error("Error to dispatch", error);
             }
         }
 
-        function createRandomMissionSetId() {
-            return window.crypto.randomUUID();
+        // ── Create drone status card dynamically ───────────────────────────────
+        function createDroneStatusCard(droneId) {
+            const container = document.getElementById('drone-status-container');
+            // const droneSlot = getDroneSlot(droneId);
+
+            if (!droneId || document.getElementById(`card-${droneId}`)) return;
+
+            const cardHtml = `
+                <div class="status-card mb-3" id="card-${droneId}">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Drone ${droneId} Status</h5>
+                            <div>Altitude: <span id="alt${droneId}">--</span> m</div>
+                            <div>Speed: <span id="speed${droneId}">--</span> m/s</div>
+                            <div>Battery: <span id="battery${droneId}">--</span>%</div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Drone ${droneId} Specs</h5>
+                            <div>Model: <span id="dronemodel${droneId}">--</span></div>
+                            <div>Camera: <span id="camera${droneId}">--</span></div>
+                            <div>Camera resolution: <span id="res${droneId}">--</span></div>
+                            <div>Speaker: <span id="speaker${droneId}">--</span></div>
+                            <div>Spotlight: <span id="spotlight${droneId}">--</span></div>
+                        </div>
+                        <div class="drone-controls mt-2">
+                            <button class="btn btn-danger btn-sm me-1" onclick="abortMission('${droneId}')">Abort Mission</button>
+                            <button class="btn btn-info btn-sm" onclick="returnHome('${droneId}')">Return Home</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('afterbegin', cardHtml);
         }
 
-        let proposedMissionSets = new Map();
+        function removeDroneStatusCard(droneId) {
+            //droneSlot = getDroneSlot(droneId)
+            const card = document.getElementById(`card-${droneId}`);
+            if (card) card.remove();
+        }
+
+        // ── Update video dropdown ──────────────────────────────────────────────
+        function updateVideoDropdown(droneId) {
+            const select = document.getElementById('layoutSelect');
+            if (select.querySelector(`option[value="${droneId}"]`)) return;
+
+            if (!connectedDroneIds.includes(droneId)) {
+                connectedDroneIds.push(droneId);
+
+                const optNormal = document.createElement('option');
+                optNormal.value = droneId;
+                optNormal.textContent = `Drone: ${droneId} (Normal)`;
+                select.appendChild(optNormal);
+
+                const optAnnotated = document.createElement('option');
+                optAnnotated.value = `${droneId}_annotated`;
+                optAnnotated.textContent = `Drone: ${droneId} (Annotated)`;
+                select.appendChild(optAnnotated);
+            }
+        }
+
+        function removeVideoDropdownOptions(droneId) {
+            const select = document.getElementById('layoutSelect');
+            select.querySelectorAll(`option[value="${droneId}"], option[value="${droneId}_annotated"]`)
+                .forEach(o => o.remove());
+            connectedDroneIds = connectedDroneIds.filter(id => id !== droneId);
+        }
+
+        // ── Handle drone update (connected_drones, drone_connected, telemetry) ─
+        function handleDroneUpdate(data) {
+            const droneId = data.drone_id;
+            if (!droneId) return;
+
+            if (!document.getElementById(`card-${droneId}`)) {
+                createDroneStatusCard(droneId);
+                updateVideoDropdown(droneId);
+            }
+
+            // Specs
+            if (data.capabilities && !specsLoaded[droneId]) {
+                const caps = data.capabilities;
+                const hasCamera = caps.camera;
+                document.getElementById(`camera${droneId}`).textContent = hasCamera ? "Yes" : "No";
+                if (hasCamera) {
+                    document.getElementById(`res${droneId}`).textContent =
+                        `${caps.camera.resolution_width}x${caps.camera.resolution_height}`;
+                } else {
+                    document.getElementById(`res${droneId}`).textContent = "N/A";
+                }
+                document.getElementById(`speaker${droneId}`).textContent =
+                    (caps.speaker && caps.speaker.audio_files?.length > 0) ? "Yes" : "No";
+                document.getElementById(`spotlight${droneId}`).textContent = caps.spotlight ? "Yes" : "No";
+                document.getElementById(`dronemodel${droneId}`).textContent = data.model;
+                specsLoaded[droneId] = true;
+            }
+
+            // Telemetry
+            if (data.telemetry) {
+                const t = data.telemetry;
+                lastDronePositions[droneId] = [t.lat, t.lon];
+
+                const altElem = document.getElementById(`alt${droneId}`);
+                if (altElem) {
+                    altElem.textContent = t.alt.toFixed(1);
+                    document.getElementById(`speed${droneId}`).textContent = t.speed.toFixed(1);
+                    document.getElementById(`battery${droneId}`).textContent = t.battery_percent;
+                }
+
+                if (markers[droneId]) {
+                    markers[droneId].setLatLng([t.lat, t.lon]);
+                } else {
+                    markers[droneId] = L.circleMarker([t.lat, t.lon], {
+                        radius: 8,
+                        fillColor: "#ff3300",
+                        color: "#fff",
+                        weight: 2,
+                        fillOpacity: 0.8
+                    }).addTo(map).bindTooltip(`Drone ${droneId}`, { permanent: true });
+                }
+            }
+        }
 
         // Mission display
         const missionModal = document.getElementById('missionModal');
@@ -283,12 +340,63 @@
         const droneSlotById = new Map();
         const droneIdBySlot = new Map();
 
+        // ── Abort mission ──────────────────────────────────────────────────────
+        async function abortMission(droneId) {
+            const missionId = activeMissions[droneId];
+            if (!missionId) { alert("Ingen aktiv mission för " + droneId); return; }
+            if (!confirm(`Avbryt mission för ${droneId}?`)) return;
 
-        // Creates mission buttons
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort/${missionId}`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Mission avbruten!");
+                delete activeMissions[droneId];
+            } catch (error) {
+                console.error("Abort misslyckades:", error);
+            }
+        }
+
+        // ── Return home ────────────────────────────────────────────────────────
+        async function returnHome(droneId) {
+            if (!confirm(`Skicka hem ${droneId}?`)) return;
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("Drönaren åker hem!");
+                delete activeMissions[droneId];
+            } catch (error) {
+                console.error("Return home misslyckades:", error);
+            }
+        }
+        function createRandomMissionSetId() {
+            return window.crypto.randomUUID();
+        }
+
+        let proposedMissionSets = new Map();
+
+        // ── Return home all ────────────────────────────────────────────────────
+        async function returnHomeAll() {
+            if (!confirm("Skicka hem ALLA drönare?")) return;
+            for (const droneId of connectedDroneIds) {
+                await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
+                delete activeMissions[droneId];
+            }
+            alert("Alla drönare åker hem!");
+        }
+
+        // ── Mission buttons ────────────────────────────────────────────────────
         const container = document.getElementById('mission-list-container');
-        document.querySelector("#missionModal .btn-success").addEventListener("click", (event) => {
-            dispatchMission(currentMissionModalId)
-        })
+        document.querySelector("#missionModal .btn-success").addEventListener("click", () => {
+            dispatchMission(currentMissionModalId);
+        });
 
         async function discardMissionSet(missionSetId) {
             if (!missionSetId) return;
@@ -395,32 +503,33 @@
                 const detectedTimestamp = missionSet.detected_time ?? 'N/A';
 
                 container.innerHTML += `
-                <div class="col-12 mb-2">
-                    <div class="d-flex justify-content-between align-items-center" 
-                        style="background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
-                        <div>
-                            <strong>Detected ${objectType}, ID: ${detectedId}</strong>
-                            <div>Timestamp: ${detectedTimestamp}</div>
-                            <div>Lat: ${formatCoordinate(coords.lat)}, Lon: ${formatCoordinate(coords.lon)}</div>
-                        </div>
-                        <div class="mt-2">
-                            <button class="btn btn-success btn-sm mission-action-btn" 
-                                    data-mission-id="${defaultMission.mission_id}"
-                                    data-mission-set-id="${missionSet.mission_set_id}"
-                                    data-bs-toggle="modal" 
-                                    data-bs-target="#missionModal">
-                                Create Mission
-                            </button>
-                            <button class="btn btn-danger btn-sm discard-mission-set-btn mt-1"
-                                    data-mission-set-id="${missionSet.mission_set_id}">
-                                Discard
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+                <div class="col-12 mb-2">
+                    <div class="d-flex justify-content-between align-items-center"
+                        style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
+                        <div>
+                            <strong>Detected ${objectType}, ID: ${detectedId}</strong>
+                            <div>Timestamp: ${detectedTimestamp}</div>
+                            <div>Lat: ${formatCoordinate(coords.lat)}, Lon: ${formatCoordinate(coords.lon)}</div>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-success btn-sm mission-action-btn" 
+                                    data-mission-id="${defaultMission.mission_id}"
+                                    data-mission-set-id="${missionSet.mission_set_id}"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#missionModal">
+                                Create Mission
+                            </button>
+                            <button class="btn btn-danger btn-sm discard-mission-set-btn mt-1"
+                                    data-mission-set-id="${missionSet.mission_set_id}">
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
             });
         }
+
+        createMissionButtons();
 
         function findMissionSetByMissionId(missionId) {
             for (const missionSet of proposedMissionSets.values()) {
@@ -479,7 +588,7 @@
             currentMissionDroneId = selectedMission.drone_id ?? '';
 
             const modalTitle = missionModal.querySelector('.modal-title');
-            const modalBody = missionModal.querySelector('#mission-dynamic-content');
+            const modalBody = missionModal.querySelector('#mission-dynamic-content'); // Flyttad hit in
             const droneId = selectedMission.drone_id;
             const detectionType = missionSet?.detection_type ?? missionSet?.object_type ?? 'object';
             const detectedId = missionSet?.detection_id ?? missionSet?.detection_id ?? 'N/A';
@@ -492,12 +601,10 @@
             activeMissionMapId = `map-overview-${selectedMission.mission_id}`;
             allWaypoints = [];
 
-            selectedMission.tasks.forEach((currentTaskData, idx) => {
+            selectedMission.tasks.forEach((task, idx) => {
                 let paramsHtml = '';
-                const action = currentTaskData.action;
-                const p = currentTaskData.params;
-
-                console.log(currentTaskData)
+                const action = task.action;
+                const p = task.params;
 
                 if (action === 'go_to') {
                     const waypointNumber = allWaypoints.length + 1;
@@ -505,71 +612,57 @@
                         coords: [p.lat, p.lon],
                         label: `Waypoint ${waypointNumber}`
                     });
-
                     paramsHtml = `<strong>Coordinates:</strong> ${formatCoordinate(p.lat)}, ${formatCoordinate(p.lon)}<br><strong>Altitude:</strong> ${p.alt}m`;
                 }
                 else if (action === 'play_audio') {
                     paramsHtml = `<p><strong>Plays audiofile:</strong> ${p.file} (${p.duration_seconds}s)</p>`;
-                }
-                else if (action === 'led') {
-                    paramsHtml = `<p><strong>Type:</strong> <span style="type:${p.type}"></span> ${p.type} (${p.pattern})</p>`;
-                }
-                else if (action === 'spotlight') {
+                } else if (action === 'led') {
+                    paramsHtml = `<p><strong>Type:</strong> ${p.type}</p>`;
+                } else if (action === 'spotlight') {
                     paramsHtml = `<p><strong>Pattern:</strong> ${p.pattern} (${p.duration_seconds}s)</p>`;
-                }
-                else if (action == 'angle_camera') {
-                    paramsHtml = `<p><strong>Pitch:</strong> ${p.pitch} <br> <strong>Yaw:</strong> ${p.yaw}`
-                }
-                else if (p != null) {
-                    paramsHtml = '<ul>';
-                    for (const [key, value] of Object.entries(p)) {
-                        paramsHtml += `<li><strong>${key}:</strong> ${value}</li>`;
-                    }
-                    paramsHtml += '</ul>';
+                } else if (action === 'angle_camera') {
+                    paramsHtml = `<p><strong>Pitch:</strong> ${p.pitch} <br><strong>Yaw:</strong> ${p.yaw}</p>`;
+                } else if (p != null) {
+                    paramsHtml = '<ul>' + Object.entries(p).map(([k, v]) => `<li><strong>${k}:</strong> ${v}</li>`).join('') + '</ul>';
                 }
 
                 fullContent += `
-                    <div class="task-card mb-4 border-bottom pb-3">
-                        <div class="d-flex justify-content-between">
-                            <strong class="fs-5">Task ${idx + 1}</strong>
-                            <span class="badge bg-secondary">${action}</span>
-                        </div>
-                        <div class="mt-2">
-                            ${paramsHtml}
-                        </div>
-                    </div>
-                `;
+            <div class="task-card mb-4 border-bottom pb-3">
+                <div class="d-flex justify-content-between">
+                    <strong class="fs-5">Task ${idx + 1}</strong>
+                    <span class="badge bg-secondary">${action}</span>
+                </div>
+                <div class="mt-2">${paramsHtml}</div>
+            </div>`;
             });
 
-            let mapHtml = '';
-            if (allWaypoints.length > 0) {
-                mapHtml = `
-                    <div class="mb-4">
-                        <h6>Mission Route Overview</h6>
-                        <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
-                    </div>
-                    <hr>
-                `;
-            }
+            let mapHtml = allWaypoints.length > 0 ? `
+        <div class="mb-4">
+            <h6>Mission Route Overview</h6>
+            <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
+        </div><hr>` : '';
 
             const missionDescriptionHtml = `
-                <div id="mission-description" class="mb-4">
-                    <h6>Mission Description</h6>
-                    <p class="mb-1">${selectedMission.description}</p>
-                    <span class="badge bg-dark">Drone: ${getDroneDisplayName(droneId)}</span>
-                </div>
-                <hr>
-            `;
+        <div id="mission-description" class="mb-4">
+            <h6>Mission Description</h6>
+            <p class="mb-1">${selectedMission.description}</p>
+            <span class="badge bg-dark">Drone: ${getDroneDisplayName(droneId)}</span>
+        </div>
+        <hr>
+    `;
 
             modalBody.innerHTML = mapHtml + missionDescriptionHtml + fullContent;
 
-            // If modal is already open, redraw the map for the newly selected mission.
             if (missionModal.classList.contains('show')) {
                 setTimeout(() => {
                     renderMissionOverviewMap();
-                }, 0);
+                }, 50);
             }
         }
+
+        missionModal.addEventListener('shown.bs.modal', function () {
+            renderMissionOverviewMap();
+        });
 
         function renderMissionOverviewMap() {
             activeMaps.forEach(m => m.remove());
@@ -578,11 +671,10 @@
             const mapContainer = document.getElementById(activeMissionMapId);
             if (!mapContainer || allWaypoints.length === 0) return;
 
-            const map = L.map(activeMissionMapId).setView(allWaypoints[0].coords, 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            const modalMap = L.map(activeMissionMapId).setView(allWaypoints[0].coords, 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(modalMap);
 
             const markerGroup = L.featureGroup();
-
             allWaypoints.forEach(point => {
                 const marker = L.circleMarker(point.coords, {
                     radius: 8,
@@ -600,8 +692,8 @@
                 }).openTooltip();
             });
 
+            // Show drone's last know position
             const resolvedMissionDrone = resolveMissionDroneMarker(currentMissionDroneId);
-
             if (resolvedMissionDrone) {
                 const currentPos = resolvedMissionDrone.marker.getLatLng();
 
@@ -612,15 +704,19 @@
             }
 
             if (allWaypoints.length > 1) {
-                const pathCoords = allWaypoints.map(p => p.coords);
-                L.polyline(pathCoords, { color: 'blue', weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
+                L.polyline(allWaypoints.map(p => p.coords), {
+                    color: 'blue',
+                    weight: 3,
+                    opacity: 0.6,
+                    dashArray: '5, 10'
+                }).addTo(modalMap);
             }
 
-            markerGroup.addTo(map);
-            map.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
+            markerGroup.addTo(modalMap);
+            modalMap.fitBounds(markerGroup.getBounds(), { padding: [30, 30] });
 
-            setTimeout(() => { map.invalidateSize(); }, 200);
-            activeMaps.push(map);
+            setTimeout(() => modalMap.invalidateSize(), 200);
+            activeMaps.push(modalMap);
         }
 
         createMissionButtons();
@@ -732,8 +828,6 @@
         const map = L.map('map').setView(DEFAULT_MAP_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        const markers = {};
-
         function ensureDroneMarker(droneId, lat, lon) {
             registerDroneDisplayName(droneId);
 
@@ -764,481 +858,265 @@
                     (position) => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-
                         if (centerMap) map.setView([lat, lng], 15);
-
-                        // Use a CircleMarker instead of a standard Marker
                         if (!userMarker) {
                             userMarker = L.circleMarker([lat, lng], {
-                                radius: 10,
-                                fillColor: "#007bff",
-                                color: "#fff",
-                                weight: 2,
-                                opacity: 1,
-                                fillOpacity: 0.8
+                                radius: 10, fillColor: "#007bff", color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.8
                             }).addTo(map).bindPopup("You are here");
                         } else {
                             userMarker.setLatLng([lat, lng]);
                         }
                     },
-                    (error) => {
-                        console.log("Could not fetch position:", error);
-                        if (centerMap) map.setView([57.705841, 11.938096], 15);
-                    }
+                    (error) => { if (centerMap) map.setView([57.705841, 11.938096], 15); }
                 );
             }
         }
-
-        // Initial location fetch (without centering unless required)
         locateUser(true);
 
-        //  Map changes
-        // Load surveillance area and coverage overlays
         async function loadWatchArea() {
-
             try {
-
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/get_watch_area`);
                 const data = await response.json();
-
                 if (data.points && data.points.length > 0) {
-
                     const latlngs = data.points.map(p => [p.lat, p.lon]);
-
-                    activePolygon = L.polygon(latlngs, {
-                        color: "green",
-                        fillOpacity: 0.3
-                    }).addTo(map);
-
+                    activePolygon = L.polygon(latlngs, { color: "green", fillOpacity: 0.3 }).addTo(map);
                     map.fitBounds(activePolygon.getBounds());
                 }
-
-                // Display coverage rectangle
                 if (data.coverage && data.coverage.length > 0) {
-                    if (coveragePolygon) {
-                        map.removeLayer(coveragePolygon);
-                    }
-                    const droneCorners = data.coverage[0];
-                    const coverageLatlngs = droneCorners.map(p => [p[0], p[1]]);
+                    if (coveragePolygon) map.removeLayer(coveragePolygon);
+                    const coverageLatlngs = data.coverage[0].map(p => [p[0], p[1]]);
                     coveragePolygon = L.polygon(coverageLatlngs, {
-                        color: "#0000AA",
-                        weight: 2,
-                        dashArray: "5, 5",
-                        fillColor: "#0000AA",
-                        fillOpacity: 0.1
+                        color: "#0000AA", weight: 2, dashArray: "5, 5", fillColor: "#0000AA", fillOpacity: 0.1
                     }).addTo(map);
                 }
-
             } catch (error) {
                 console.error("Failed to load watch area:", error);
             }
         }
         loadWatchArea();
-        // Create a custom control
-        // -------- POLYGON MODE --------
 
+        // ── Polygon drawing ────────────────────────────────────────────────────
         let polygonMode = false;
         let polygonPoints = [];
-        //let activePolygon = null;
         let previewLine = null;
-
-
-        // -------- CUSTOM CONTROL --------
 
         const LocateControl = L.Control.extend({
             options: { position: 'topleft' },
             onAdd: function (map) {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                container.style.backgroundColor = 'white';
-                container.style.width = '34px';
-                container.style.height = '34px';
-                container.style.display = 'flex';
-                container.style.alignItems = 'center';
-                container.style.justifyContent = 'center';
-                container.style.cursor = 'pointer';
-                container.title = "Go to my location";
-                container.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 16.5017C14.4853 16.5017 16.5 14.487 16.5 12.0017C16.5 9.5164 14.4853 7.50168 12 7.50168C9.51472 7.50168 7.5 9.5164 7.5 12.0017C7.5 14.487 9.51472 16.5017 12 16.5017ZM12 14.5034C10.6184 14.5034 9.49832 13.3833 9.49832 12.0017C9.49832 10.62 10.6184 9.5 12 9.5C13.3816 9.5 14.5017 10.62 14.5017 12.0017C14.5017 13.3833 13.3816 14.5034 12 14.5034Z" fill="#0F0F0F"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11 1C11 0.447715 11.4477 0 12 0C12.5523 0 13 0.447715 13 1V2.04938C17.7244 2.51844 21.4816 6.27558 21.9506 11H23C23.5523 11 24 11.4477 24 12C24 12.5523 23.5523 13 23 13H21.9506C21.4816 17.7244 17.7244 21.4816 13 21.9506V23C13 23.5523 12.5523 24 12 24C11.4477 24 11 23.5523 11 23V21.9506C6.27558 21.4816 2.51844 17.7244 2.04938 13H1C0.447715 13 0 12.5523 0 12C-1.19209e-07 11.4477 0.447715 11 1 11H2.04938C2.51844 6.27558 6.27558 2.51844 11 2.04938V1ZM12 20.0016C7.58083 20.0016 3.99839 16.4192 3.99839 12C3.99839 7.58083 7.58083 3.99839 12 3.99839C16.4192 3.99839 20.0016 7.58083 20.0016 12C20.0016 16.4192 16.4192 20.0016 12 20.0016Z" fill="#0F0F0F"/></svg>';
-
-                L.DomEvent.disableClickPropagation(container);
-                container.onclick = () => locateUser(true);
-                return container;
+                const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                btn.style.cssText = 'background:white;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+                btn.title = "Go to my location";
+                btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 16.5017C14.4853 16.5017 16.5 14.487 16.5 12.0017C16.5 9.5164 14.4853 7.50168 12 7.50168C9.51472 7.50168 7.5 9.5164 7.5 12.0017C7.5 14.487 9.51472 16.5017 12 16.5017ZM12 14.5034C10.6184 14.5034 9.49832 13.3833 9.49832 12.0017C9.49832 10.62 10.6184 9.5 12 9.5C13.3816 9.5 14.5017 10.62 14.5017 12.0017C14.5017 13.3833 13.3816 14.5034 12 14.5034Z" fill="#0F0F0F"/><path fill-rule="evenodd" clip-rule="evenodd" d="M11 1C11 0.447715 11.4477 0 12 0C12.5523 0 13 0.447715 13 1V2.04938C17.7244 2.51844 21.4816 6.27558 21.9506 11H23C23.5523 11 24 11.4477 24 12C24 12.5523 23.5523 13 23 13H21.9506C21.4816 17.7244 17.7244 21.4816 13 21.9506V23C13 23.5523 12.5523 24 12 24C11.4477 24 11 23.5523 11 23V21.9506C6.27558 21.4816 2.51844 17.7244 2.04938 13H1C0.447715 13 0 12.5523 0 12C-1.19209e-07 11.4477 0.447715 11 1 11H2.04938C2.51844 6.27558 6.27558 2.51844 11 2.04938V1ZM12 20.0016C7.58083 20.0016 3.99839 16.4192 3.99839 12C3.99839 7.58083 7.58083 3.99839 12 3.99839C16.4192 3.99839 20.0016 7.58083 20.0016 12C20.0016 16.4192 16.4192 20.0016 12 20.0016Z" fill="#0F0F0F"/></svg>';
+                L.DomEvent.disableClickPropagation(btn);
+                btn.onclick = () => locateUser(true);
+                return btn;
             }
         });
         map.addControl(new LocateControl());
 
-        const customControl = L.Control.extend({
+        const DrawControl = L.Control.extend({
             options: { position: 'topleft' },
-
             onAdd: function (map) {
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-
-                container.style.backgroundColor = 'white';
-                container.style.width = '34px';
-                container.style.height = '34px';
-                container.style.display = 'flex';
-                container.style.alignItems = 'center';
-                container.style.justifyContent = 'center';
-                container.style.cursor = 'pointer';
-                container.title = "Click to mark an area";
-                container.innerHTML = '<img src="/images/penna_with_sträck.jpg" width=28>'
-
-                L.DomEvent.disableClickPropagation(container);
-
-                container.onclick = function () {
-
-                    // Erase old polygon
-                    if (activePolygon) {
-                        map.removeLayer(activePolygon);
-                        activePolygon = null;
-                    }
-
-                    if (previewLine) {
-                        map.removeLayer(previewLine);
-                        previewLine = null;
-                    }
-
+                const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                btn.style.cssText = 'background:white;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+                btn.title = "Click to mark an area";
+                btn.innerHTML = '<img src="/images/penna_with_sträck.jpg" width=28>';
+                L.DomEvent.disableClickPropagation(btn);
+                btn.onclick = function () {
+                    if (activePolygon) { map.removeLayer(activePolygon); activePolygon = null; }
+                    if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
                     polygonMode = true;
                     polygonPoints = [];
-
-                    console.log("Polygon drawing started");
                 };
-
-                return container;
+                return btn;
             }
         });
-
-        map.addControl(new customControl());
-
-
-        // -------- CLICK HANDLER --------
+        map.addControl(new DrawControl());
 
         map.on('click', function (e) {
-
             if (!polygonMode) return;
-
             polygonPoints.push(e.latlng);
-
-            // Create a polygon when at least 2 points are chosen
             if (!activePolygon) {
-                activePolygon = L.polygon(polygonPoints, {
-                    color: "#ff0000",
-                    weight: 2,
-                    fillColor: "#ff0000",
-                    fillOpacity: 0.2
-                }).addTo(map);
+                activePolygon = L.polygon(polygonPoints, { color: "#ff0000", weight: 2, fillColor: "#ff0000", fillOpacity: 0.2 }).addTo(map);
             } else {
                 activePolygon.setLatLngs(polygonPoints);
             }
         });
 
-
-        // -------- LIVE PREVIEW --------
-
         map.on('mousemove', function (e) {
-
             if (!polygonMode || polygonPoints.length === 0) return;
-
             const previewPoints = [...polygonPoints, e.latlng];
-
             if (!previewLine) {
-                previewLine = L.polyline(previewPoints, {
-                    color: "#ff0000",
-                    dashArray: "5,5"
-                }).addTo(map);
+                previewLine = L.polyline(previewPoints, { color: "#ff0000", dashArray: "5,5" }).addTo(map);
             } else {
                 previewLine.setLatLngs(previewPoints);
             }
         });
 
-
-
-        // -------- DOUBLE CLICK TO FINISH --------
         map.doubleClickZoom.disable();
         map.on('dblclick', function (e) {
-
             if (!polygonMode) return;
-
             polygonMode = false;
-
-            if (previewLine) {
-                map.removeLayer(previewLine);
-                previewLine = null;
-            }
-
-            if (activePolygon) {
-                activePolygon.setStyle({
-                    color: "green",
-                    fillColor: "green"
-                });
-            }
-
-            console.log("Polygon finalized");
+            if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
+            if (activePolygon) activePolygon.setStyle({ color: "green", fillColor: "green" });
         });
 
-        //-------New button for sending area coordinates to backend--------
-
-
-        const sendCoordinates = L.Control.extend({
+        const SendCoordinatesControl = L.Control.extend({
             options: { position: 'topleft' },
-
             onAdd: function (map) {
-
-                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-
-                container.style.backgroundColor = '#28a745';
-                container.style.width = '34px';
-                container.style.height = '34px';
-                container.style.display = 'flex';
-                container.style.alignItems = 'center';
-                container.style.justifyContent = 'center';
-                container.style.cursor = 'pointer';
-                container.style.color = 'white';
-                container.title = "Send area to backend";
-                container.innerHTML = "GO";
-
-                L.DomEvent.disableClickPropagation(container);
-
-                container.onclick = async function () {
-
-                    if (!activePolygon) {
-                        alert("No polygon created.");
-                        return;
-                    }
-
+                const btn = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                btn.style.cssText = 'background:#28a745;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:white;';
+                btn.title = "Send area to backend";
+                btn.innerHTML = "GO";
+                L.DomEvent.disableClickPropagation(btn);
+                btn.onclick = async function () {
+                    if (!activePolygon) { alert("No polygon created."); return; }
                     const latlngs = activePolygon.getLatLngs()[0];
-
-                    const coordinates = latlngs.map(p => ({
-                        lat: p.lat,
-                        lon: p.lng
-                    }));
-
+                    const coordinates = latlngs.map(p => ({ lat: p.lat, lon: p.lng }));
                     try {
                         const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/set_watch_area`, {
                             method: "POST",
-                            headers: {
-                                "Content-Type": "text/plain"
-                            },
-                            body: JSON.stringify({
-                                msg_type: "set_watch_area",
-                                area: {
-                                    points: coordinates
-                                }
-                            })
+                            headers: { "Content-Type": "text/plain" },
+                            body: JSON.stringify({ msg_type: "set_watch_area", area: { points: coordinates } })
                         });
-
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
-                        }
-
+                        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                         const result = await response.json();
-                        console.log(result)
-
-                        if (result.error) {
-                            alert("Error: " + result.error);
-                            return;
-                        }
-
+                        if (result.error) { alert("Error: " + result.error); return; }
                         if (result.data && result.data.mission.length === 0) {
                             alert(result.data.message || "No drone available for GotoSurveil mission");
-                            return
+                            return;
                         }
-
-                        alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`)
-
-
-
-                        // If the backend returned valid coordinates, add a marker to the map
+                        alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`);
                         const coords = [result.data.mission.coordinates.lat, result.data.mission.coordinates.lon];
                         const altitude = result.data.mission.coordinates.alt;
                         if (coords) {
-                            const watchAreaIcon = L.icon({
-                                iconUrl: '/images/camera.png',
-                                iconSize: [20, 15], // Maintain aspect ratio to prevent stretching
-                                iconAnchor: [10, 15],
-                                popupAnchor: [0, -28]
-                            });
-
-                            if (watchAreaMarker) {
-                                watchAreaMarker.setLatLng(coords);
-                            } else {
-                                watchAreaMarker = L.marker(coords, {
-                                    icon: watchAreaIcon,
-                                    title: 'Watch Area Coordinates'
-                                }).addTo(map)
-                                    .bindPopup(`Target altitude: ${altitude}m`)
-                            }
+                            const watchAreaIcon = L.icon({ iconUrl: '/images/camera.png', iconSize: [20, 15], iconAnchor: [10, 15], popupAnchor: [0, -28] });
+                            if (watchAreaMarker) watchAreaMarker.setLatLng(coords);
+                            else watchAreaMarker = L.marker(coords, { icon: watchAreaIcon, title: 'Watch Area Coordinates' }).addTo(map).bindPopup(`Target altitude: ${altitude}m`);
                         }
-
-                        // Draw coverage polygon if available
                         if (result.data.coverage_corners && result.data.coverage_corners.length > 0) {
                             const corners = result.data.coverage_corners[0];
                             const latlngs = corners.map(corner => [corner[0], corner[1]]);
-
-                            if (coveragePolygon) {
-                                map.removeLayer(coveragePolygon);
-                            }
-
-                            coveragePolygon = L.polygon(latlngs, {
-                                color: '#0000AA',
-                                title: 'Estimated coverage area',
-                                weight: 2,
-                                dashArray: '5, 5',
-                                fillColor: '#0000AA',
-                                fillOpacity: 0.1
-                            }).addTo(map);
-
+                            if (coveragePolygon) map.removeLayer(coveragePolygon);
+                            coveragePolygon = L.polygon(latlngs, { color: '#0000AA', weight: 2, dashArray: '5, 5', fillColor: '#0000AA', fillOpacity: 0.1 }).addTo(map);
                             coveragePolygon.bindPopup(`Drone ${result.data.mission.drone_id} estimated coverage area. Target altitude: ${altitude}m`);
                         }
-
                     } catch (error) {
                         console.error("Error sending watch area", error);
                         alert("Failed to send watch area to backend " + error);
                     }
                 };
-                return container;
+                return btn;
             }
         });
+        map.addControl(new SendCoordinatesControl());
 
-
-        map.addControl(new sendCoordinates());
-
-        //End of map changes
-
-
-        // WebSocket Connections
+        // ── WebSocket ──────────────────────────────────────────────────────────
         const atosWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/atos`);
         const flightmanagerWS = new WebSocket(`${BACKEND_URL_WS}/api/v1/ws/flightmanager`);
 
-        // Handle Layout Changes
+        // ── Video layout ───────────────────────────────────────────────────────
         document.getElementById('layoutSelect').addEventListener('change', function () {
             const layout = this.value;
-            const videoContainer = document.getElementById('videoContainer');
             const video1 = document.getElementById('video1');
             const video2 = document.getElementById('video2');
-            const merged = document.getElementById('merged')
+            const videoContainer = document.getElementById('videoContainer');
 
-            if (layout === 'single') {          // Merged
-                merged.style.display = 'block'
-                video1.style.display = 'none';
-                video2.style.display = 'none';
-                videoContainer.style.gridTemplateColumns = '1fr';
-            } else if (layout === 'sidebyside') {
-                merged.style.display = 'none'
+            video1.style.display = 'none';
+            video2.style.display = 'none';
+            videoContainer.style.gridTemplateColumns = '1fr';
+
+            if (layout === 'sidebyside') {
+                if (connectedDroneIds.length >= 2) {
+                    video1.src = `/api/v1/video_feed/drone${connectedDroneIds[0]}`;
+                    video2.src = `/api/v1/video_feed/drone${connectedDroneIds[1]}`;
+                    video1.style.display = 'block';
+                    video2.style.display = 'block';
+                    videoContainer.style.gridTemplateColumns = '1fr 1fr';
+                } else {
+                    alert("Need at least 2 drones for Side by Side");
+                    if (connectedDroneIds.length >= 1) {
+                        video1.src = `/api/v1/video_feed/drone${connectedDroneIds[0]}`;
+                        video1.style.display = 'block';
+                    }
+                }
+            } else {
+                video1.src = `/api/v1/video_feed/drone${layout}`;
                 video1.style.display = 'block';
-                video2.style.display = 'block';
-                videoContainer.style.gridTemplateColumns = '1fr 1fr'; // Two columns
-            } else if (layout === 'drone1') {
-                merged.style.display = 'none'
-                video1.style.display = 'block';
-                video2.style.display = 'none';
-                videoContainer.style.gridTemplateColumns = '1fr';
-            } else if (layout === 'drone2') {
-                merged.style.display = 'none'
-                video1.style.display = 'none';
-                video2.style.display = 'block';
-                videoContainer.style.gridTemplateColumns = '1fr';
             }
         });
 
         // Handle Drone Data
-        const specsLoaded = {};
-
         function getDroneSlot(droneId) {
             const normalizedDroneId = String(droneId ?? '');
             if (!normalizedDroneId) return null;
             return droneSlotById.get(normalizedDroneId) ?? registerDroneDisplayName(normalizedDroneId);
         }
 
-        function updateDroneFromState(droneData) {
-            if (!droneData?.drone_id || !droneData?.telemetry) return;
-
-            const droneId = String(droneData.drone_id);
-            const telemetry = droneData.telemetry;
-            const droneSlot = getDroneSlot(droneId);
-
-            ensureDroneMarker(droneId, telemetry.lat, telemetry.lon);
-
-            if (droneSlot == null) {
-                return;
-            }
-
-            const altitudeElement = document.getElementById(`alt${droneSlot}`);
-            const speedElement = document.getElementById(`speed${droneSlot}`);
-            const batteryElement = document.getElementById(`battery${droneSlot}`);
-
-            if (altitudeElement) altitudeElement.textContent = telemetry.alt ?? '--';
-            if (speedElement) speedElement.textContent = telemetry.speed ?? '--';
-            if (batteryElement) batteryElement.textContent = telemetry.battery_percent ?? '--';
-
-            if (specsLoaded[droneId] || !droneData.capabilities) {
-                return;
-            }
-
-            const droneTypeElement = document.getElementById(`dronetype${droneSlot}`);
-            const cameraElement = document.getElementById(`camera${droneSlot}`);
-            const resolutionElement = document.getElementById(`res${droneSlot}`);
-            const speakerElement = document.getElementById(`speaker${droneSlot}`);
-            const spotlightElement = document.getElementById(`spotlight${droneSlot}`);
-
-            if (droneTypeElement) {
-                const droneTypeText = [droneData.drone_type, droneData.model].filter(Boolean).join(' ');
-                droneTypeElement.textContent = droneTypeText || getDroneDisplayName(droneId);
-            }
-
-            const hasCamera = !!(droneData.capabilities && droneData.capabilities.camera);
-            if (cameraElement) cameraElement.textContent = hasCamera ? 'Yes' : 'No';
-
-            if (resolutionElement) {
-                if (hasCamera) {
-                    const res = droneData.capabilities.camera;
-                    resolutionElement.textContent = `${res.resolution_width}x${res.resolution_height}`;
-                } else {
-                    resolutionElement.textContent = 'N/A';
-                }
-            }
-
-            const hasSpeaker = !!(droneData.capabilities && droneData.capabilities.speaker && droneData.capabilities.speaker.audio_files.length > 0);
-            if (speakerElement) speakerElement.textContent = hasSpeaker ? 'Yes' : 'No';
-            if (spotlightElement) spotlightElement.textContent = droneData.capabilities.spotlight ? 'Yes' : 'No';
-
-            specsLoaded[droneId] = true;
-        }
 
 
         flightmanagerWS.onmessage = (event) => {
             const data = JSON.parse(event.data);
-
-            console.log(data);
-
-            if (data.msg_type == "error") {
-                alert(data.error)
+            if (data.msg_type !== "telemetry") {
+                console.log(data);
             }
 
-            // TODO: Handle all the message types here
+            if (data.msg_type === "error") {
+                alert(data.error);
+                return;
+            }
 
-            if (data.msg_type == "connected_drones") {
+            if (data.msg_type === "connected_drones") {
                 const drones = Array.isArray(data.drones) ? data.drones : [];
-                drones.forEach(updateDroneFromState);
+                drones.forEach(drone => {
+                    handleDroneUpdate(drone);
+                });
+                // Set initial video to first connected drone
+                if (drones.length > 0 && !document.getElementById('video1').src.includes('video_feed')) {
+                    document.getElementById('video1').src = `/api/v1/video_feed/drone${drones[0].drone_id}`;
+                    document.getElementById('video1').style.display = 'block';
+                }
             }
 
-            if (data.msg_type == "telemetry") {
-                updateDroneFromState(data);
+            if (data.msg_type === "drone_connected") {
+                handleDroneUpdate(data);
+                // Auto-set video if first drone
+                if (connectedDroneIds.length === 1) {
+                    document.getElementById('video1').src = `/api/v1/video_feed/drone${data.drone_id}`;
+                    document.getElementById('video1').style.display = 'block';
+                }
             }
 
-            if (data.msg_type == "proposed_missions") {
+            if (data.msg_type === "drone_disconnected") {
+                const droneId = data.drone_id;
+                removeDroneStatusCard(droneId);
+                removeVideoDropdownOptions(droneId);
+                delete activeMissions[droneId];
+                delete specsLoaded[droneId];
+                delete lastDronePositions[droneId];
+                if (markers[droneId]) {
+                    map.removeLayer(markers[droneId]);
+                    delete markers[droneId];
+                }
+            }
+
+            if (data.msg_type === "telemetry") {
+                handleDroneUpdate(data);
+            }
+
+            if (data.msg_type === "proposed_missions") {
                 const missionsID = createRandomMissionSetId();
                 const detectionTimestamp = Date.now();
                 const rawDetectedTimestamp = data.timestamp ?? data.detected_timestamp;
+
                 const detectedTime = (() => {
                     if (rawDetectedTimestamp == null || rawDetectedTimestamp === '') {
                         return new Date(detectionTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     }
-
                     const numericTs = Number(rawDetectedTimestamp);
                     if (!Number.isNaN(numericTs)) {
                         return new Date(numericTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     }
-
                     return String(rawDetectedTimestamp);
                 })();
 
@@ -1257,43 +1135,34 @@
             }
         };
 
-        // Control Handlers
-        document.getElementById('startBtn').addEventListener('click', () => {
-            atosWS.send(JSON.stringify({ command: 'start' }));
-        });
+        // function sendFlightCommand(droneId, command) {
+        //     if (flightmanagerWS.readyState === WebSocket.OPEN) {
+        //         const message = {
+        //             drone_id: String(droneId),
+        //             command: command
+        //         };
+        //         const jsonMessage = JSON.stringify(message);
+        //         flightmanagerWS.send(jsonMessage);
+        //         console.log(`Sent command to flightmanagerWS: ${jsonMessage}`);
+        //     } else {
+        //         alert("FlightManager connection is not active.");
+        //     }
+        // }
 
-        document.getElementById('stopBtn').addEventListener('click', () => {
-            atosWS.send(JSON.stringify({ command: 'stop' }));
-        });
+        // document.querySelectorAll('.drone-controls button').forEach(button => {
+        //     button.addEventListener('click', function () {
+        //         const droneSlot = Number(this.getAttribute('data-drone-slot'));
+        //         const droneId = droneIdBySlot.get(droneSlot);
+        //         const command = this.getAttribute('data-command');
+        //         if (droneId && command) {
+        //             sendFlightCommand(droneId, command);
+        //         } else {
+        //             console.error("Button is missing a registered drone for its slot or data-command attribute:", this);
+        //         }
+        //     });
+        // });
 
-
-        function sendFlightCommand(droneId, command) {
-            if (flightmanagerWS.readyState === WebSocket.OPEN) {
-                const message = {
-                    drone_id: String(droneId),
-                    command: command
-                };
-                const jsonMessage = JSON.stringify(message);
-                flightmanagerWS.send(jsonMessage);
-                console.log(`Sent command to flightmanagerWS: ${jsonMessage}`);
-            } else {
-                console.error("FlightManager WebSocket is not open. Cannot send command:", command, "for drone", droneId);
-                alert("FlightManager connection is not active. Cannot send command."); // User feedback
-            }
-        }
-
-        document.querySelectorAll('.drone-controls button').forEach(button => {
-            button.addEventListener('click', function () {
-                const droneSlot = Number(this.getAttribute('data-drone-slot'));
-                const droneId = droneIdBySlot.get(droneSlot);
-                const command = this.getAttribute('data-command');
-                if (droneId && command) {
-                    sendFlightCommand(droneId, command);
-                } else {
-                    console.error("Button is missing a registered drone for its slot or data-command attribute:", this);
-                }
-            });
-        });
+        // Lyssnare för kommandon till alla drönare (från main)
         document.querySelectorAll('.all-drone-command-btn').forEach(button => {
             button.addEventListener('click', function () {
                 const command = this.getAttribute('data-command');
@@ -1311,83 +1180,39 @@
         document.querySelector("#sendDetection").onclick = async (event) => {
             try {
                 const fyrfästet = [57.693093, 11.984072];
-
                 const response = await fetch("/api/v1/set_detections", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/text"
-                    },
-
-                    body: JSON.stringify(
-                        [
-                            {
-                                drone_ids: [document.getElementById("detection_drone_id").value],
-                                gps_position: fyrfästet,
-                                object_type: document.getElementById("detection_class").value,
-                                detection_id: document.getElementById("detection_id").value,
-                                timestamp: new Date().getMilliseconds()
-                            }
-                        ]
-                    )
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify([{
+                        drone_ids: [document.getElementById("detection_drone_id").value],
+                        gps_position: fyrfästet,
+                        object_type: document.getElementById("detection_class").value,
+                        detection_id: document.getElementById("detection_id").value,
+                        timestamp: new Date().getMilliseconds()
+                    }])
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
                 const result = await response.json();
-                console.log(result)
-
-                if (!result.error) {
-                    console.log("detections sent ok");
-                }
-                else {
-                    alert("Error: " + result.error);
-                }
-
+                if (result.error) alert("Error: " + result.error);
+                else console.log("detections sent ok");
             } catch (error) {
-                console.error("Error sending detections", error);
                 alert("Failed to send detections to backend");
             }
-        }
+        };
 
-        document.querySelector("#clearDetection").onclick = async (event) => {
+        document.querySelector("#clearDetection").onclick = async () => {
             try {
-                const fyrfästet = [57.693093, 11.984072];
-
                 const response = await fetch("/api/v1/set_detections", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/text"
-                    },
-
-                    body: JSON.stringify(
-                        [
-
-                        ]
-                    )
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify([])
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
                 const result = await response.json();
-                console.log(result)
-
-                if (!result.error) {
-                    console.log("detections sent ok");
-                }
-                else {
-                    alert("Error: " + result.error);
-                }
-
+                if (result.error) alert("Error: " + result.error);
+                else console.log("detections cleared");
             } catch (error) {
-                console.error("Error sending detections", error);
-                alert("Failed to send detections to backend");
+                alert("Failed to clear detections");
             }
-        }
-
+        };
     </script>
 </body>
 
