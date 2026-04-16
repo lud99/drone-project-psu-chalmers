@@ -18,6 +18,8 @@ from aiortc.sdp import candidate_from_sdp
 import communication_software.common.json_schemas as json_schemas
 
 from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
+from communication_software.missions_planning.mission_registry import MissionRegistry
+from communication_software.missions_planning.mission_status import MissionStatus
 
 
 try:
@@ -571,7 +573,24 @@ class DroneCommunication:
                     message.model_dump_json(),
                 )
 
-                next_task_raw = r.lpop(f"mission_queue:{message.mission_id}")
+                mission = MissionRegistry.get(message.mission_id)
+                if not mission:
+                    print(
+                        f"Mission {message.mission_id} not found in registry for task event handling."
+                    )
+                    return
+
+                if message.index >= len(mission["tasks"]) - 1:
+                    if mission["tasks"][message.index]["action"] == "go_home":
+                        print(
+                            f"Mission {message.mission_id} completed with go_home as last task. Marking mission as completed."
+                        )
+                        MissionRegistry.update_status(
+                            message.mission_id, MissionStatus.COMPLETED
+                        )
+                        return
+
+                next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
                 if next_task_raw:
                     next_task = json.loads(next_task_raw)
                     print(
@@ -581,27 +600,6 @@ class DroneCommunication:
                     await self.connections[connection_id].send(next_task_raw)
 
                     r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
-
-                # else:
-                #     print(
-                #         f"Mission {message.mission_id} done - waiting 30s before go_home"
-                #     )
-
-                #     await asyncio.sleep(30)
-
-                #     # Update mission status to be completed
-                #     MissionRegistry.update_status(message.mission_id, MissionStatus.COMPLETED)
-
-                #     go_home = json_schemas.GoHomeMessage(
-                #         drone_id=connection_id,
-                #         mission_id=message.mission_id,
-                #     )
-                #     await self.connections[connection_id].send(
-                #         go_home.model_dump_json()
-                #     )
-                #     r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
-
-                #     print(f"go_home sent to {connection_id}")
             elif message.event == "task_failed":
                 error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
                 print(error)

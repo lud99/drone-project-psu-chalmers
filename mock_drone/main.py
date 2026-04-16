@@ -128,6 +128,11 @@ async def do_task(
             await asyncio.sleep(5)
         await send_task_complete(ws, drone_id, task_message)
 
+    elif isinstance(action, json_schemas.GoHomeTask):
+        print("Going home")
+        await asyncio.sleep(10)
+        await send_task_complete(ws, drone_id, task_message)
+
 
 class VideoFileTrack(VideoStreamTrack):
     """
@@ -263,12 +268,6 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                         )
 
                         await websocket.send(event_message.model_dump_json())
-
-                    elif isinstance(message, json_schemas.GoHomeMessage):
-                        print("Aborting mission, doing go_home")
-
-                        # This should abort all active task (if any are active) and do go_home
-                        wait_event.set()
 
                     elif isinstance(message, json_schemas.LandMessage):
                         print("Aborting mission, doing land")

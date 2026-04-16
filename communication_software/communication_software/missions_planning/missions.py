@@ -296,3 +296,19 @@ class GotoOnly(Mission):
 
     def __repr__(self) -> str:
         return f"[drone {self.drone_id}] GoTo, lat:{self.coordinates.lat:.6f}, lon:{self.coordinates.lon:.6f} alt:{self.coordinates.alt}"
+
+
+class GoHome(Mission):
+    def can_execute(self) -> bool:
+        return True
+
+    def get_parameters(self) -> json_schemas.GoToParams:
+        return self.coordinates
+
+    def build_tasks(self) -> None:
+        self.tasks = [
+            json_schemas.GoHomeTask(),
+        ]
+
+    def __repr__(self) -> str:
+        return f"[drone {self.drone_id}] GoHome"
