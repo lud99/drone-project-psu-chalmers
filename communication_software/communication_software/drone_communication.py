@@ -418,6 +418,11 @@ class DroneCommunication:
         """Cleans up connections and PeerConnections when a client disconnects."""
         self.connections.pop(connection_id, None)
 
+        pc = self.peer_connections.pop(connection_id, None)
+        if pc:
+            pc.close()
+            print(f"[WebRTC] Closed PeerConnection for drone {connection_id}")
+
         writer = self.video_writers.pop(connection_id, None)
         if writer:
             writer.release()
