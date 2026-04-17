@@ -87,6 +87,9 @@
                                                 class="form-control form-control-sm w-auto" placeholder="Tracker ID" />
                                             <input type="text" id="detection_drone_id"
                                                 class="form-control form-control-sm w-auto" placeholder="Drone ID" />
+                                            <br>
+                                            <input type="text" id="detection_lat_lon" width="200"
+                                                class="form-control form-control-sm" placeholder="lat, lon" />
                                             <select id="detection_class" class="form-select form-select-sm w-auto">
                                                 <option value="person">Person</option>
                                                 <option value="vehicle">Vehicle</option>
@@ -121,6 +124,9 @@
                 <div class="card">
                     <div class="card-header bg-primary text-white">Mission Planning</div>
                     <div class="card-body">
+                        <div class="d-flex justify-content-end mb-2">
+                            <button id="discardAllMissionsBtn" class="btn btn-danger btn-sm d-none">Discard All</button>
+                        </div>
                         <div id="mission-list-container" class="row"></div>
                     </div>
                 </div>
@@ -148,21 +154,20 @@
         </div>
     </div>
 
-       
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-       
+
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-       
+
     <script>
         const BACKEND_URL_WS = "ws://localhost:8000";
         const BACKEND_URL_HTTP = "http://localhost:8000";
 
         // ── State ──────────────────────────────────────────────────────────────
-        const activeMissions = {};      // { "drone_id": "mission_id" }
-        const markers = {};             // { "drone_id": leaflet marker }
-        const lastDronePositions = {};  // { "drone_id": [lat, lon] }
-        const specsLoaded = {};         // { "drone_id": true }
-        let connectedDroneIds = [];     // list of connected drone ids
+        const activeMissions = {};      // { "drone_id": "mission_id" }
+        const markers = {};             // { "drone_id": leaflet marker }
+        const lastDronePositions = {};  // { "drone_id": [lat, lon] }
+        const specsLoaded = {};         // { "drone_id": true }
+        let connectedDroneIds = [];     // list of connected drone ids
 
         // ── Fetch active missions every 5s ─────────────────────────────────────
         async function fetchActiveMissions() {
@@ -312,13 +317,14 @@
                 if (markers[droneId]) {
                     markers[droneId].setLatLng([t.lat, t.lon]);
                 } else {
-                    markers[droneId] = L.circleMarker([t.lat, t.lon], {
-                        radius: 8,
-                        fillColor: "#ff3300",
-                        color: "#fff",
-                        weight: 2,
-                        fillOpacity: 0.8
-                    }).addTo(map).bindTooltip(`Drone ${droneId}`, { permanent: true });
+                    markers[droneId] = L.marker([t.lat, t.lon], {
+                        icon: createDroneMarkerIcon(droneId),
+                        title: getDroneDisplayName(droneId)
+                    }).addTo(map).bindTooltip(getDroneDisplayName(droneId), {
+                        permanent: true,
+                        direction: 'top',
+                        offset: [0, -18]
+                    });
                 }
             }
         }
@@ -394,6 +400,7 @@
 
         // ── Mission buttons ────────────────────────────────────────────────────
         const container = document.getElementById('mission-list-container');
+        const discardAllMissionsBtn = document.getElementById('discardAllMissionsBtn');
         document.querySelector("#missionModal .btn-success").addEventListener("click", () => {
             dispatchMission(currentMissionModalId);
         });
@@ -463,6 +470,16 @@
             await discardMissionSet(currentMissionSetId);
         });
 
+        discardAllMissionsBtn.addEventListener('click', async () => {
+            if (proposedMissionSets.size === 0) return;
+            if (!confirm('Discard all detections?')) return;
+
+            const missionSetIds = Array.from(proposedMissionSets.keys());
+            for (const missionSetId of missionSetIds) {
+                await discardMissionSet(missionSetId);
+            }
+        });
+
         container.addEventListener('click', async (event) => {
             const button = event.target.closest('.discard-mission-set-btn');
             if (!button) return;
@@ -492,6 +509,7 @@
 
         function createMissionButtons() {
             container.innerHTML = "";
+            discardAllMissionsBtn.classList.toggle('d-none', proposedMissionSets.size === 0);
             proposedMissionSets.values().forEach((missionSet) => {
                 const missions = Array.isArray(missionSet.missions) ? missionSet.missions : [];
                 const defaultMission = missions[0];
@@ -500,32 +518,22 @@
                 const objectType = missionSet.object_type ?? missionSet.detection_type ?? 'Unknown object';
                 const detectedId = missionSet.detection_id ?? missionSet.detection_id ?? 'N/A';
                 const coords = getDetectionCoordinates(missionSet);
-                const detectedTimestamp = missionSet.detected_time ?? 'N/A';
+                const detectedTimestamp = missionSet.detected_time ? new Date(missionSet.detected_time).toLocaleTimeString() : 'N/A';
 
                 container.innerHTML += `
-                <div class="col-12 mb-2">
-                    <div class="d-flex justify-content-between align-items-center"
-                        style="height: 100px; background: #e9ecef; padding: 15px; border-radius: 5px; border: 1px solid #ccc;">
-                        <div>
-                            <strong>Detected ${objectType}, ID: ${detectedId}</strong>
-                            <div>Timestamp: ${detectedTimestamp}</div>
-                            <div>Lat: ${formatCoordinate(coords.lat)}, Lon: ${formatCoordinate(coords.lon)}</div>
-                        </div>
-                        <div class="mt-2">
-                            <button class="btn btn-success btn-sm mission-action-btn" 
-                                    data-mission-id="${defaultMission.mission_id}"
-                                    data-mission-set-id="${missionSet.mission_set_id}"
-                                    data-bs-toggle="modal" 
-                                    data-bs-target="#missionModal">
-                                Create Mission
-                            </button>
-                            <button class="btn btn-danger btn-sm discard-mission-set-btn mt-1"
-                                    data-mission-set-id="${missionSet.mission_set_id}">
-                                Discard
-                            </button>
-                        </div>
-                    </div>
-                </div>`;
+                <div class="col-12 mb-2">
+                    <div class="mission-card d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Detected ${objectType}, ID: ${detectedId}</strong>
+                            <div>Timestamp: ${detectedTimestamp}</div>
+                            <div>Lat: ${formatCoordinate(coords.lat)}, Lon: ${formatCoordinate(coords.lon)}</div>
+                        </div>
+                        <div class="mission-action-row mt-2">
+                            <button class="btn btn-success btn-sm mission-action-btn" data-mission-id="${defaultMission.mission_id}" data-mission-set-id="${missionSet.mission_set_id}" data-bs-toggle="modal" data-bs-target="#missionModal">Create Mission</button>
+                            <button class="btn btn-danger btn-sm discard-mission-set-btn" data-mission-set-id="${missionSet.mission_set_id}">Discard</button>
+                        </div>
+                    </div>
+                </div>`;
             });
         }
 
@@ -627,29 +635,29 @@
                 }
 
                 fullContent += `
-            <div class="task-card mb-4 border-bottom pb-3">
-                <div class="d-flex justify-content-between">
-                    <strong class="fs-5">Task ${idx + 1}</strong>
-                    <span class="badge bg-secondary">${action}</span>
-                </div>
-                <div class="mt-2">${paramsHtml}</div>
-            </div>`;
+            <div class="task-card mb-4 border-bottom pb-3">
+                <div class="d-flex justify-content-between">
+                    <strong class="fs-5">Task ${idx + 1}</strong>
+                    <span class="badge bg-secondary">${action}</span>
+                </div>
+                <div class="mt-2">${paramsHtml}</div>
+            </div>`;
             });
 
             let mapHtml = allWaypoints.length > 0 ? `
-        <div class="mb-4">
-            <h6>Mission Route Overview</h6>
-            <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
-        </div><hr>` : '';
+        <div class="mb-4">
+            <h6>Mission Route Overview</h6>
+            <div id="${activeMissionMapId}" style="height: 250px; width: 100%; border-radius: 8px; background: #eee; border: 1px solid #ccc;"></div>
+        </div><hr>` : '';
 
             const missionDescriptionHtml = `
-        <div id="mission-description" class="mb-4">
-            <h6>Mission Description</h6>
-            <p class="mb-1">${selectedMission.description}</p>
-            <span class="badge bg-dark">Drone: ${getDroneDisplayName(droneId)}</span>
-        </div>
-        <hr>
-    `;
+        <div id="mission-description" class="mb-4">
+            <h6>Mission Description</h6>
+            <p class="mb-1">${selectedMission.description}</p>
+            <span class="badge bg-dark">Drone: ${getDroneDisplayName(droneId)}</span>
+        </div>
+        <hr>
+    `;
 
             modalBody.innerHTML = mapHtml + missionDescriptionHtml + fullContent;
 
@@ -1185,7 +1193,7 @@
                     headers: { "Content-Type": "text/plain" },
                     body: JSON.stringify([{
                         drone_ids: [document.getElementById("detection_drone_id").value],
-                        gps_position: fyrfästet,
+                        gps_position: [parseFloat(document.getElementById("detection_lat_lon").value.split(",")[0]), parseFloat(document.getElementById("detection_lat_lon").value.split(",")[1])],
                         object_type: document.getElementById("detection_class").value,
                         detection_id: document.getElementById("detection_id").value,
                         timestamp: new Date().getMilliseconds()
