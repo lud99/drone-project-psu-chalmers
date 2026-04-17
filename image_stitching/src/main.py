@@ -530,7 +530,7 @@ def detect_and_annotate_image(
                     detection_id=tracker_id,
                     gps_position=gps_position,
                     drone_ids=drone_ids,
-                    timestamp=int(datetime.now().microsecond / 1000),
+                    timestamp=int(datetime.now().timestamp() * 1000),
                 )
             )
 

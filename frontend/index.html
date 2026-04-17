@@ -32,7 +32,7 @@
             background: rgba(255, 255, 255, 0.9);
             padding: 15px;
             border-radius: 10px;
-        }        
+        }
     </style>
 </head>
 
@@ -87,6 +87,9 @@
                                                 class="form-control form-control-sm w-auto" placeholder="Tracker ID" />
                                             <input type="text" id="detection_drone_id"
                                                 class="form-control form-control-sm w-auto" placeholder="Drone ID" />
+                                            <br>
+                                            <input type="text" id="detection_lat_lon" width="200"
+                                                class="form-control form-control-sm" placeholder="lat, lon" />
                                             <select id="detection_class" class="form-select form-select-sm w-auto">
                                                 <option value="person">Person</option>
                                                 <option value="vehicle">Vehicle</option>
@@ -515,7 +518,7 @@
                 const objectType = missionSet.object_type ?? missionSet.detection_type ?? 'Unknown object';
                 const detectedId = missionSet.detection_id ?? missionSet.detection_id ?? 'N/A';
                 const coords = getDetectionCoordinates(missionSet);
-                const detectedTimestamp = missionSet.detected_time ?? 'N/A';
+                const detectedTimestamp = missionSet.detected_time ? new Date(missionSet.detected_time).toLocaleTimeString() : 'N/A';
 
                 container.innerHTML += `
                 <div class="col-12 mb-2">
@@ -1190,7 +1193,7 @@
                     headers: { "Content-Type": "text/plain" },
                     body: JSON.stringify([{
                         drone_ids: [document.getElementById("detection_drone_id").value],
-                        gps_position: fyrfästet,
+                        gps_position: [parseFloat(document.getElementById("detection_lat_lon").value.split(",")[0]), parseFloat(document.getElementById("detection_lat_lon").value.split(",")[1])],
                         object_type: document.getElementById("detection_class").value,
                         detection_id: document.getElementById("detection_id").value,
                         timestamp: new Date().getMilliseconds()
