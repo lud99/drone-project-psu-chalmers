@@ -36,6 +36,23 @@ class MavlinkAdapter:
     def _snapshot(self):
         return self.telemetry_manager.snapshot()
 
+    def _is_target_heartbeat(self, msg: Any) -> bool:
+        master = self.connection.master
+        if master is None:
+            return False
+
+        try:
+            if msg.get_srcSystem() != master.target_system:
+                return False
+
+            # target_component may be 0 when connection is generic/broadcast.
+            if master.target_component in (None, 0):
+                return True
+
+            return msg.get_srcComponent() == master.target_component
+        except Exception:
+            return False
+
     def _current_mode(self) -> str:
         snapshot = self._snapshot()
         mode = getattr(snapshot, "mode", None)
@@ -155,14 +172,13 @@ class MavlinkAdapter:
     def takeoff(self, altitude: float) -> bool:
         start_alt = self._current_alt()
 
-        current_mode = self._current_mode().upper()
-        if current_mode != "TAKEOFF":
-            print(
-                f"[DEBUG] Current mode is {current_mode}, switching to TAKEOFF before takeoff")
-            if not self.set_mode("TAKEOFF"):
-                raise RuntimeError(
-                    "Failed to switch to TAKEOFF mode before takeoff")
-            time.sleep(1.0)
+        # PX4 commonly accepts MAV_CMD_NAV_TAKEOFF from LOITER/POSCTL.
+        # Forcing TAKEOFF mode first has caused mode-stall + auto-disarm on bench.
+        if not self._is_armed():
+            print("[WARN] Vehicle is not armed before takeoff, attempting to arm")
+            if not self.arm():
+                print("[ERROR] Could not arm vehicle before takeoff")
+                return False
 
         print(f"[DEBUG] Sending takeoff command to {altitude} m")
         self.connection.takeoff(altitude)
@@ -307,6 +323,9 @@ class MavlinkAdapter:
             )
 
         elif msg_type == "HEARTBEAT":
+            if not self._is_target_heartbeat(msg):
+                return
+
             mode = "UNKNOWN"
             master = self.connection.master
             if master is not None:

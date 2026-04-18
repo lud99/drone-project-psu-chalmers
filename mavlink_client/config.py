@@ -20,7 +20,7 @@ class Config:
     default_takeoff_alt: float = float(os.getenv("DEFAULT_TAKEOFF_ALT", "2"))
     max_speed_m_s: float = float(os.getenv("MAX_SPEED_M_S", "8"))
     use_mock_drone: bool = os.getenv(
-        "USE_MOCK_DRONE", "false").lower() == "true"
+        "USE_MOCK_DRONE", "true").lower() == "true"
     # New configs
     min_relative_altitude_m: float = float(
         os.getenv("MIN_RELATIVE_ALTITUDE_M", "1.0"))
@@ -34,4 +34,8 @@ class Config:
         os.getenv("GEOFENCE_CHECK_INTERVAL_SEC", "1.0"))
     max_polygon_points: int = int(os.getenv("MAX_POLYGON_POINTS", "20"))
     default_hold_behavior: str = os.getenv("DEFAULT_HOLD_BEHAVIOR", "loiter")
+    arm_command_timeout_sec: float = float(
+        os.getenv("ARM_COMMAND_TIMEOUT_SEC", "20.0"))
+    takeoff_command_timeout_sec: float = float(
+        os.getenv("TAKEOFF_COMMAND_TIMEOUT_SEC", "45.0"))
     api_port: int = int(os.getenv("API_PORT", "8000"))

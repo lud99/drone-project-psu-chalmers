@@ -275,30 +275,46 @@ async def main() -> None:
             mock_drone = MockDrone(telemetry_manager)
             mission_executor = MockMissionExecutor(mock_drone, config)
         else:
-            print("[BOOT] Using real MAVLink mode")
+            print("[BOOT] Attempting real MAVLink connection...")
             connection = MavlinkConnectionManager(
                 connection_string=config.mavlink_connection_string,
                 baud=config.mavlink_baud,
             )
-            try:
-                connection.connect()
-            except Exception as conn_err:
-                print(f"[BOOT] MAVLink connection failed: {conn_err}")
-                print("[BOOT] Falling back to mock mode")
-                mock_drone = MockDrone(telemetry_manager)
-                mission_executor = MockMissionExecutor(mock_drone, config)
-                config.use_mock_drone = True
-            else:
+
+            # Try to connect in a background thread with a timeout
+            connection_result = {"success": False, "exception": None}
+
+            def connect_in_thread():
+                try:
+                    connection.connect()
+                    connection_result["success"] = True
+                except Exception as e:
+                    connection_result["exception"] = e
+
+            connection_thread = threading.Thread(
+                target=connect_in_thread, daemon=True)
+            connection_thread.start()
+            connection_thread.join(timeout=10.0)  # Wait up to 10 seconds
+
+            if connection_result["success"]:
                 adapter = MavlinkAdapter(
                     connection=connection,
                     telemetry_manager=telemetry_manager,
                     drone_id=config.drone_id,
                 )
-
                 mission_executor = MissionExecutor(adapter, config)
-
                 print("[BOOT] Real MAVLink connection ready")
                 adapter.poll_telemetry()
+            else:
+                if connection_result["exception"]:
+                    print(
+                        f"[BOOT] MAVLink connection failed: {connection_result['exception']}")
+                else:
+                    print("[BOOT] MAVLink connection timed out (10s)")
+                print("[BOOT] Falling back to mock mode")
+                mock_drone = MockDrone(telemetry_manager)
+                mission_executor = MockMissionExecutor(mock_drone, config)
+                config.use_mock_drone = True
 
         controller = DroneController(
             mission_executor, telemetry_manager, config)

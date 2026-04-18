@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Drone Control API", version="1.0.0")
 
 controller: Optional[DroneController] = None
+background_tasks: Dict[str, Any] = {}
 
 
 @app.post("/api/arm")
@@ -34,11 +35,11 @@ async def takeoff(data: Dict[str, float]):
     if not controller:
         raise HTTPException(
             status_code=503, detail="Controller not initialized")
+    # Spawn background task for takeoff (long-running operation)
     cmd = Command(type=CommandType.TAKEOFF_TO_RELATIVE_ALTITUDE, data=data)
-    result = await controller.execute_command(cmd)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
+    task = asyncio.create_task(controller.execute_command(cmd))
+    background_tasks['takeoff'] = {'task': task, 'state': 'running'}
+    return {"success": True, "message": "Takeoff command accepted, executing in background", "task_id": "takeoff"}
 
 
 @app.post("/api/land")
@@ -46,11 +47,11 @@ async def land():
     if not controller:
         raise HTTPException(
             status_code=503, detail="Controller not initialized")
+    # Spawn background task for land (long-running operation)
     cmd = Command(type=CommandType.LAND)
-    result = await controller.execute_command(cmd)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
+    task = asyncio.create_task(controller.execute_command(cmd))
+    background_tasks['land'] = {'task': task, 'state': 'running'}
+    return {"success": True, "message": "Land command accepted, executing in background", "task_id": "land"}
 
 
 @app.post("/api/disarm")
@@ -65,16 +66,22 @@ async def disarm():
     return result
 
 
+@app.get("/api/disarm")
+async def disarm_get():
+    # Browser address bar requests are GET; keep behavior aligned with POST.
+    return await disarm()
+
+
 @app.post("/api/goto")
 async def goto(data: Dict[str, Any]):
     if not controller:
         raise HTTPException(
             status_code=503, detail="Controller not initialized")
+    # Spawn background task for goto (long-running operation)
     cmd = Command(type=CommandType.GOTO_POINT, data=data)
-    result = await controller.execute_command(cmd)
-    if not result["success"]:
-        raise HTTPException(status_code=400, detail=result["message"])
-    return result
+    task = asyncio.create_task(controller.execute_command(cmd))
+    background_tasks['goto'] = {'task': task, 'state': 'running'}
+    return {"success": True, "message": "Goto command accepted, executing in background", "task_id": "goto"}
 
 
 @app.post("/api/geofence")
@@ -101,6 +108,30 @@ async def clear_geofence():
     return result
 
 
+@app.post("/api/geofence/circle")
+async def set_circular_geofence(data: Dict[str, Any]):
+    if not controller:
+        raise HTTPException(
+            status_code=503, detail="Controller not initialized")
+    cmd = Command(type=CommandType.SET_CIRCULAR_GEOFENCE, data=data)
+    result = await controller.execute_command(cmd)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
+@app.delete("/api/geofence/circle")
+async def clear_circular_geofence():
+    if not controller:
+        raise HTTPException(
+            status_code=503, detail="Controller not initialized")
+    cmd = Command(type=CommandType.CLEAR_CIRCULAR_GEOFENCE)
+    result = await controller.execute_command(cmd)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
 @app.post("/api/hold")
 async def hold():
     if not controller:
@@ -120,6 +151,24 @@ async def get_status():
             status_code=503, detail="Controller not initialized")
     cmd = Command(type=CommandType.GET_STATUS)
     result = await controller.execute_command(cmd)
+
+    # Include background task status
+    task_status = {}
+    for task_id, task_info in list(background_tasks.items()):
+        task = task_info.get('task')
+        if task and not task.done():
+            task_status[task_id] = 'running'
+        elif task and task.done():
+            try:
+                result_data = task.result()
+                task_status[task_id] = result_data.get('message', 'completed')
+                # Clean up finished task
+                del background_tasks[task_id]
+            except Exception as e:
+                task_status[task_id] = f'error: {str(e)}'
+                del background_tasks[task_id]
+
+    result['background_tasks'] = task_status
     return result
 
 
@@ -141,13 +190,22 @@ async def root():
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
         .container { display: flex; gap: 20px; }
-        .panel { flex: 1; border: 1px solid #ccc; padding: 10px; }
-        .status { background: #f0f0f0; padding: 10px; margin-bottom: 10px; }
-        button { margin: 5px; padding: 10px; }
-        input { margin: 5px; padding: 5px; }
-        #map { height: 400px; }
+        .panel { flex: 1; border: 1px solid #ccc; padding: 10px; background: #fff; border-radius: 6px; }
+        .status { background: #f0f0f0; padding: 10px; margin-bottom: 10px; border-radius: 4px; font-size: 0.9em; }
+        button { margin: 3px; padding: 8px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #bbb; }
+        input, textarea, select { margin: 3px; padding: 5px; border-radius: 4px; border: 1px solid #bbb; }
+        #map { height: 420px; border-radius: 4px; }
+        .fence-section { border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-top: 10px; background: #fafafa; }
+        .fence-section h4 { margin: 0 0 4px 0; font-size: 0.95em; }
+        .fence-section hr { border: none; border-top: 1px solid #ddd; margin: 4px 0 8px 0; }
+        .fence-panel { display: none; border: 1px solid #ddd; padding: 8px; border-radius: 4px; margin-top: 6px; background: #fff; }
+        .fence-panel p { font-size: 0.82em; color: #555; margin: 4px 0 8px 0; }
+        .btn-apply  { background: #3a8; color: #fff; border-color: #2a7; }
+        .btn-clear  { background: #c44; color: #fff; border-color: #b33; }
+        .btn-active { background: #3a8; color: #fff; border-color: #2a7; }
+        .fence-status { font-size: 0.83em; color: #555; min-height: 18px; }
     </style>
 </head>
 <body>
@@ -165,17 +223,62 @@ async def root():
             <button onclick="hold()">Hold</button>
             <br>
             <h3>Goto</h3>
+            <div style="font-size:0.85em;color:#555;margin-bottom:4px;">Absolute target</div>
             <input type="number" id="gotoLat" placeholder="Latitude" step="0.000001">
             <input type="number" id="gotoLon" placeholder="Longitude" step="0.000001">
             <input type="number" id="gotoAlt" placeholder="Rel Alt (m)" value="10">
             <button onclick="gotoPoint()">Go To</button>
-            <br>
-            <h3>Geofence</h3>
-            <textarea id="polygonJson" placeholder='[{"latitude": 37.7749, "longitude": -122.4194}, ...]' rows="4"></textarea>
-            <br>
-            <button onclick="setGeofence()">Set Geofence</button>
-            <button onclick="clearGeofence()">Clear Geofence</button>
+            <div style="font-size:0.85em;color:#555;margin:10px 0 4px 0;">Relative target</div>
+            <input type="number" id="gotoDistance" placeholder="Distance (m)" value="5" min="0.1" step="0.1">
+            <select id="gotoDirection">
+                <option value="N">North</option>
+                <option value="S">South</option>
+                <option value="E">East</option>
+                <option value="W">West</option>
+            </select>
+            <button onclick="gotoRelative()">Go Relative</button>
+
+            <h3>GeoFence</h3>
+            <p style="font-size:0.85em;color:#555;margin:4px 0 8px 0;">
+                Set a keep-in boundary. The drone will land or hold if it exits.
+            </p>
+            <button id="btnPolygonMode" onclick="setFenceMode('polygon')">&#9999; Polygon Fence</button>
+            <button id="btnCircleMode"  onclick="setFenceMode('circle')" >&#8857; Circular Fence</button>
+
+            <div id="polygonFencePanel" class="fence-panel">
+                <b>Polygon Fence</b>
+                <p>Click the map to add vertices (min 3). A dashed preview appears as you click.</p>
+                <div id="polyPointsList" class="fence-status">No points added yet.</div>
+                <div style="margin-top:6px;">
+                    <button onclick="undoPolyPoint()">&#8617; Undo</button>
+                    <button class="btn-apply" onclick="applyPolygonFence()">&#10004; Apply</button>
+                    <button class="btn-clear" onclick="clearPolygonFence()">&#10006; Clear</button>
+                </div>
+            </div>
+
+            <div id="circleFencePanel" class="fence-panel">
+                <b>Circular Fence</b>
+                <p>Click the map to place the center, then set the radius and apply.</p>
+                <div>Center: <span id="circleCenterDisplay" class="fence-status">Not set &mdash; click the map</span></div>
+                <div style="margin-top:6px;">
+                    Radius: <input type="number" id="circleRadius" value="100" min="1" style="width:70px;"> m
+                </div>
+                <div style="margin-top:6px;">
+                    <button class="btn-apply" onclick="applyCircularFence()">&#10004; Apply</button>
+                    <button class="btn-clear" onclick="clearCircularFence()">&#10006; Clear</button>
+                </div>
+            </div>
+
+            <div class="fence-section" style="margin-top:10px;">
+                <h4>Polygon Fences</h4><hr>
+                <div id="polygonFenceStatus" class="fence-status">None</div>
+            </div>
+            <div class="fence-section">
+                <h4>Circular Fences</h4><hr>
+                <div id="circularFenceStatus" class="fence-status">None</div>
+            </div>
         </div>
+
         <div class="panel">
             <h2>Status</h2>
             <div id="status" class="status">Loading...</div>
@@ -185,16 +288,105 @@ async def root():
             <div id="map"></div>
         </div>
     </div>
+
     <script>
         let map;
-        let droneMarker;
-        let polygonLayer;
+        let droneMarker   = null;
+        let polygonLayer  = null;
+        let circleLayer   = null;
+        let fenceMode     = null;
+        let polyDraft     = [];
+        let draftPolyLayer    = null;
+        let circleCenter      = null;
+        let draftCenterMarker = null;
 
         function initMap() {
             map = L.map('map').setView([37.7749, -122.4194], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+                attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
+
+            map.on('click', function(e) {
+                if (fenceMode === 'polygon') {
+                    polyDraft.push([e.latlng.lat, e.latlng.lng]);
+                    updateDraftPoly();
+                } else if (fenceMode === 'circle') {
+                    circleCenter = [e.latlng.lat, e.latlng.lng];
+                    document.getElementById('circleCenterDisplay').textContent =
+                        circleCenter[0].toFixed(6) + ', ' + circleCenter[1].toFixed(6);
+                    if (draftCenterMarker) map.removeLayer(draftCenterMarker);
+                    draftCenterMarker = L.circleMarker(circleCenter, {radius: 7, color: '#e80'}).addTo(map);
+                }
+            });
+        }
+
+        function updateDraftPoly() {
+            if (draftPolyLayer) { map.removeLayer(draftPolyLayer); draftPolyLayer = null; }
+            const label = polyDraft.map((p, i) =>
+                (i + 1) + ':(' + p[0].toFixed(5) + ',' + p[1].toFixed(5) + ')').join('  ');
+            document.getElementById('polyPointsList').textContent =
+                polyDraft.length ? label : 'No points added yet.';
+            if (polyDraft.length >= 2) {
+                draftPolyLayer = L.polyline(polyDraft, {color: '#e80', dashArray: '6,5'}).addTo(map);
+            }
+        }
+
+        function undoPolyPoint() {
+            polyDraft.pop();
+            updateDraftPoly();
+        }
+
+        function setFenceMode(mode) {
+            fenceMode = mode;
+            document.getElementById('polygonFencePanel').style.display = mode === 'polygon' ? 'block' : 'none';
+            document.getElementById('circleFencePanel').style.display  = mode === 'circle'  ? 'block' : 'none';
+            document.getElementById('btnPolygonMode').className = mode === 'polygon' ? 'btn-active' : '';
+            document.getElementById('btnCircleMode').className  = mode === 'circle'  ? 'btn-active' : '';
+            if (mode === 'polygon') { polyDraft = []; updateDraftPoly(); }
+            if (mode === 'circle') {
+                circleCenter = null;
+                document.getElementById('circleCenterDisplay').textContent = 'Not set \u2014 click the map';
+                if (draftCenterMarker) { map.removeLayer(draftCenterMarker); draftCenterMarker = null; }
+            }
+        }
+
+        async function applyPolygonFence() {
+            if (polyDraft.length < 3) { alert('Need at least 3 points.'); return; }
+            const polygon = polyDraft.map(p => ({latitude: p[0], longitude: p[1]}));
+            const result = await apiCall('/api/geofence', 'POST', {polygon});
+            if (result.detail) { alert('Error: ' + result.detail); return; }
+            if (draftPolyLayer) { map.removeLayer(draftPolyLayer); draftPolyLayer = null; }
+            polyDraft = []; updateDraftPoly();
+            await updateStatus();
+        }
+
+        async function clearPolygonFence() {
+            await apiCall('/api/geofence', 'DELETE');
+            if (draftPolyLayer) { map.removeLayer(draftPolyLayer); draftPolyLayer = null; }
+            polyDraft = []; updateDraftPoly();
+            await updateStatus();
+        }
+
+        async function applyCircularFence() {
+            if (!circleCenter) { alert('Click the map to set the center first.'); return; }
+            const radius = parseFloat(document.getElementById('circleRadius').value);
+            if (!radius || radius <= 0) { alert('Enter a valid radius greater than 0.'); return; }
+            const result = await apiCall('/api/geofence/circle', 'POST', {
+                latitude: circleCenter[0], longitude: circleCenter[1], radius_m: radius
+            });
+            if (result.detail) { alert('Error: ' + result.detail); return; }
+            if (draftCenterMarker) { map.removeLayer(draftCenterMarker); draftCenterMarker = null; }
+            circleCenter = null;
+            document.getElementById('circleCenterDisplay').textContent = 'Not set \u2014 click the map';
+            await updateStatus();
+        }
+
+        async function clearCircularFence() {
+            await apiCall('/api/geofence/circle', 'DELETE');
+            if (draftCenterMarker) { map.removeLayer(draftCenterMarker); draftCenterMarker = null; }
+            circleCenter = null;
+            document.getElementById('circleCenterDisplay').textContent = 'Not set \u2014 click the map';
+            await updateStatus();
         }
 
         async function apiCall(endpoint, method='POST', data=null) {
@@ -205,8 +397,8 @@ async def root():
             return await response.json();
         }
 
-        async function arm() { await apiCall('/api/arm'); updateStatus(); }
-        async function disarm() { await apiCall('/api/disarm'); updateStatus(); }
+        async function arm()     { await apiCall('/api/arm');     updateStatus(); }
+        async function disarm()  { await apiCall('/api/disarm');  updateStatus(); }
         async function takeoff() {
             const alt = parseFloat(document.getElementById('takeoffAlt').value);
             await apiCall('/api/takeoff', 'POST', {relative_altitude_m: alt});
@@ -221,55 +413,96 @@ async def root():
             await apiCall('/api/goto', 'POST', {latitude: lat, longitude: lon, relative_altitude_m: alt});
             updateStatus();
         }
-        async function setGeofence() {
-            try {
-                const polygon = JSON.parse(document.getElementById('polygonJson').value);
-                await apiCall('/api/geofence', 'POST', {polygon});
-                updateStatus();
-            } catch (e) {
-                alert('Invalid JSON');
-            }
+
+        async function gotoRelative() {
+            const distance = parseFloat(document.getElementById('gotoDistance').value);
+            const direction = document.getElementById('gotoDirection').value;
+            const alt = parseFloat(document.getElementById('gotoAlt').value);
+            await apiCall('/api/goto', 'POST', {
+                distance_m: distance,
+                direction: direction,
+                relative_altitude_m: alt
+            });
+            updateStatus();
         }
-        async function clearGeofence() { await apiCall('/api/geofence', 'DELETE'); updateStatus(); }
 
         async function updateStatus() {
             const status = await apiCall('/api/status', 'GET');
-            document.getElementById('status').innerHTML = `
-                State: ${status.state}<br>
-                Command: ${status.current_command || 'None'}<br>
-                Geofence: ${status.geofence_active ? 'Active' : 'Inactive'}<br>
-                Safety: ${status.latest_safety_message || 'None'}<br>
-                Backend: ${status.using_mock_drone ? 'Mock' : 'Real MAVLink'}
-            `;
+            const polyInfo = status.polygon
+                ? 'Active (' + (status.polygon.length - 1) + ' vertices)'
+                : 'None';
+            const circInfo = status.circle
+                ? 'Active (r\u202f=\u202f' + status.circle.radius_m + '\u202fm)'
+                : 'None';
+            
+            // Build task status string
+            let taskStatusStr = '';
+            if (status.background_tasks && Object.keys(status.background_tasks).length > 0) {
+                taskStatusStr = '<br><strong style="color: #f80;">Background Tasks:</strong> ';
+                for (const [taskId, taskMsg] of Object.entries(status.background_tasks)) {
+                    taskStatusStr += `<br>&nbsp;&nbsp;${taskId}: ${taskMsg}`;
+                }
+            }
+            
+            document.getElementById('status').innerHTML =
+                'State: '    + status.state + '<br>' +
+                'Command: '  + (status.current_command || 'None') + '<br>' +
+                'Polygon fence: ' + polyInfo + '<br>' +
+                'Circular fence: ' + circInfo + '<br>' +
+                'Safety: '   + (status.latest_safety_message || 'None') + '<br>' +
+                'Backend: '  + (status.using_mock_drone ? 'Mock' : 'Real MAVLink') +
+                taskStatusStr;
+
             const telem = status.telemetry;
-            document.getElementById('telemetry').innerHTML = `
-                Lat: ${telem.lat}<br>
-                Lon: ${telem.lon}<br>
-                Alt: ${telem.alt}<br>
-                Heading: ${telem.heading}<br>
-                Speed: ${telem.speed}<br>
-                Battery: ${telem.battery_percent}%<br>
-                Mode: ${telem.mode}<br>
-                Armed: ${telem.armed}<br>
-                GPS Fix: ${telem.gps_fix_type}<br>
-                Sats: ${telem.satellites_visible}
-            `;
-            // Update map
+            document.getElementById('telemetry').innerHTML =
+                'Lat: ' + telem.lat + '<br>' +
+                'Lon: ' + telem.lon + '<br>' +
+                'Alt: ' + telem.alt + '<br>' +
+                'Heading: ' + telem.heading + '<br>' +
+                'Speed: ' + telem.speed + '<br>' +
+                'Battery: ' + telem.battery_percent + '%<br>' +
+                'Mode: ' + telem.mode + '<br>' +
+                'Armed: ' + telem.armed + '<br>' +
+                'GPS Fix: ' + telem.gps_fix_type + '<br>' +
+                'Sats: ' + telem.satellites_visible;
+
+            // Drone marker
             if (telem.lat && telem.lon) {
                 const pos = [telem.lat, telem.lon];
-                if (!droneMarker) {
-                    droneMarker = L.marker(pos).addTo(map);
-                } else {
-                    droneMarker.setLatLng(pos);
-                }
+                if (!droneMarker) droneMarker = L.marker(pos).addTo(map);
+                else droneMarker.setLatLng(pos);
                 map.setView(pos);
             }
-            if (status.polygon && !polygonLayer) {
+
+            // Polygon fence layer
+            if (status.polygon) {
                 const coords = status.polygon.map(p => [p.latitude, p.longitude]);
-                polygonLayer = L.polygon(coords).addTo(map);
-            } else if (!status.polygon && polygonLayer) {
-                map.removeLayer(polygonLayer);
-                polygonLayer = null;
+                if (!polygonLayer) polygonLayer = L.polygon(coords, {color: '#e64', fillOpacity: 0.12}).addTo(map);
+                else polygonLayer.setLatLngs(coords);
+                document.getElementById('polygonFenceStatus').textContent =
+                    (status.polygon.length - 1) + ' vertices';
+            } else {
+                if (polygonLayer) { map.removeLayer(polygonLayer); polygonLayer = null; }
+                document.getElementById('polygonFenceStatus').textContent = 'None';
+            }
+
+            // Circular fence layer
+            if (status.circle) {
+                const c = status.circle;
+                if (!circleLayer) {
+                    circleLayer = L.circle([c.latitude, c.longitude], {
+                        radius: c.radius_m, color: '#46e', fillOpacity: 0.1
+                    }).addTo(map);
+                } else {
+                    circleLayer.setLatLng([c.latitude, c.longitude]);
+                    circleLayer.setRadius(c.radius_m);
+                }
+                document.getElementById('circularFenceStatus').textContent =
+                    'Center: ' + c.latitude.toFixed(6) + ', ' + c.longitude.toFixed(6) +
+                    ' \u2014 Radius: ' + c.radius_m + ' m';
+            } else {
+                if (circleLayer) { map.removeLayer(circleLayer); circleLayer = null; }
+                document.getElementById('circularFenceStatus').textContent = 'None';
             }
         }
 

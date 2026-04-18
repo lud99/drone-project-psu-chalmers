@@ -1,4 +1,5 @@
 import asyncio
+import math
 from enum import Enum
 from typing import Any, Optional, Dict, List, Tuple
 import logging
@@ -62,8 +63,17 @@ class DroneController:
             return await self._disarm()
         elif command.type == CommandType.GOTO_POINT:
             data = command.data or {}
-            return await self._goto_point(
-                data["latitude"], data["longitude"],
+            if data.get("latitude") is not None and data.get("longitude") is not None:
+                return await self._goto_point(
+                    data["latitude"], data["longitude"],
+                    data.get("relative_altitude_m"),
+                    data.get("yaw_deg"),
+                    data.get("acceptance_radius_m",
+                             self.config.goto_acceptance_radius_m)
+                )
+            return await self._goto_relative(
+                data["distance_m"],
+                data["direction"],
                 data.get("relative_altitude_m"),
                 data.get("yaw_deg"),
                 data.get("acceptance_radius_m",
@@ -74,6 +84,13 @@ class DroneController:
             return await self._set_geofence(data["polygon"])
         elif command.type == CommandType.CLEAR_POLYGON_GEOFENCE:
             return await self._clear_geofence()
+        elif command.type == CommandType.SET_CIRCULAR_GEOFENCE:
+            data = command.data or {}
+            return await self._set_circular_geofence(
+                data["latitude"], data["longitude"], data["radius_m"]
+            )
+        elif command.type == CommandType.CLEAR_CIRCULAR_GEOFENCE:
+            return await self._clear_circular_geofence()
         elif command.type == CommandType.HOLD:
             return await self._hold()
         elif command.type == CommandType.GET_STATUS:
@@ -82,19 +99,38 @@ class DroneController:
             return {"success": False, "message": f"Unknown command: {command.type}"}
 
     async def _arm(self) -> Dict[str, Any]:
-        if self.state not in [DroneState.IDLE, DroneState.ERROR]:
+        if self.state not in [DroneState.IDLE, DroneState.ERROR, DroneState.HOLDING]:
             return {"success": False, "message": f"Cannot arm in state: {self.state}"}
         try:
             self.state = DroneState.ARMING
             self.current_command = "arm"
             if hasattr(self.mission_executor, "arm"):
-                await asyncio.to_thread(self.mission_executor.arm)
+                await asyncio.wait_for(
+                    asyncio.to_thread(self.mission_executor.arm),
+                    timeout=self.config.arm_command_timeout_sec,
+                )
             else:
                 # minimal takeoff
-                await asyncio.to_thread(self.mission_executor.arm_and_takeoff, self.launch_altitude + 1)
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.mission_executor.arm_and_takeoff,
+                        self.launch_altitude + 1,
+                    ),
+                    timeout=self.config.arm_command_timeout_sec,
+                )
             self.state = DroneState.IDLE
             logger.info("Drone armed successfully")
             return {"success": True, "message": "Drone armed"}
+        except asyncio.TimeoutError:
+            self.state = DroneState.ERROR
+            logger.error("Arm failed: command timed out")
+            return {
+                "success": False,
+                "message": (
+                    "Arm failed: command timed out while waiting for FC response "
+                    "(possible serial reconnect instability)"
+                ),
+            }
         except Exception as e:
             self.state = DroneState.ERROR
             logger.error(f"Arm failed: {e}")
@@ -110,14 +146,32 @@ class DroneController:
             self.current_command = f"takeoff to {relative_alt}m"
             target_alt = self.launch_altitude + relative_alt
             if hasattr(self.mission_executor, "takeoff"):
-                await asyncio.to_thread(self.mission_executor.takeoff, target_alt)
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.mission_executor.takeoff, target_alt),
+                    timeout=self.config.takeoff_command_timeout_sec,
+                )
             else:
-                await asyncio.to_thread(self.mission_executor.arm_and_takeoff, target_alt)
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self.mission_executor.arm_and_takeoff, target_alt),
+                    timeout=self.config.takeoff_command_timeout_sec,
+                )
             # Wait for altitude
             await self._wait_for_altitude(target_alt)
             self.state = DroneState.HOVERING
             logger.info(f"Takeoff to {relative_alt}m completed")
             return {"success": True, "message": f"Reached altitude {relative_alt}m"}
+        except asyncio.TimeoutError:
+            self.state = DroneState.ERROR
+            logger.error("Takeoff failed: command timed out")
+            return {
+                "success": False,
+                "message": (
+                    "Takeoff failed: command timed out while waiting for FC response "
+                    "(possible serial reconnect instability)"
+                ),
+            }
         except Exception as e:
             self.state = DroneState.ERROR
             logger.error(f"Takeoff failed: {e}")
@@ -184,6 +238,62 @@ class DroneController:
             logger.error(f"Goto failed: {e}")
             return {"success": False, "message": f"Goto failed: {e}"}
 
+    def _offset_coordinate(
+        self,
+        lat: float,
+        lon: float,
+        distance_m: float,
+        direction: str,
+    ) -> Tuple[float, float]:
+        meters_per_degree_lat = 111320.0
+        meters_per_degree_lon = 111320.0 * math.cos(math.radians(lat))
+        direction = direction.upper()
+
+        target_lat = lat
+        target_lon = lon
+
+        if direction == "N":
+            target_lat += distance_m / meters_per_degree_lat
+        elif direction == "S":
+            target_lat -= distance_m / meters_per_degree_lat
+        elif direction == "E":
+            if abs(meters_per_degree_lon) < 1e-6:
+                raise ValueError(
+                    "Cannot compute east/west offset near the poles")
+            target_lon += distance_m / meters_per_degree_lon
+        elif direction == "W":
+            if abs(meters_per_degree_lon) < 1e-6:
+                raise ValueError(
+                    "Cannot compute east/west offset near the poles")
+            target_lon -= distance_m / meters_per_degree_lon
+        else:
+            raise ValueError(f"Unsupported direction: {direction}")
+
+        return target_lat, target_lon
+
+    async def _goto_relative(
+        self,
+        distance_m: float,
+        direction: str,
+        rel_alt: Optional[float] = None,
+        yaw: Optional[float] = None,
+        radius: float = 2.0,
+    ) -> Dict[str, Any]:
+        snapshot = self.telemetry_manager.snapshot()
+        current_lat = snapshot.lat
+        current_lon = snapshot.lon
+
+        if current_lat is None or current_lon is None:
+            return {"success": False, "message": "Current GPS position unavailable"}
+
+        target_lat, target_lon = self._offset_coordinate(
+            current_lat,
+            current_lon,
+            distance_m,
+            direction,
+        )
+        return await self._goto_point(target_lat, target_lon, rel_alt, yaw, radius)
+
     async def _monitor_goto(self, target_lat: float, target_lon: float, target_alt: float, radius: float):
         start_time = asyncio.get_event_loop().time()
         while not self._shutdown_event.is_set():
@@ -212,17 +322,33 @@ class DroneController:
         points = [(p["latitude"], p["longitude"]) for p in polygon]
         if self.geofence.set_polygon(points):
             self._start_geofence_monitoring()
-            logger.info("Geofence set")
-            return {"success": True, "message": "Geofence set"}
+            logger.info("Polygon geofence set")
+            return {"success": True, "message": "Polygon geofence set"}
         else:
             return {"success": False, "message": "Invalid polygon"}
 
     async def _clear_geofence(self) -> Dict[str, Any]:
         self.geofence.clear_polygon()
-        if self._geofence_task:
+        if not self.geofence.has_active_fence() and self._geofence_task:
             self._geofence_task.cancel()
-        logger.info("Geofence cleared")
-        return {"success": True, "message": "Geofence cleared"}
+        logger.info("Polygon geofence cleared")
+        return {"success": True, "message": "Polygon geofence cleared"}
+
+    async def _set_circular_geofence(self, lat: float, lon: float, radius_m: float) -> Dict[str, Any]:
+        if self.geofence.set_circle(lat, lon, radius_m):
+            self._start_geofence_monitoring()
+            logger.info(
+                f"Circular geofence set: center ({lat}, {lon}), radius {radius_m} m")
+            return {"success": True, "message": f"Circular geofence set: radius {radius_m} m"}
+        else:
+            return {"success": False, "message": "Invalid circular geofence parameters"}
+
+    async def _clear_circular_geofence(self) -> Dict[str, Any]:
+        self.geofence.clear_circle()
+        if not self.geofence.has_active_fence() and self._geofence_task:
+            self._geofence_task.cancel()
+        logger.info("Circular geofence cleared")
+        return {"success": True, "message": "Circular geofence cleared"}
 
     def _start_geofence_monitoring(self):
         if self._geofence_task:
@@ -230,7 +356,7 @@ class DroneController:
         self._geofence_task = asyncio.create_task(self._monitor_geofence())
 
     async def _monitor_geofence(self):
-        while not self._shutdown_event.is_set() and self.geofence.polygon:
+        while not self._shutdown_event.is_set() and self.geofence.has_active_fence():
             snapshot = self.telemetry_manager.snapshot()
             lat = snapshot.lat
             lon = snapshot.lon
@@ -266,8 +392,9 @@ class DroneController:
         return StatusResponse(
             state=self.state.value,
             current_command=self.current_command,
-            geofence_active=self.geofence.polygon is not None,
+            geofence_active=self.geofence.has_active_fence(),
             polygon=polygon,
+            circle=self.geofence.get_circle(),
             latest_safety_message=self.latest_safety_message,
             using_mock_drone=self.config.use_mock_drone,
             telemetry={
