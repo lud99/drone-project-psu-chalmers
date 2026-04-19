@@ -19,7 +19,10 @@ import communication_software.common.json_schemas as json_schemas
 
 from communication_software.constants import DRONE_EVENT_CHANNEL, DRONE_COMMANDS_CHANNEL
 from communication_software.missions_planning.mission_registry import MissionRegistry
-from communication_software.missions_planning.mission_status import MissionStatus
+from communication_software.missions_planning.mission_status import (
+    MissionStatus,
+    TaskStatus,
+)
 
 
 try:
@@ -42,9 +45,6 @@ except redis.exceptions.ConnectionError as e:
 # Set to `true` in .env to run mock mission from test_mock_mission.json when receiving registration.
 DO_MOCK_MISSION = os.environ.get("DO_MOCK_MISSION", "false").lower() == "true"
 
-# Global toggle for video recording
-SAVE_VIDEO_TO_FILE = os.environ.get("SAVE_VIDEO_TO_FILE", "true").lower() == "true"
-
 
 from aiortc import RTCConfiguration, RTCIceServer  # noqa: E402
 
@@ -62,7 +62,6 @@ class DroneCommunication:
         self.redis_listener_stop_event = threading.Event()
         self.redis_listener_task = None
         self.peer_connections = {}
-        self.video_writers = {}
 
         # For testing
         with open(
@@ -423,11 +422,6 @@ class DroneCommunication:
             pc.close()
             print(f"[WebRTC] Closed PeerConnection for drone {connection_id}")
 
-        writer = self.video_writers.pop(connection_id, None)
-        if writer:
-            writer.release()
-            print(f"[Video Recorder] Closed video file for drone {connection_id}")
-
         r.delete(f"telemetry_drone{connection_id}")
         r.delete(f"model_drone{connection_id}")
         r.delete(f"capabilities_drone{connection_id}")
@@ -585,6 +579,10 @@ class DroneCommunication:
                     )
                     return
 
+                MissionRegistry.update_task_status(
+                    message.mission_id, message.index, TaskStatus.COMPLETED
+                )
+
                 if message.index >= len(mission["tasks"]) - 1:
                     if mission["tasks"][message.index]["action"] == "go_home":
                         print(
@@ -603,14 +601,22 @@ class DroneCommunication:
                         f"action:{next_task['task_action']['action']}"
                     )
                     await self.connections[connection_id].send(next_task_raw)
-
                     r.publish(DRONE_EVENT_CHANNEL, next_task_raw)
+
+                    MissionRegistry.update_task_status(
+                        message.mission_id, next_task["index"], TaskStatus.IN_PROGRESS
+                    )
+
             elif message.event == "task_failed":
                 error = f"Task for drone {message.drone_id} failed with error '{message.message}'"
                 print(error)
                 r.publish(
                     DRONE_EVENT_CHANNEL,
                     json_schemas.FrontendMessages.Error(error=error).model_dump_json(),
+                )
+
+                MissionRegistry.update_task_status(
+                    message.mission_id, message.index, TaskStatus.FAILED
                 )
             elif message.event == "task_aborted":
                 print(
@@ -760,10 +766,6 @@ class DroneCommunication:
 
                             bgr_frame = frame.to_ndarray(format="bgr24")
 
-                            # Save to file if enabled
-                            if SAVE_VIDEO_TO_FILE:
-                                self.save_frame_to_file(connection_id, bgr_frame)
-
                             await self.set_frame(connection_id, bgr_frame)
 
                         except Exception as e:
@@ -811,22 +813,6 @@ class DroneCommunication:
     #         )
     #     except KeyError as e:
     #         print(f"[Stream Manager] Error: {e}")
-
-    def save_frame_to_file(self, connection_id, frame):
-        """Initializes or writes to a VideoWriter for a specific drone."""
-        if connection_id not in self.video_writers:
-            height, width = frame.shape[:2]
-            timestamp = int(time.time())
-            filename = f"drone_recording_{connection_id}_{timestamp}.mp4"
-
-            # Use MP4V codec (standard for .mp4)
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            self.video_writers[connection_id] = cv2.VideoWriter(
-                filename, fourcc, 20.0, (width, height)
-            )
-            print(f"[Video Recorder] Started recording to {filename}")
-
-        self.video_writers[connection_id].write(frame)
 
     ##THIS IS THE FUNCTION THAT HANDLES THE VIDEO STREAM##
     async def set_frame(self, connection_id: str, img: np.ndarray):

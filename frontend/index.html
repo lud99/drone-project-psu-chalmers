@@ -73,7 +73,8 @@
                                         <button id="armAllBtn" data-command="flight_arm"
                                             class="btn btn-success btn-sm all-drone-command-btn">Take Off All</button>
                                         <button id="rthAllBtn" data-command="flight_return_to_home"
-                                            class="btn btn-info btn-sm all-drone-command-btn">Return Home All</button>
+                                            class="btn btn-info btn-sm all-drone-command-btn"
+                                            onclick="returnHomeAll()">Return Home All</button>
                                     </div>
 
                                     <div class="mt-3 p-2 border rounded bg-light">
@@ -168,23 +169,99 @@
         const lastDronePositions = {};  // { "drone_id": [lat, lon] }
         const specsLoaded = {};         // { "drone_id": true }
         let connectedDroneIds = [];     // list of connected drone ids
+        let activeMissionsData = [];    // list of active mission objects
+        let expandedMissions = new Set(); // set of expanded mission ids
 
-        // ── Fetch active missions every 5s ─────────────────────────────────────
+        // ── Helper functions for active missions display ──────────────────────
+        function getStatusClass(status) {
+            switch (status) {
+                case 'COMPLETED': return 'text-success';
+                case 'FAILED': return 'text-danger';
+                case 'PENDING': return 'text-primary';
+                case 'IN_PROGRESS': return 'text-warning';
+                default: return 'text-muted';
+            }
+        }
+
+        function getStatusEmoji(status) {
+            switch (status) {
+                case 'COMPLETED': return '✅';
+                case 'FAILED': return '❌';
+                case 'PENDING': return '🔄';
+                case 'IN_PROGRESS': return '⏳';
+                default: return '❓';
+            }
+        }
+
+        function toggleMissionTasks(element) {
+            const tasksDiv = element.nextElementSibling;
+            const isVisible = tasksDiv.style.display === 'block';
+            tasksDiv.style.display = isVisible ? 'none' : 'block';
+            const missionId = element.getAttribute('data-mission-id');
+            if (tasksDiv.style.display === 'block') {
+                expandedMissions.add(missionId);
+            } else {
+                expandedMissions.delete(missionId);
+            }
+        }
+
+        function updateActiveMissionsList(missions) {
+            const container = document.getElementById('active-missions-list');
+            if (missions.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No missions currently active.</p>';
+                return;
+            }
+            let html = '';
+
+            missions.forEach(mission => {
+                let tasksHtml = mission.tasks.map((task, index) => {
+                    const status = mission.task_status[index] || 'PENDING';
+                    const statusClass = getStatusClass(status);
+                    const emoji = getStatusEmoji(status);
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center">
+                        Task: ${task.action} <span class="${statusClass}">${emoji}</span>
+                    </li>`;
+                }).join('');
+                if (mission.tasks[mission.tasks.length - 1].action != "go_home") {
+                    tasksHtml += `<div class="alert alert-warning">Mission does not end with "go_home" task, will hover until manually sent home</div>`;
+                }
+                html += `
+                    <div class="active-mission mb-2">
+                        <div class="mission-summary p-2 border rounded bg-light" data-mission-id="${mission.mission_id}" onclick="toggleMissionTasks(this)" style="cursor: pointer;">
+                            Mission for Drone ${mission.drone_id} - ${mission.mission_type || 'Unknown'}
+                        </div>
+                        <div class="mission-tasks" style="display: block;">
+                            <ul class="list-group list-group-flush">${tasksHtml}</ul>
+                        </div>
+                    </div>`;
+                expandedMissions.add(mission.mission_id);
+            });
+            container.innerHTML = html;
+            // Re-expand previously expanded missions
+            expandedMissions.forEach(missionId => {
+                const summary = container.querySelector(`[data-mission-id="${missionId}"]`);
+                if (summary) {
+                    const tasksDiv = summary.nextElementSibling;
+                    if (tasksDiv) tasksDiv.style.display = 'block';
+                }
+            });
+        }
+
+        // ── Fetch active missions once on load ──────────────────────────────────
         async function fetchActiveMissions() {
             try {
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
                 const missions = await response.json();
-                missions.forEach(mission => {
-                    if (mission.status === "DISPATCHED" || mission.status === "PENDING") {
-                        activeMissions[mission.drone_id] = mission.mission_id;
-                    }
+                activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED");
+                activeMissionsData.forEach(mission => {
+                    activeMissions[mission.drone_id] = mission.mission_id;
                 });
+                updateActiveMissionsList(activeMissionsData);
             } catch (error) {
                 console.error("Failed to fetch missions:", error);
             }
         }
         fetchActiveMissions();
-        setInterval(fetchActiveMissions, 5000);
 
         // ── Map state ──────────────────────────────────────────────────────────
         let activePolygon = null;
@@ -205,8 +282,13 @@
                     removeProposedMissionSetLocally(missionSetId);
                     bootstrap.Modal.getInstance(missionModal)?.hide();
                     alert("Mission dispatched ok");
+                    activeMissions[result.mission.drone_id] = result.mission.mission_id;
+                    activeMissionsData.push(result.mission);
+                    updateActiveMissionsList(activeMissionsData);
                 }
-                else alert("Error: " + result.error);
+                else {
+                    alert("Error: " + result.error);
+                }
             } catch (error) {
                 console.error("Error to dispatch", error);
             }
@@ -366,6 +448,8 @@
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Mission avbruten!");
                 delete activeMissions[droneId];
+                activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
+                updateActiveMissionsList(activeMissionsData);
             } catch (error) {
                 console.error("Abort misslyckades:", error);
             }
@@ -383,6 +467,9 @@
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Drönaren åker hem!");
                 delete activeMissions[droneId];
+                activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
+                activeMissionsData.push(data.mission);
+                updateActiveMissionsList(activeMissionsData);
             } catch (error) {
                 console.error("Return home misslyckades:", error);
             }
@@ -396,11 +483,16 @@
         // ── Return home all ────────────────────────────────────────────────────
         async function returnHomeAll() {
             if (!confirm("Skicka hem ALLA drönare?")) return;
+            activeMissionsData = [];
             for (const droneId of connectedDroneIds) {
-                await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
+                let response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
                 delete activeMissions[droneId];
+                activeMissionsData.push(data.mission);
             }
             alert("Alla drönare åker hem!");
+            updateActiveMissionsList(activeMissionsData);
         }
 
         // ── Mission buttons ────────────────────────────────────────────────────
@@ -527,7 +619,8 @@
                 const objectType = missionSet.object_type ?? missionSet.detection_type ?? 'Unknown object';
                 const detectedId = missionSet.detection_id ?? missionSet.detection_id ?? 'N/A';
                 const coords = getDetectionCoordinates(missionSet);
-                const detectedTimestamp = missionSet.detected_time ? new Date(missionSet.detected_time).toLocaleTimeString() : 'N/A';
+                const detectedTimestamp = missionSet.detected_time;
+                //missionSet.time ? new Date(missionSet.detected_time).toLocaleTimeString() : 'N/A';
 
                 container.innerHTML += `
                 <div class="col-12 mb-2">
@@ -845,6 +938,76 @@
         const map = L.map('map').setView(DEFAULT_MAP_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+        // Create context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.id = 'map-context-menu';
+        contextMenu.style.position = 'absolute';
+        contextMenu.style.background = 'white';
+        contextMenu.style.border = '1px solid #ccc';
+        contextMenu.style.borderRadius = '4px';
+        contextMenu.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+        contextMenu.style.padding = '5px';
+        contextMenu.style.display = 'none';
+        contextMenu.style.zIndex = '1000';
+        document.body.appendChild(contextMenu);
+
+        const triggerDetectionBtn = document.createElement('button');
+        triggerDetectionBtn.textContent = 'Trigger Detection';
+        triggerDetectionBtn.className = 'btn btn-secondary btn-sm';
+        triggerDetectionBtn.onclick = function () {
+            if (currentContextLatLng) {
+                sendDetectionAt(currentContextLatLng.lat, currentContextLatLng.lng);
+            }
+            hideContextMenu();
+        };
+        contextMenu.appendChild(triggerDetectionBtn);
+
+        let currentContextLatLng = null;
+
+        function showContextMenu(x, y, latlng) {
+            contextMenu.style.left = x + 'px';
+            contextMenu.style.top = y + 'px';
+            contextMenu.style.display = 'block';
+            currentContextLatLng = latlng;
+        }
+
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+            currentContextLatLng = null;
+        }
+
+        // Right-click to show context menu
+        map.on('contextmenu', function (e) {
+            e.originalEvent.preventDefault();
+            showContextMenu(e.originalEvent.pageX, e.originalEvent.pageY, e.latlng);
+        });
+
+        increasingDetectionId = 300; // Start high so not interfering with real detections
+        function sendDetectionAt(lat, lng) {
+            const droneId = activeMissionsData.find(m => m.mission_type == "GotoAndSurveil" && m.status == "DISPATCHED")?.drone_id;
+            if (!droneId) {
+                alert("No active GotoAndSurveil mission found to associate detection with.");
+                return;
+            }
+            const detection = {
+                drone_ids: [droneId],
+                gps_position: [lat, lng],
+                object_type: "person",
+                detection_id: increasingDetectionId++,
+                timestamp: Date.now()
+            };
+            fetch("/api/v1/set_detections", {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify([detection])
+            }).then(response => response.json()).then(result => {
+                if (result.error) alert("Error: " + result.error);
+                else console.log("Detection triggered at", lat, lng);
+            }).catch(error => {
+                alert("Failed to trigger detection");
+            });
+        }
+
         function ensureDroneMarker(droneId, lat, lon) {
             registerDroneDisplayName(droneId);
 
@@ -1006,6 +1169,13 @@
                         alert(`Dispatched ${result.data.mission.drone_id} on surveil mission`);
                         const coords = [result.data.mission.coordinates.lat, result.data.mission.coordinates.lon];
                         const altitude = result.data.mission.coordinates.alt;
+
+                        console.log(result.data.mission)
+
+                        activeMissions[result.data.mission.drone_id] = result.data.mission_id;
+                        activeMissionsData.push(result.data.mission);
+                        updateActiveMissionsList(activeMissionsData);
+
                         if (coords) {
                             const watchAreaIcon = L.icon({ iconUrl: '/images/camera.png', iconSize: [20, 15], iconAnchor: [10, 15], popupAnchor: [0, -28] });
                             if (watchAreaMarker) watchAreaMarker.setLatLng(coords);
@@ -1150,49 +1320,38 @@
 
                 createMissionButtons();
             }
+
+            if (data.msg_type === "task") {
+                (async () => {
+                    let mission = activeMissionsData.find(m => m.mission_id === data.mission_id);
+
+                    if (mission && mission.task_status && mission.task_status.length > data.index) {
+                        mission.task_status[data.index] = "IN_PROGRESS";
+                        updateActiveMissionsList(activeMissionsData);
+                    }
+                })();
+            }
+
+            if (data.msg_type === "task_event") {
+                if (data.event === "task_complete") {
+                    (async () => {
+                        let mission = activeMissionsData.find(m => m.mission_id === data.mission_id);
+
+                        if (mission && mission.task_status && mission.task_status.length > data.index) {
+                            if (data.index == mission.task_status.length - 1 && mission.tasks[mission.tasks.length - 1].action == "go_home") {
+                                setTimeout(() => {
+                                    activeMissionsData = activeMissionsData.filter(m => m.mission_id !== data.mission_id);
+                                    updateActiveMissionsList(activeMissionsData);
+                                }, 3000);
+                            }
+                            mission.task_status[data.index] = "COMPLETED";
+                            updateActiveMissionsList(activeMissionsData);
+                        }
+                    })();
+                }
+            }
         };
 
-        // function sendFlightCommand(droneId, command) {
-        //     if (flightmanagerWS.readyState === WebSocket.OPEN) {
-        //         const message = {
-        //             drone_id: String(droneId),
-        //             command: command
-        //         };
-        //         const jsonMessage = JSON.stringify(message);
-        //         flightmanagerWS.send(jsonMessage);
-        //         console.log(`Sent command to flightmanagerWS: ${jsonMessage}`);
-        //     } else {
-        //         alert("FlightManager connection is not active.");
-        //     }
-        // }
-
-        // document.querySelectorAll('.drone-controls button').forEach(button => {
-        //     button.addEventListener('click', function () {
-        //         const droneSlot = Number(this.getAttribute('data-drone-slot'));
-        //         const droneId = droneIdBySlot.get(droneSlot);
-        //         const command = this.getAttribute('data-command');
-        //         if (droneId && command) {
-        //             sendFlightCommand(droneId, command);
-        //         } else {
-        //             console.error("Button is missing a registered drone for its slot or data-command attribute:", this);
-        //         }
-        //     });
-        // });
-
-        // Lyssnare för kommandon till alla drönare (från main)
-        document.querySelectorAll('.all-drone-command-btn').forEach(button => {
-            button.addEventListener('click', function () {
-                const command = this.getAttribute('data-command');
-                if (command) {
-                    console.log(`Sending command '${command}' to all drones.`);
-                    droneIdBySlot.forEach((droneId) => {
-                        sendFlightCommand(droneId, command);
-                    });
-                } else {
-                    console.error("All-drone command button is missing data-command attribute:", this);
-                }
-            });
-        });
 
         document.querySelector("#sendDetection").onclick = async (event) => {
             try {
@@ -1205,7 +1364,7 @@
                         gps_position: [parseFloat(document.getElementById("detection_lat_lon").value.split(",")[0]), parseFloat(document.getElementById("detection_lat_lon").value.split(",")[1])],
                         object_type: document.getElementById("detection_class").value,
                         detection_id: document.getElementById("detection_id").value,
-                        timestamp: new Date().getMilliseconds()
+                        timestamp: new Date().getTime()
                     }])
                 });
                 const result = await response.json();

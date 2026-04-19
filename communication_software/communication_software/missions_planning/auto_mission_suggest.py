@@ -16,6 +16,7 @@ from .missions import (
     Mission,
 )
 from .drone_selector import select_drone_for_mission
+from communication_software.missions_planning.mission_status import MissionStatus
 from communication_software.constants import DRONE_EVENT_CHANNEL, SURVEIL_AREA_CHANNEL
 from communication_software.missions_planning.mission_registry import MissionRegistry
 
@@ -307,6 +308,7 @@ class AutoMissionSuggester:
                     self._drone_id_on_surveil = surveil_mission.drone_id
                     MissionRegistry.store(surveil_mission)
                     MissionRegistry.dispatch_mission(surveil_mission.mission_id)
+                    surveil_mission.status = MissionStatus.DISPATCHED
                     print(f"[area_listener] First task sent")
 
                     self._redis.set("watch_area", json.dumps({"points": points}))

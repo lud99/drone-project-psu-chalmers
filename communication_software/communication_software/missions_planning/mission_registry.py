@@ -1,7 +1,7 @@
 import redis
 import os
 import json
-from .mission_status import MissionStatus
+from .mission_status import MissionStatus, TaskStatus
 
 import communication_software.common.json_schemas as json_schemas
 from communication_software.missions_planning.missions import GoHome, Mission
@@ -48,7 +48,7 @@ class MissionRegistry:
         )
 
     @staticmethod
-    def dispatch_mission(mission_id: str):
+    def dispatch_mission(mission_id: str) -> Mission:
         mission = json.loads(r.get(f"mission_{mission_id}_state"))
 
         if MissionRegistry.is_drone_dispatched(mission["drone_id"]):
@@ -64,6 +64,8 @@ class MissionRegistry:
 
         r.publish(DRONE_COMMANDS_CHANNEL, first_task_raw)
         r.publish(DRONE_EVENT_CHANNEL, first_task_raw)
+
+        return mission
 
     @staticmethod
     def abort_mission(mission_id: str, exception_on_not_dispatched: bool = True):
@@ -89,7 +91,7 @@ class MissionRegistry:
         print("[Mission Registry] Sent abort command for drone", mission["drone_id"])
 
     @staticmethod
-    def abort_mission_and_go_home(drone_id: str):
+    def abort_mission_and_go_home(drone_id: str) -> Mission:
         # Hitta aktivt mission för drönaren
         all_missions = MissionRegistry.get_all()
         active_mission = next(
@@ -117,7 +119,7 @@ class MissionRegistry:
         )
 
         MissionRegistry.store(go_home_mission)
-        MissionRegistry.dispatch_mission(go_home_mission.mission_id)
+        go_home_mission = MissionRegistry.dispatch_mission(go_home_mission.mission_id)
 
         # go_home = json_schemas.TaskMessage(
         #     drone_id=drone_id,
@@ -132,6 +134,7 @@ class MissionRegistry:
         # r.publish(DRONE_EVENT_CHANNEL, go_home.model_dump_json())
 
         print("[Mission Registry] Sent go home command for drone", drone_id)
+        return go_home_mission
 
     @staticmethod
     def get(mission_id: str):
@@ -153,6 +156,13 @@ class MissionRegistry:
         mission = MissionRegistry.get(mission_id)
         if mission:
             mission["status"] = status.value
+            r.set(f"mission_{mission_id}_state", json.dumps(mission))
+
+    @staticmethod
+    def update_task_status(mission_id: str, task_index: int, status: TaskStatus):
+        mission = MissionRegistry.get(mission_id)
+        if mission:
+            mission["task_status"][task_index] = status.value
             r.set(f"mission_{mission_id}_state", json.dumps(mission))
 
     @staticmethod
