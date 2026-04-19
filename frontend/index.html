@@ -200,7 +200,12 @@
                 });
                 if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
                 const result = await response.json();
-                if (!result.error) alert("Mission dispatched ok");
+                if (!result.error) {
+                    const missionSetId = currentMissionSetId || findMissionSetByMissionId(missionId)?.mission_set_id;
+                    removeProposedMissionSetLocally(missionSetId);
+                    bootstrap.Modal.getInstance(missionModal)?.hide();
+                    alert("Mission dispatched ok");
+                }
                 else alert("Error: " + result.error);
             } catch (error) {
                 console.error("Error to dispatch", error);
@@ -405,6 +410,26 @@
             dispatchMission(currentMissionModalId);
         });
 
+        function clearCurrentMissionSelection() {
+            currentMissionSetId = "";
+            currentMissionModalId = "";
+            currentMissionDroneId = "";
+        }
+
+        function removeProposedMissionSetLocally(missionSetId) {
+            if (!missionSetId) return false;
+
+            const removed = proposedMissionSets.delete(missionSetId);
+            if (!removed) return false;
+
+            if (currentMissionSetId === missionSetId) {
+                clearCurrentMissionSelection();
+            }
+
+            createMissionButtons();
+            return true;
+        }
+
         async function discardMissionSet(missionSetId) {
             if (!missionSetId) return;
 
@@ -416,15 +441,7 @@
                 : [];
 
             if (missionIds.length === 0) {
-                const removed = proposedMissionSets.delete(missionSetId);
-                if (!removed) return;
-
-                if (currentMissionSetId === missionSetId) {
-                    currentMissionSetId = "";
-                    currentMissionModalId = "";
-                }
-
-                createMissionButtons();
+                removeProposedMissionSetLocally(missionSetId);
                 return;
             }
 
@@ -455,15 +472,7 @@
                 return;
             }
 
-            const removed = proposedMissionSets.delete(missionSetId);
-            if (!removed) return;
-
-            if (currentMissionSetId === missionSetId) {
-                currentMissionSetId = "";
-                currentMissionModalId = "";
-            }
-
-            createMissionButtons();
+            removeProposedMissionSetLocally(missionSetId);
         }
 
         document.getElementById('discardMissionModalBtn').addEventListener('click', async () => {
