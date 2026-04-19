@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+
+python3 export_host_ip.py
+
 # Start backend with no command, do allow debug
 export backend_command="sleep infinity"
 

@@ -45,8 +45,19 @@ class MissionExecutor:
         alt: float,
         heading: float | None = None,
     ) -> None:
-        if not self.adapter.set_mode("POSCTL"):
-            raise RuntimeError("Failed to switch to POSCTL mode")
+        # Some FC setups may reject POSCTL transiently even when navigation is
+        # still possible from another position-hold mode.
+        mode_set = False
+        for candidate_mode in ("POSCTL", "LOITER"):
+            try:
+                if self.adapter.set_mode(candidate_mode):
+                    mode_set = True
+                    break
+            except Exception:
+                continue
+
+        if not mode_set:
+            raise RuntimeError("Failed to switch to POSCTL/LOITER mode")
 
         time.sleep(1.0)
         self.adapter.go_to(lat, lon, alt, heading)

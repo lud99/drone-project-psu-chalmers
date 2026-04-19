@@ -6,16 +6,21 @@ services:
     tty: true
     env_file:
       - path: ./.env
+        required: false
       - path: ./host_ip.env
+        required: false
     build: 
       context: .
       dockerfile: ./Dockerfile
-    command: ${backend_command}
+    command:
+      - bash
+      - -lc
+      - ${backend_command:-source /root/atos_ws/install/local_setup.bash ; ros2 run communication_software run_main}
     networks:
       - atos-net 
     ports:
       - 8765:8765
-      - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
+      - "${WEBSOCKET_PORT:-14500}:${WEBSOCKET_PORT:-14500}" # Websocket port
       - 5001:5000
       - 8000:8000
       - 3478:3478/udp  # STUN server port
@@ -29,7 +34,7 @@ services:
       - DEBUG_MODE=False
       - N_DRONES=2
       - OVERLAP=0.5
-      - WEBSOCKET_PORT=${WEBSOCKET_PORT}
+      - WEBSOCKET_PORT=${WEBSOCKET_PORT:-14500}
     # volumes:
     #   - .:/root/atos_ws/src/communication_software
     depends_on:
@@ -103,7 +108,10 @@ services:
       - ./communication_software/common:/root/image_stitching/src/common
     depends_on:
       - redis
-    command: ${image_stitching_command}
+    command:
+      - bash
+      - -lc
+      - ${image_stitching_command:-cd /root/image_stitching/src && python3 main.py}
     # deploy: 
     #   resources:
     #     reservations:

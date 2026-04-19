@@ -105,18 +105,15 @@ class DroneController:
             self.state = DroneState.ARMING
             self.current_command = "arm"
             if hasattr(self.mission_executor, "arm"):
-                await asyncio.wait_for(
-                    asyncio.to_thread(self.mission_executor.arm),
-                    timeout=self.config.arm_command_timeout_sec,
-                )
+                # Let the mission executor arm flow report concrete FC rejections.
+                # Wrapping this thread call in wait_for can raise a false timeout
+                # while the underlying arm sequence is still running.
+                await asyncio.to_thread(self.mission_executor.arm)
             else:
                 # minimal takeoff
-                await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self.mission_executor.arm_and_takeoff,
-                        self.launch_altitude + 1,
-                    ),
-                    timeout=self.config.arm_command_timeout_sec,
+                await asyncio.to_thread(
+                    self.mission_executor.arm_and_takeoff,
+                    self.launch_altitude + 1,
                 )
             self.state = DroneState.IDLE
             logger.info("Drone armed successfully")
@@ -124,11 +121,15 @@ class DroneController:
         except asyncio.TimeoutError:
             self.state = DroneState.ERROR
             logger.error("Arm failed: command timed out")
+            snapshot = self.telemetry_manager.snapshot()
+            mode = snapshot.mode if snapshot.mode is not None else "UNKNOWN"
+            armed = snapshot.armed
             return {
                 "success": False,
                 "message": (
                     "Arm failed: command timed out while waiting for FC response "
-                    "(possible serial reconnect instability)"
+                    f"(mode={mode}, armed={armed}). "
+                    "If mode is LAND and does not change, clear prearm checks in FC/QGC and retry."
                 ),
             }
         except Exception as e:
@@ -137,7 +138,7 @@ class DroneController:
             return {"success": False, "message": f"Arm failed: {e}"}
 
     async def _takeoff_to_altitude(self, relative_alt: float) -> Dict[str, Any]:
-        if self.state not in [DroneState.IDLE, DroneState.HOVERING]:
+        if self.state not in [DroneState.IDLE, DroneState.HOVERING, DroneState.HOLDING]:
             return {"success": False, "message": f"Cannot takeoff in state: {self.state}"}
         if not (self.config.min_relative_altitude_m <= relative_alt <= self.config.max_relative_altitude_m):
             return {"success": False, "message": f"Altitude {relative_alt} out of range [{self.config.min_relative_altitude_m}, {self.config.max_relative_altitude_m}]"}
@@ -213,7 +214,7 @@ class DroneController:
 
     async def _goto_point(self, lat: float, lon: float, rel_alt: Optional[float] = None,
                           yaw: Optional[float] = None, radius: float = 2.0) -> Dict[str, Any]:
-        if self.state not in [DroneState.HOVERING, DroneState.NAVIGATING]:
+        if self.state not in [DroneState.HOVERING, DroneState.NAVIGATING, DroneState.HOLDING]:
             return {"success": False, "message": f"Cannot goto in state: {self.state}"}
         # Check geofence
         if not self.geofence.is_point_inside(lat, lon):
@@ -222,6 +223,8 @@ class DroneController:
         snapshot = self.telemetry_manager.snapshot()
         if snapshot.gps_fix_type is None or snapshot.gps_fix_type < 3:
             return {"success": False, "message": "GPS fix insufficient"}
+        if snapshot.armed is not True:
+            return {"success": False, "message": "Goto requires drone to be armed and airborne"}
         try:
             self.state = DroneState.NAVIGATING
             self.current_command = f"goto {lat},{lon}"
@@ -301,8 +304,17 @@ class DroneController:
             current_lat = snapshot.lat
             current_lon = snapshot.lon
             current_alt = snapshot.alt
+            armed = snapshot.armed
             if current_lat is None or current_lon is None or current_alt is None:
                 continue
+
+            # If FC reports disarmed while near ground, recover controller state.
+            if armed is False and current_alt <= 0.5:
+                self.state = DroneState.IDLE
+                self.current_command = None
+                logger.warning("Goto aborted: vehicle disarmed on ground, returning to IDLE")
+                return
+
             dist = haversine_distance(
                 current_lat, current_lon, target_lat, target_lon)
             alt_diff = abs((current_alt or 0) - target_alt)
@@ -317,6 +329,19 @@ class DroneController:
                 logger.warning("Goto timeout, holding position")
                 return
             await asyncio.sleep(1)
+
+    def _reconcile_state_from_telemetry(self, snapshot: Any) -> None:
+        """Keep controller state aligned with FC reality for recovery scenarios."""
+        if snapshot.armed is False and (snapshot.alt is None or snapshot.alt <= 0.5):
+            if self.state in {
+                DroneState.TAKING_OFF,
+                DroneState.HOVERING,
+                DroneState.NAVIGATING,
+                DroneState.HOLDING,
+                DroneState.LANDING,
+            }:
+                self.state = DroneState.IDLE
+                self.current_command = None
 
     async def _set_geofence(self, polygon: List[Dict]) -> Dict[str, Any]:
         points = [(p["latitude"], p["longitude"]) for p in polygon]
@@ -385,6 +410,7 @@ class DroneController:
 
     async def _get_status(self) -> Dict[str, Any]:
         snapshot = self.telemetry_manager.snapshot()
+        self._reconcile_state_from_telemetry(snapshot)
         polygon = None
         if self.geofence.polygon:
             polygon = [Point(latitude=lat, longitude=lon)

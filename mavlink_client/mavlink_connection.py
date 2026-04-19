@@ -569,11 +569,68 @@ class MavlinkConnectionManager:
             if msg.result == mavutil.mavlink.MAV_RESULT_TEMPORARILY_REJECTED:
                 reasons = self._collect_statustext(duration=2.0)
                 reason_text = reasons[-1] if reasons else "No STATUSTEXT reason reported"
-                raise RuntimeError(
-                    "Arm temporarily rejected (result=1). "
-                    f"Vehicle likely not in an armable state/mode (often still LAND). "
-                    f"FC reason: {reason_text}"
+                print(
+                    "[WARN] Arm temporarily rejected. "
+                    "Attempting one safe mode-switch retry..."
                 )
+
+                switched = False
+                for candidate_mode in ("LOITER", "POSCTL", "ALTCTL", "MANUAL"):
+                    try:
+                        if self.set_mode(candidate_mode, wait=True, timeout=4.0):
+                            switched = True
+                            print(f"[DEBUG] Mode changed to {candidate_mode} before arm retry")
+                            break
+                    except Exception as e:
+                        print(f"[WARN] Could not switch to {candidate_mode} before arm retry: {e}")
+
+                if not switched:
+                    raise RuntimeError(
+                        "Arm temporarily rejected (result=1). "
+                        f"Current mode={self._current_mode()}. "
+                        f"FC reason: {reason_text}"
+                    )
+
+                # Retry arm once after switching mode.
+                self._run_with_reconnect_retry("arm_retry", _send_arm)
+
+                retry_deadline = time.time() + 3.0
+                retry_rejected_reason = reason_text
+                retry_accepted = False
+                while time.time() < retry_deadline:
+                    retry_msg = self.recv_match(blocking=True, timeout=0.5)
+                    if retry_msg is None or retry_msg.get_type() != "COMMAND_ACK":
+                        continue
+                    if retry_msg.command != mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
+                        continue
+
+                    print(f"[DEBUG] ARM RETRY COMMAND_ACK result={retry_msg.result}")
+                    if retry_msg.result in (
+                        mavutil.mavlink.MAV_RESULT_ACCEPTED,
+                        mavutil.mavlink.MAV_RESULT_IN_PROGRESS,
+                    ):
+                        retry_accepted = True
+                        break
+
+                    if retry_msg.result == mavutil.mavlink.MAV_RESULT_TEMPORARILY_REJECTED:
+                        retry_reasons = self._collect_statustext(duration=2.0)
+                        if retry_reasons:
+                            retry_rejected_reason = retry_reasons[-1]
+                        break
+
+                    raise RuntimeError(
+                        f"Arm retry rejected with result={retry_msg.result} "
+                        f"in mode={self._current_mode()}"
+                    )
+
+                if not retry_accepted:
+                    raise RuntimeError(
+                        "Arm temporarily rejected (result=1) after mode-switch retry. "
+                        f"Current mode={self._current_mode()}. "
+                        f"FC reason: {retry_rejected_reason}"
+                    )
+
+                break
 
             raise RuntimeError(f"Arm command rejected with result={msg.result}")
 

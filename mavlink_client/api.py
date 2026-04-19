@@ -77,11 +77,11 @@ async def goto(data: Dict[str, Any]):
     if not controller:
         raise HTTPException(
             status_code=503, detail="Controller not initialized")
-    # Spawn background task for goto (long-running operation)
     cmd = Command(type=CommandType.GOTO_POINT, data=data)
-    task = asyncio.create_task(controller.execute_command(cmd))
-    background_tasks['goto'] = {'task': task, 'state': 'running'}
-    return {"success": True, "message": "Goto command accepted, executing in background", "task_id": "goto"}
+    result = await controller.execute_command(cmd)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
 
 
 @app.post("/api/geofence")
@@ -223,11 +223,7 @@ async def root():
             <button onclick="hold()">Hold</button>
             <br>
             <h3>Goto</h3>
-            <div style="font-size:0.85em;color:#555;margin-bottom:4px;">Absolute target</div>
-            <input type="number" id="gotoLat" placeholder="Latitude" step="0.000001">
-            <input type="number" id="gotoLon" placeholder="Longitude" step="0.000001">
             <input type="number" id="gotoAlt" placeholder="Rel Alt (m)" value="10">
-            <button onclick="gotoPoint()">Go To</button>
             <div style="font-size:0.85em;color:#555;margin:10px 0 4px 0;">Relative target</div>
             <input type="number" id="gotoDistance" placeholder="Distance (m)" value="5" min="0.1" step="0.1">
             <select id="gotoDirection">
@@ -394,36 +390,93 @@ async def root():
             if (data) options.headers = {'Content-Type': 'application/json'};
             if (data) options.body = JSON.stringify(data);
             const response = await fetch(endpoint, options);
-            return await response.json();
+            const payload = await response.json();
+            if (!response.ok) {
+                const msg = payload.detail || payload.message || ('HTTP ' + response.status);
+                throw new Error(msg);
+            }
+            return payload;
         }
 
-        async function arm()     { await apiCall('/api/arm');     updateStatus(); }
-        async function disarm()  { await apiCall('/api/disarm');  updateStatus(); }
+        async function arm() {
+            try { await apiCall('/api/arm'); await updateStatus(); }
+            catch (e) { alert('Arm failed: ' + e.message); }
+        }
+
+        async function disarm() {
+            try { await apiCall('/api/disarm'); await updateStatus(); }
+            catch (e) { alert('Disarm failed: ' + e.message); }
+        }
+
         async function takeoff() {
             const alt = parseFloat(document.getElementById('takeoffAlt').value);
-            await apiCall('/api/takeoff', 'POST', {relative_altitude_m: alt});
-            updateStatus();
+            try {
+                await apiCall('/api/takeoff', 'POST', {relative_altitude_m: alt});
+                await updateStatus();
+            } catch (e) {
+                alert('Takeoff failed: ' + e.message);
+            }
         }
-        async function land() { await apiCall('/api/land'); updateStatus(); }
-        async function hold() { await apiCall('/api/hold'); updateStatus(); }
-        async function gotoPoint() {
-            const lat = parseFloat(document.getElementById('gotoLat').value);
-            const lon = parseFloat(document.getElementById('gotoLon').value);
-            const alt = parseFloat(document.getElementById('gotoAlt').value);
-            await apiCall('/api/goto', 'POST', {latitude: lat, longitude: lon, relative_altitude_m: alt});
-            updateStatus();
+
+        async function land() {
+            try { await apiCall('/api/land'); await updateStatus(); }
+            catch (e) { alert('Land failed: ' + e.message); }
+        }
+
+        async function hold() {
+            try { await apiCall('/api/hold'); await updateStatus(); }
+            catch (e) { alert('Hold failed: ' + e.message); }
+        }
+
+        async function getCurrentState() {
+            const status = await apiCall('/api/status', 'GET');
+            return (status.state || '').toLowerCase();
+        }
+
+        async function getCurrentStatus() {
+            return await apiCall('/api/status', 'GET');
         }
 
         async function gotoRelative() {
             const distance = parseFloat(document.getElementById('gotoDistance').value);
             const direction = document.getElementById('gotoDirection').value;
             const alt = parseFloat(document.getElementById('gotoAlt').value);
-            await apiCall('/api/goto', 'POST', {
-                distance_m: distance,
-                direction: direction,
-                relative_altitude_m: alt
-            });
-            updateStatus();
+            try {
+                if (!Number.isFinite(distance) || distance <= 0) {
+                    alert('Relative goto requires a valid distance greater than 0.');
+                    return;
+                }
+                if (!Number.isFinite(alt) || alt <= 0) {
+                    alert('Relative goto requires a valid relative altitude greater than 0.');
+                    return;
+                }
+
+                const status = await getCurrentStatus();
+                const state = (status.state || '').toLowerCase();
+                if (state !== 'hovering' && state !== 'navigating' && state !== 'holding') {
+                    alert('Relative goto requires the drone to be airborne. Take off first and wait for hovering state.');
+                    return;
+                }
+
+                const telem = status.telemetry || {};
+                if (telem.armed !== true) {
+                    alert('Relative goto requires the drone to be armed. Arm and take off first.');
+                    return;
+                }
+                if ((telem.gps_fix_type ?? 0) < 3) {
+                    alert('Relative goto requires GPS fix type 3 or better.');
+                    return;
+                }
+
+                await apiCall('/api/goto', 'POST', {
+                    distance_m: distance,
+                    direction: direction,
+                    relative_altitude_m: alt
+                });
+                await updateStatus();
+            } catch (e) {
+                alert('Relative goto failed: ' + e.message);
+            }
         }
 
         async function updateStatus() {

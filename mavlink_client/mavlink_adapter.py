@@ -241,8 +241,10 @@ class MavlinkAdapter:
     def set_mode(self, mode: str) -> bool:
         target_mode = mode.upper()
         print(f"[DEBUG] Setting {target_mode} mode")
-        self.connection.set_mode(target_mode)
-        return self._wait_for_mode(target_mode, timeout=5.0)
+        # Connection layer already waits for HEARTBEAT-confirmed mode change.
+        # Avoid double-waiting here, which can produce false timeouts when
+        # telemetry snapshot lags behind the confirmed FC mode.
+        return self.connection.set_mode(target_mode, wait=True, timeout=5.0)
 
     def poll_telemetry(self) -> None:
         processed_any = False

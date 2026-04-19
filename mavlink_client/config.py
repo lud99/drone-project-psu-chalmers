@@ -35,7 +35,7 @@ class Config:
     max_polygon_points: int = int(os.getenv("MAX_POLYGON_POINTS", "20"))
     default_hold_behavior: str = os.getenv("DEFAULT_HOLD_BEHAVIOR", "loiter")
     arm_command_timeout_sec: float = float(
-        os.getenv("ARM_COMMAND_TIMEOUT_SEC", "20.0"))
+        os.getenv("ARM_COMMAND_TIMEOUT_SEC", "45.0"))
     takeoff_command_timeout_sec: float = float(
         os.getenv("TAKEOFF_COMMAND_TIMEOUT_SEC", "45.0"))
     api_port: int = int(os.getenv("API_PORT", "8000"))
