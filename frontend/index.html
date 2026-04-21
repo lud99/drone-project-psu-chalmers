@@ -75,6 +75,10 @@
                                         <button id="rthAllBtn" data-command="flight_return_to_home"
                                             class="btn btn-info btn-sm all-drone-command-btn"
                                             onclick="returnHomeAll()">Return Home All</button>
+                                        <button id="abortAllBtn" data-command="flight_abort"
+                                            class="btn btn-danger btn-sm all-drone-command-btn"
+                                            onclick="abortAll()">Abort All</button>
+
                                     </div>
 
                                     <div class="mt-3 p-2 border rounded bg-light">
@@ -164,7 +168,6 @@
         const BACKEND_URL_HTTP = "http://localhost:8000";
 
         // ── State ──────────────────────────────────────────────────────────────
-        const activeMissions = {};      // { "drone_id": "mission_id" }
         const markers = {};             // { "drone_id": leaflet marker }
         const lastDronePositions = {};  // { "drone_id": [lat, lon] }
         const specsLoaded = {};         // { "drone_id": true }
@@ -179,6 +182,7 @@
                 case 'FAILED': return 'text-danger';
                 case 'PENDING': return 'text-primary';
                 case 'IN_PROGRESS': return 'text-warning';
+                case 'WAITING': return 'text-info';
                 default: return 'text-muted';
             }
         }
@@ -189,6 +193,7 @@
                 case 'FAILED': return '❌';
                 case 'PENDING': return '🔄';
                 case 'IN_PROGRESS': return '⏳';
+                case 'WAITING': return '⏱️';
                 default: return '❓';
             }
         }
@@ -218,7 +223,13 @@
                     const status = mission.task_status[index] || 'PENDING';
                     const statusClass = getStatusClass(status);
                     const emoji = getStatusEmoji(status);
-                    return `<li class="list-group-item d-flex justify-content-between align-items-center">
+                    let bgColor = '';
+                    if (status === 'COMPLETED') {
+                        bgColor = 'background-color: #d4edda;'; // light green
+                    } else if (status === 'WAITING') {
+                        bgColor = 'background-color: #cfe2ff;'; // light blue
+                    }
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center" style="${bgColor}">
                         Task: ${task.action} <span class="${statusClass}">${emoji}</span>
                     </li>`;
                 }).join('');
@@ -228,7 +239,7 @@
                 html += `
                     <div class="active-mission mb-2">
                         <div class="mission-summary p-2 border rounded bg-light" data-mission-id="${mission.mission_id}" onclick="toggleMissionTasks(this)" style="cursor: pointer;">
-                            Mission for Drone ${mission.drone_id} - ${mission.mission_type || 'Unknown'}
+                            [${mission.status}] Mission for Drone ${mission.drone_id} - ${mission.mission_type || 'Unknown'}
                         </div>
                         <div class="mission-tasks" style="display: block;">
                             <ul class="list-group list-group-flush">${tasksHtml}</ul>
@@ -252,10 +263,7 @@
             try {
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
                 const missions = await response.json();
-                activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED");
-                activeMissionsData.forEach(mission => {
-                    activeMissions[mission.drone_id] = mission.mission_id;
-                });
+                activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED" || mission.status === "WAITING");
                 updateActiveMissionsList(activeMissionsData);
             } catch (error) {
                 console.error("Failed to fetch missions:", error);
@@ -282,7 +290,6 @@
                     removeProposedMissionSetLocally(missionSetId);
                     bootstrap.Modal.getInstance(missionModal)?.hide();
                     alert("Mission dispatched ok");
-                    activeMissions[result.mission.drone_id] = result.mission.mission_id;
                     activeMissionsData.push(result.mission);
                     updateActiveMissionsList(activeMissionsData);
                 }
@@ -435,7 +442,7 @@
 
         // ── Abort mission ──────────────────────────────────────────────────────
         async function abortMission(droneId) {
-            const missionId = activeMissions[droneId];
+            const missionId = activeMissionsData.find(m => m.drone_id === droneId && m.status === "DISPATCHED")?.mission_id;
             if (!missionId) { alert("Ingen aktiv mission för " + droneId); return; }
             if (!confirm(`Avbryt mission för ${droneId}?`)) return;
 
@@ -447,7 +454,6 @@
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Mission avbruten!");
-                delete activeMissions[droneId];
                 activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
                 updateActiveMissionsList(activeMissionsData);
             } catch (error) {
@@ -466,7 +472,6 @@
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Drönaren åker hem!");
-                delete activeMissions[droneId];
                 activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
                 activeMissionsData.push(data.mission);
                 updateActiveMissionsList(activeMissionsData);
@@ -483,16 +488,33 @@
         // ── Return home all ────────────────────────────────────────────────────
         async function returnHomeAll() {
             if (!confirm("Skicka hem ALLA drönare?")) return;
-            activeMissionsData = [];
+            // activeMissionsData = [];
             for (const droneId of connectedDroneIds) {
                 let response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
-                delete activeMissions[droneId];
                 activeMissionsData.push(data.mission);
             }
             alert("Alla drönare åker hem!");
             updateActiveMissionsList(activeMissionsData);
+        }
+
+        async function abortAll() {
+            if (!confirm(`Avbryt mission för alla drönare?`)) return;
+
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort_all/`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("All Missions cancelled!");
+                activeMissionsData = []
+                updateActiveMissionsList(activeMissionsData);
+            } catch (error) {
+                console.error("Abort all misslyckades:", error);
+            }
         }
 
         // ── Mission buttons ────────────────────────────────────────────────────
@@ -993,7 +1015,7 @@
                 drone_ids: [droneId],
                 gps_position: [lat, lng],
                 object_type: "person",
-                detection_id: increasingDetectionId++,
+                detection_id: document.getElementById("detection_id").value || ++increasingDetectionId,
                 timestamp: Date.now()
             };
             fetch("/api/v1/set_detections", {
@@ -1172,7 +1194,6 @@
 
                         console.log(result.data.mission)
 
-                        activeMissions[result.data.mission.drone_id] = result.data.mission_id;
                         activeMissionsData.push(result.data.mission);
                         updateActiveMissionsList(activeMissionsData);
 
@@ -1278,7 +1299,6 @@
                 const droneId = data.drone_id;
                 removeDroneStatusCard(droneId);
                 removeVideoDropdownOptions(droneId);
-                delete activeMissions[droneId];
                 delete specsLoaded[droneId];
                 delete lastDronePositions[droneId];
                 if (markers[droneId]) {
@@ -1348,6 +1368,66 @@
                             updateActiveMissionsList(activeMissionsData);
                         }
                     })();
+                }
+            }
+
+            if (data.msg_type === "new_surveil_mission") {
+                const incoming = data.mission;
+                if (!incoming || !incoming.mission_id) return;
+
+                const index = activeMissionsData.findIndex(
+                    m => m.mission_id === incoming.mission_id
+                );
+
+                if (index !== -1) {
+                    // Update existing mission
+                    activeMissionsData[index] = {
+                        ...activeMissionsData[index],
+                        ...incoming
+                    };
+                } else {
+                    // Add new mission
+                    activeMissionsData.push(incoming);
+                }
+
+                updateActiveMissionsList(activeMissionsData);
+            }
+
+            if (data.msg_type === "remove_mission") {
+                activeMissionsData = activeMissionsData.filter(m => m.mission_id !== data.mission.mission_id);
+                updateActiveMissionsList(activeMissionsData);
+            }
+
+            if (data.msg_type === "new_mission") {
+                const incoming = data.mission;
+                if (!incoming || !incoming.mission_id) return;
+
+                const index = activeMissionsData.findIndex(
+                    m => m.mission_id === incoming.mission_id
+                );
+
+                if (index !== -1) {
+                    // Update existing mission (preserve object reference if needed)
+                    activeMissionsData[index] = {
+                        ...activeMissionsData[index],
+                        ...incoming
+                    };
+                } else {
+                    // Insert new mission
+                    activeMissionsData.push(incoming);
+                }
+
+                updateActiveMissionsList(activeMissionsData);
+
+                if (incoming.status === "COMPLETED") {
+                    (async () => {
+
+                        setTimeout(() => {
+                            activeMissionsData = activeMissionsData.filter(m => m.mission_id !== incoming.mission_id);
+                            updateActiveMissionsList(activeMissionsData);
+                        }, 3000);
+                    })
+                        ();
                 }
             }
         };

@@ -48,13 +48,29 @@ class MissionRegistry:
         )
 
     @staticmethod
-    def dispatch_mission(mission_id: str) -> Mission:
+    def dispatch_mission(mission_id: str) -> dict:
         mission = json.loads(r.get(f"mission_{mission_id}_state"))
 
         if MissionRegistry.is_drone_dispatched(mission["drone_id"]):
             raise Exception(
                 f"Cannot dispatch drone {mission['drone_id']}, it is already on a mission"
             )
+
+        # if the drone has a waiting mission, only dispatch the mission_id if the waiting mission is the same as the mission_id, otherwise raise an exception
+        if MissionRegistry.is_drone_waiting(mission["drone_id"]):
+            waiting_mission = next(
+                (
+                    m
+                    for m in MissionRegistry.get_all()
+                    if m["drone_id"] == mission["drone_id"]
+                    and m["status"] == MissionStatus.WAITING.value
+                ),
+                None,
+            )
+            if waiting_mission and waiting_mission["mission_id"] != mission_id:
+                raise Exception(
+                    f"Cannot dispatch mission {mission_id} for drone {mission['drone_id']}, it has a waiting mission {waiting_mission['mission_id']}"
+                )
 
         mission["status"] = MissionStatus.DISPATCHED.value
 
@@ -71,7 +87,10 @@ class MissionRegistry:
     def abort_mission(mission_id: str, exception_on_not_dispatched: bool = True):
         mission = json.loads(r.get(f"mission_{mission_id}_state"))
 
-        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]):
+        # This should actually only be to check if the drone is dispatched, but looks complicated..
+        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]) and (
+            not MissionRegistry.is_drone_waiting(mission["drone_id"])
+        ):
             if exception_on_not_dispatched:
                 raise Exception(
                     f"Cannot abort mission {mission_id}, drone {mission['drone_id']} is not on a mission"
@@ -87,11 +106,17 @@ class MissionRegistry:
 
         r.publish(DRONE_COMMANDS_CHANNEL, abort_message.model_dump_json())
         r.publish(DRONE_EVENT_CHANNEL, abort_message.model_dump_json())
+        r.publish(
+            DRONE_EVENT_CHANNEL,
+            json_schemas.FrontendMessages.RemoveMission(
+                mission=mission
+            ).model_dump_json(),
+        )
 
         print("[Mission Registry] Sent abort command for drone", mission["drone_id"])
 
     @staticmethod
-    def abort_mission_and_go_home(drone_id: str) -> Mission:
+    def abort_mission_and_go_home(drone_id: str) -> dict:
         # Hitta aktivt mission för drönaren
         all_missions = MissionRegistry.get_all()
         active_mission = next(
@@ -99,8 +124,7 @@ class MissionRegistry:
                 m
                 for m in all_missions
                 if m["drone_id"] == drone_id
-                and m["status"]
-                in [MissionStatus.DISPATCHED.value, MissionStatus.PENDING.value]
+                and m["status"] in [MissionStatus.DISPATCHED.value]
             ),
             None,
         )
@@ -115,7 +139,9 @@ class MissionRegistry:
             capabilities=json_schemas.Capabilities(
                 camera=None, spotlight=False, led=None, speaker=None
             ),
-            coordinates=json_schemas.GoToParams(lat=0, lon=0, alt=0),
+            coordinates=json_schemas.GoToParams(
+                lat=0, lon=0, alt=0
+            ),  # Just to have some coordinates, the drone ignores these and just go home
         )
 
         MissionRegistry.store(go_home_mission)
@@ -152,11 +178,12 @@ class MissionRegistry:
         return missions
 
     @staticmethod
-    def update_status(mission_id: str, status: MissionStatus):
+    def update_status(mission_id: str, status: MissionStatus) -> dict | None:
         mission = MissionRegistry.get(mission_id)
         if mission:
             mission["status"] = status.value
             r.set(f"mission_{mission_id}_state", json.dumps(mission))
+        return mission
 
     @staticmethod
     def update_task_status(mission_id: str, task_index: int, status: TaskStatus):
@@ -173,6 +200,40 @@ class MissionRegistry:
                     return True
 
         return False
+
+    @staticmethod
+    def is_drone_waiting(drone_id: str) -> bool:
+        for mission in MissionRegistry.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] == MissionStatus.WAITING.value:
+                    return True
+
+        return False
+
+    @staticmethod
+    def is_drone_dispatched_or_waiting(drone_id: str) -> bool:
+        for mission in MissionRegistry.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] in [
+                    MissionStatus.DISPATCHED.value,
+                    MissionStatus.WAITING.value,
+                ]:
+                    return True
+
+        return False
+
+    @staticmethod
+    def get_drone_on_surveil_mission() -> str | None:
+        """
+        Returns the drone_id of the drone currently on a GotoAndSurveil mission.
+        Returns None if no drone is on a surveil mission.
+        """
+        for mission in MissionRegistry.get_all():
+            if mission.get("mission_type") == "GotoAndSurveil" and mission[
+                "status"
+            ] in [MissionStatus.DISPATCHED.value]:
+                return mission["drone_id"]
+        return None
 
     @staticmethod
     def remove(mission_id: str):

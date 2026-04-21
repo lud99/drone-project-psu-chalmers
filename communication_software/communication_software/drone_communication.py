@@ -588,9 +588,54 @@ class DroneCommunication:
                         print(
                             f"Mission {message.mission_id} completed with go_home as last task. Marking mission as completed."
                         )
-                        MissionRegistry.update_status(
+                        mission = MissionRegistry.update_status(
                             message.mission_id, MissionStatus.COMPLETED
                         )
+
+                        r.publish(
+                            DRONE_EVENT_CHANNEL,
+                            json_schemas.FrontendMessages.NewMission(
+                                mission=mission
+                            ).model_dump_json(),
+                        )
+
+                        # Check if there's a pending surveil mission to dispatch
+                        pending_surveil_raw = r.get("pending_surveil_mission")
+                        if pending_surveil_raw:
+                            try:
+                                pending_surveil = json.loads(pending_surveil_raw)
+                                pending_mission = pending_surveil["mission"]
+                                coverage_corners = pending_surveil["coverage_corners"]
+                                new_drone_id = pending_mission["drone_id"]
+
+                                print(
+                                    f"[handle_task_event] Dispatching pending surveil mission {pending_mission['mission_id']} for drone {new_drone_id}"
+                                )
+                                surveil_mission = MissionRegistry.dispatch_mission(
+                                    pending_mission["mission_id"]
+                                )
+                                r.set(
+                                    "watch_area_coverage", json.dumps(coverage_corners)
+                                )
+
+                                # Remove the pending mission from Redis
+                                r.delete("pending_surveil_mission")
+
+                                print(
+                                    f"[handle_task_event] Replaced surveil mission: old drone {connection_id} -> new drone {new_drone_id}"
+                                )
+
+                                r.publish(
+                                    DRONE_EVENT_CHANNEL,
+                                    json_schemas.FrontendMessages.NewMission(
+                                        mission=surveil_mission
+                                    ).model_dump_json(),
+                                )
+                            except Exception as exc:
+                                print(
+                                    f"[handle_task_event] Error dispatching pending surveil mission: {exc}"
+                                )
+
                         return
 
                 next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")

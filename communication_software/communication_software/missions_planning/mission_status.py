@@ -3,10 +3,10 @@ from enum import Enum
 
 class MissionStatus(Enum):
     PENDING = "PENDING"
+    WAITING = "WAITING"
     DISPATCHED = "DISPATCHED"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    ABORTED = "ABORTED"
 
 
 class TaskStatus(Enum):

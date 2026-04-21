@@ -382,6 +382,18 @@ def abort_mission(mission_id: str):
         return {"msg_type": "response", "error": str(e)}
 
 
+@app.post("/api/v1/missions/abort_all")
+def abort_all_missions(mission_id: str):
+    try:
+        missions = MissionRegistry.get_all()
+        for mission in missions:
+            MissionRegistry.abort_mission(mission["mission_id"], False)
+
+        return {"status": "aborted", "mission_id": mission_id}
+    except Exception as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
 @app.post("/api/v1/missions/return_home/{drone_id}")
 def return_home(drone_id: str):
     try:

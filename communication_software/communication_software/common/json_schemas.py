@@ -320,6 +320,14 @@ class FrontendMessages:
         mission_type: Optional[str]
         coordinates: GoToParams
 
+    class NewMission(FrontendMessage):
+        msg_type: Literal["new_mission"] = "new_mission"
+        mission: dict
+
+    class RemoveMission(FrontendMessage):
+        msg_type: Literal["remove_mission"] = "remove_mission"
+        mission: dict
+
     class ActiveMissions(FrontendMessage):
         msg_type: Literal["active_missions"] = "active_missions"
         missions: list[dict]
