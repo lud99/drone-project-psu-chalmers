@@ -255,7 +255,7 @@ def dispatch_mission(mission_id: str):
         if not mission:
             return {"msg_type": "response", "error": "Mission not found"}
 
-        MissionRegistry.dispatch_mission(mission_id)
+        mission = MissionRegistry.dispatch_mission(mission_id)
 
         return {"status": "dispatched", "mission": mission}
     except Exception as e:
@@ -385,9 +385,13 @@ def abort_mission(mission_id: str):
 @app.post("/api/v1/missions/return_home/{drone_id}")
 def return_home(drone_id: str):
     try:
-        MissionRegistry.abort_mission_and_go_home(drone_id)
+        go_home_mission = MissionRegistry.abort_mission_and_go_home(drone_id)
 
-        return {"status": "returning_home", "drone_id": drone_id}
+        return {
+            "status": "returning_home",
+            "drone_id": drone_id,
+            "mission": go_home_mission,
+        }
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 

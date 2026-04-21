@@ -6,6 +6,7 @@ from typing import Optional
 import communication_software.common.json_schemas as json_schemas
 from communication_software.missions_planning.mission_status import (
     MissionStatus,
+    TaskStatus,
 )
 
 from communication_software.missions_planning.drone_capability_helpers import (
@@ -77,6 +78,9 @@ class Mission(ABC):
 
     def to_dict(self) -> dict:
         task_json = [task.model_dump() for task in self.get_tasks()]
+        task_status = [TaskStatus.PENDING.value for _ in task_json]
+        if task_status:
+            task_status[0] = TaskStatus.IN_PROGRESS.value
         return {
             "mission_id": self.mission_id,
             "drone_id": self.drone_id,
@@ -84,6 +88,7 @@ class Mission(ABC):
             "status": self.status.value,
             "coordinates": self.coordinates.model_dump(),
             "tasks": task_json,
+            "task_status": task_status,
         }
 
 
