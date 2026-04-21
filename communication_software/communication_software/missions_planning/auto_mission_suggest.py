@@ -185,9 +185,9 @@ class AutoMissionSuggester:
         if detection.detection_id:
             id_key = f"{detection.object_type}:{detection.detection_id}"
             if id_key in self._recent_detection_ids:
-                # print(
-                #     f"Skipping detection {detection.detection_id}, was already detection during cooldown period"
-                # )
+                print(
+                    f"Skipping detection {detection.detection_id}, was already detection during cooldown period"
+                )
                 return True
 
         lat = detection.gps_position[0]
@@ -488,7 +488,8 @@ class AutoMissionSuggester:
                     ):
                         self.handle_detected_object(detection)
                     else:
-                        print("Found detection but drone is not dispatched")
+                        pass
+                        # print("Found detection but drone is not dispatched")
 
             self._sleep_with_stop_check(0.5)
 
@@ -573,9 +574,9 @@ class AutoMissionSuggester:
             return
 
         if not self._is_detection_within_watch_area(detection.gps_position):
-            # print(
-            #     f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
-            # )
+            print(
+                f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
+            )
             return
 
         print(
