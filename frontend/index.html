@@ -75,6 +75,10 @@
                                         <button id="rthAllBtn" data-command="flight_return_to_home"
                                             class="btn btn-info btn-sm all-drone-command-btn"
                                             onclick="returnHomeAll()">Return Home All</button>
+                                        <button id="abortAllBtn" data-command="flight_abort"
+                                            class="btn btn-danger btn-sm all-drone-command-btn"
+                                            onclick="abortAll()">Abort All</button>
+
                                     </div>
 
                                     <div class="mt-3 p-2 border rounded bg-light">
@@ -493,6 +497,24 @@
             }
             alert("Alla drönare åker hem!");
             updateActiveMissionsList(activeMissionsData);
+        }
+
+        async function abortAll() {
+            if (!confirm(`Avbryt mission för alla drönare?`)) return;
+
+            try {
+                const response = await fetch(
+                    `${BACKEND_URL_HTTP}/api/v1/missions/abort_all/`,
+                    { method: "POST" }
+                );
+                const data = await response.json();
+                if (data.error) { alert("Fel: " + data.error); return; }
+                alert("All Missions cancelled!");
+                activeMissionsData = []
+                updateActiveMissionsList(activeMissionsData);
+            } catch (error) {
+                console.error("Abort all misslyckades:", error);
+            }
         }
 
         // ── Mission buttons ────────────────────────────────────────────────────
