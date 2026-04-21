@@ -179,6 +179,7 @@
                 case 'FAILED': return 'text-danger';
                 case 'PENDING': return 'text-primary';
                 case 'IN_PROGRESS': return 'text-warning';
+                case 'WAITING': return 'text-info';
                 default: return 'text-muted';
             }
         }
@@ -189,6 +190,7 @@
                 case 'FAILED': return '❌';
                 case 'PENDING': return '🔄';
                 case 'IN_PROGRESS': return '⏳';
+                case 'WAITING': return '⏱️';
                 default: return '❓';
             }
         }
@@ -218,7 +220,13 @@
                     const status = mission.task_status[index] || 'PENDING';
                     const statusClass = getStatusClass(status);
                     const emoji = getStatusEmoji(status);
-                    return `<li class="list-group-item d-flex justify-content-between align-items-center">
+                    let bgColor = '';
+                    if (status === 'COMPLETED') {
+                        bgColor = 'background-color: #d4edda;'; // light green
+                    } else if (status === 'WAITING') {
+                        bgColor = 'background-color: #cfe2ff;'; // light blue
+                    }
+                    return `<li class="list-group-item d-flex justify-content-between align-items-center" style="${bgColor}">
                         Task: ${task.action} <span class="${statusClass}">${emoji}</span>
                     </li>`;
                 }).join('');
@@ -228,7 +236,7 @@
                 html += `
                     <div class="active-mission mb-2">
                         <div class="mission-summary p-2 border rounded bg-light" data-mission-id="${mission.mission_id}" onclick="toggleMissionTasks(this)" style="cursor: pointer;">
-                            Mission for Drone ${mission.drone_id} - ${mission.mission_type || 'Unknown'}
+                            [${mission.status}] Mission for Drone ${mission.drone_id} - ${mission.mission_type || 'Unknown'}
                         </div>
                         <div class="mission-tasks" style="display: block;">
                             <ul class="list-group list-group-flush">${tasksHtml}</ul>
@@ -252,7 +260,7 @@
             try {
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
                 const missions = await response.json();
-                activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED");
+                activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED" || mission.status === "WAITING");
                 activeMissionsData.forEach(mission => {
                     activeMissions[mission.drone_id] = mission.mission_id;
                 });
@@ -483,7 +491,7 @@
         // ── Return home all ────────────────────────────────────────────────────
         async function returnHomeAll() {
             if (!confirm("Skicka hem ALLA drönare?")) return;
-            activeMissionsData = [];
+            // activeMissionsData = [];
             for (const droneId of connectedDroneIds) {
                 let response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
                 const data = await response.json();
@@ -1348,6 +1356,75 @@
                             updateActiveMissionsList(activeMissionsData);
                         }
                     })();
+                }
+            }
+
+            if (data.msg_type === "new_surveil_mission") {
+                const incoming = data.mission;
+                if (!incoming || !incoming.mission_id) return;
+
+                const index = activeMissionsData.findIndex(
+                    m => m.mission_id === incoming.mission_id
+                );
+
+                if (index !== -1) {
+                    // Update existing mission
+                    activeMissionsData[index] = {
+                        ...activeMissionsData[index],
+                        ...incoming
+                    };
+                } else {
+                    // Add new mission
+                    activeMissionsData.push(incoming);
+                }
+
+                if (incoming.drone_id) {
+                    activeMissions[incoming.drone_id] = incoming.mission_id;
+                }
+
+                updateActiveMissionsList(activeMissionsData);
+            }
+
+            if (data.msg_type === "remove_mission") {
+                activeMissionsData = activeMissionsData.filter(m => m.mission_id !== data.mission.mission_id);
+                updateActiveMissionsList(activeMissionsData);
+            }
+
+            if (data.msg_type === "new_mission") {
+                const incoming = data.mission;
+                if (!incoming || !incoming.mission_id) return;
+
+                const index = activeMissionsData.findIndex(
+                    m => m.mission_id === incoming.mission_id
+                );
+
+                if (index !== -1) {
+                    // Update existing mission (preserve object reference if needed)
+                    activeMissionsData[index] = {
+                        ...activeMissionsData[index],
+                        ...incoming
+                    };
+                } else {
+                    // Insert new mission
+                    activeMissionsData.push(incoming);
+                }
+
+                // Keep lookup map in sync
+                if (incoming.drone_id) {
+                    activeMissions[incoming.drone_id] = incoming.mission_id;
+                }
+
+                updateActiveMissionsList(activeMissionsData);
+
+                if (incoming.status === "COMPLETED") {
+                    (async () => {
+
+                        setTimeout(() => {
+                            activeMissionsData = activeMissionsData.filter(m => m.mission_id !== incoming.mission_id);
+                            updateActiveMissionsList(activeMissionsData);
+                        }, 3000);
+                    })
+                        ();
                 }
             }
         };

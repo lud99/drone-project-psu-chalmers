@@ -19,7 +19,6 @@ from .drone_selector import select_drone_for_mission
 from communication_software.missions_planning.mission_status import MissionStatus
 from communication_software.constants import DRONE_EVENT_CHANNEL, SURVEIL_AREA_CHANNEL
 from communication_software.missions_planning.mission_registry import MissionRegistry
-from communication_software.missions_planning.mission_status import MissionStatus
 
 COOLDOWN_SECONDS = 60.0
 DEDUP_DISTANCE_METERS = 10.0
@@ -64,7 +63,6 @@ class AutoMissionSuggester:
         self._recent_detection_ids: dict[str, float] = {}
         self._recent_detection_events: list[json_schemas.SingleDetection] = []
         self._stop_event = threading.Event()
-        self._drone_id_on_surveil = None
         self._battery_monitor_thread = threading.Thread(target=self.battery_monitor)
         self._battery_monitor_thread.start()
 
@@ -187,9 +185,9 @@ class AutoMissionSuggester:
         if detection.detection_id:
             id_key = f"{detection.object_type}:{detection.detection_id}"
             if id_key in self._recent_detection_ids:
-                print(
-                    f"Skipping detection {detection.detection_id}, was already detection during cooldown period"
-                )
+                # print(
+                #     f"Skipping detection {detection.detection_id}, was already detection during cooldown period"
+                # )
                 return True
 
         lat = detection.gps_position[0]
@@ -256,11 +254,10 @@ class AutoMissionSuggester:
                         points, diagonal_fov=82.6
                     )
 
-                    if (self._drone_id_on_surveil is not None) and (
-                        MissionRegistry.is_drone_dispatched_or_waiting(
-                            self._drone_id_on_surveil
-                        )
-                    ):
+                    current_surveil_drone = (
+                        MissionRegistry.get_drone_on_surveil_mission()
+                    )
+                    if current_surveil_drone is not None:
                         print(
                             "[area_listener] A drone is already on a GotoAndSurveil mission, will not dispatch a new one"
                         )
@@ -285,7 +282,6 @@ class AutoMissionSuggester:
 
                     print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
 
-                    self._drone_id_on_surveil = surveil_mission.drone_id
                     MissionRegistry.store(surveil_mission)
                     MissionRegistry.dispatch_mission(surveil_mission.mission_id)
                     surveil_mission.status = MissionStatus.DISPATCHED
@@ -373,10 +369,8 @@ class AutoMissionSuggester:
         If the surveil drone's battery is below threshold, dispatches a new surveil mission with another drone.
         """
         while not self._stop_event.is_set():
-            # Check if pending surveil mission has been deployed
-            self._check_pending_surveil_deployment()
-
-            if self._drone_id_on_surveil is not None:
+            current_surveil_drone = MissionRegistry.get_drone_on_surveil_mission()
+            if current_surveil_drone is not None:
                 for key in self._redis.scan_iter(match="telemetry_drone*"):
                     drone_id = key.replace("telemetry_drone", "")
                     raw = self._redis.get(key)
@@ -384,43 +378,33 @@ class AutoMissionSuggester:
                         try:
                             telemetry = json_schemas.parse_telemetry(raw)
                             if (
-                                telemetry.battery_percent < BATTERY_THRESHOLD
-                                and drone_id == self._drone_id_on_surveil
+                                telemetry.battery_percent <= BATTERY_THRESHOLD
+                                and drone_id == current_surveil_drone
                             ):
                                 print(
                                     f"Battery low for drone {drone_id} ({telemetry.battery_percent}%), attempting to replace surveil mission."
                                 )
                                 self._add_pending_surveil_mission()
+
+                                # Send the old drone home, even if we can't find a replacement
+                                print(
+                                    f"[battery_monitor] Sending drone {drone_id} home"
+                                )
+                                go_home_mission = (
+                                    MissionRegistry.abort_mission_and_go_home(drone_id)
+                                )
+
+                                self._redis.publish(
+                                    DRONE_EVENT_CHANNEL,
+                                    json_schemas.FrontendMessages.NewMission(
+                                        mission=go_home_mission
+                                    ).model_dump_json(),
+                                )
                         except Exception as exc:
                             print(
                                 f"Failed to parse telemetry for drone {drone_id}: {exc}"
                             )
             self._sleep_with_stop_check(5.0)  # Check every 5 seconds
-
-    def _check_pending_surveil_deployment(self):
-        """
-        Checks if a pending surveil mission has been deployed and updates the tracking.
-        This is called after drone_communication dispatches the pending mission upon go_home completion.
-        """
-        pending_surveil_raw = self._redis.get("pending_surveil_mission")
-        if not pending_surveil_raw:
-            return
-
-        try:
-            pending_surveil = json.loads(pending_surveil_raw)
-            mission_id = pending_surveil.get("mission_id")
-            new_drone_id = pending_surveil.get("new_drone_id")
-
-            # Check if the mission is dispatched
-            mission = MissionRegistry.get(mission_id)
-            if mission and mission["status"] == MissionStatus.DISPATCHED.value:
-                print(
-                    f"[battery_monitor] Pending surveil mission {mission_id} has been deployed to drone {new_drone_id}"
-                )
-                self._drone_id_on_surveil = new_drone_id
-                # Note: Redis key will be cleaned up by drone_communication after dispatching
-        except Exception as exc:
-            print(f"[battery_monitor] Error checking pending surveil deployment: {exc}")
 
     def _add_pending_surveil_mission(self):
         """
@@ -435,9 +419,10 @@ class AutoMissionSuggester:
         points = json.loads(points_raw)["points"]
         normalized_points = self._extract_watch_area_points(points)
 
-        surveil_mission, coverage_corners, _min_rect_corners, message = (
+        current_surveil_drone = MissionRegistry.get_drone_on_surveil_mission()
+        surveil_mission, _coverage_corners, _min_rect_corners, message = (
             self._create_surveil_mission(
-                normalized_points, exclude_drone_id=self._drone_id_on_surveil
+                normalized_points, exclude_drone_id=current_surveil_drone
             )
         )
 
@@ -445,30 +430,30 @@ class AutoMissionSuggester:
             print(f"Failed to replace surveil mission: {message}")
             return
 
-        old_drone = self._drone_id_on_surveil
-
         # Store the pending surveil mission in Redis to be dispatched after go_home completes
         MissionRegistry.store(surveil_mission)
         # Mark it as waiting so the drone appears busy
-        MissionRegistry.update_status(surveil_mission.mission_id, MissionStatus.WAITING)
+        surveil_mission_dict = MissionRegistry.update_status(
+            surveil_mission.mission_id, MissionStatus.WAITING
+        )
+        pending_surveil_mission_message = json_schemas.FrontendMessages.NewMission(
+            mission=surveil_mission_dict
+        )
+
         self._redis.set(
             f"pending_surveil_mission",
-            json.dumps(
-                {
-                    "mission_id": surveil_mission.mission_id,
-                    "coverage_corners": coverage_corners,
-                    "drone_id": surveil_mission.drone_id,
-                }
-            ),
+            pending_surveil_mission_message.model_dump_json(),
         )
 
         print(
             f"[battery_monitor] Storing pending surveil mission {surveil_mission.mission_id} for drone {surveil_mission.drone_id}"
         )
 
-        # Send the old drone home
-        print(f"[battery_monitor] Sending drone {old_drone} home")
-        MissionRegistry.abort_mission_and_go_home(old_drone)
+        # Notify frontend
+
+        self._redis.publish(
+            DRONE_EVENT_CHANNEL, pending_surveil_mission_message.model_dump_json()
+        )
 
     def object_listener(self):
         """
@@ -588,9 +573,9 @@ class AutoMissionSuggester:
             return
 
         if not self._is_detection_within_watch_area(detection.gps_position):
-            print(
-                f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
-            )
+            # print(
+            #     f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
+            # )
             return
 
         print(

@@ -588,8 +588,15 @@ class DroneCommunication:
                         print(
                             f"Mission {message.mission_id} completed with go_home as last task. Marking mission as completed."
                         )
-                        MissionRegistry.update_status(
+                        mission = MissionRegistry.update_status(
                             message.mission_id, MissionStatus.COMPLETED
+                        )
+
+                        r.publish(
+                            DRONE_EVENT_CHANNEL,
+                            json_schemas.FrontendMessages.NewMission(
+                                mission=mission
+                            ).model_dump_json(),
                         )
 
                         # Check if there's a pending surveil mission to dispatch
@@ -597,14 +604,16 @@ class DroneCommunication:
                         if pending_surveil_raw:
                             try:
                                 pending_surveil = json.loads(pending_surveil_raw)
-                                pending_mission_id = pending_surveil["mission_id"]
+                                pending_mission = pending_surveil["mission"]
                                 coverage_corners = pending_surveil["coverage_corners"]
-                                new_drone_id = pending_surveil["new_drone_id"]
+                                new_drone_id = pending_mission["drone_id"]
 
                                 print(
-                                    f"[handle_task_event] Dispatching pending surveil mission {pending_mission_id} for drone {new_drone_id}"
+                                    f"[handle_task_event] Dispatching pending surveil mission {pending_mission['mission_id']} for drone {new_drone_id}"
                                 )
-                                MissionRegistry.dispatch_mission(pending_mission_id)
+                                surveil_mission = MissionRegistry.dispatch_mission(
+                                    pending_mission["mission_id"]
+                                )
                                 r.set(
                                     "watch_area_coverage", json.dumps(coverage_corners)
                                 )
@@ -614,6 +623,13 @@ class DroneCommunication:
 
                                 print(
                                     f"[handle_task_event] Replaced surveil mission: old drone {connection_id} -> new drone {new_drone_id}"
+                                )
+
+                                r.publish(
+                                    DRONE_EVENT_CHANNEL,
+                                    json_schemas.FrontendMessages.NewMission(
+                                        mission=surveil_mission
+                                    ).model_dump_json(),
                                 )
                             except Exception as exc:
                                 print(

@@ -4,8 +4,8 @@ To test the semi-full functionality of the system without a drone connected, a m
 To run the mock drone websockets have to be installed: ```pip install websockets```.
 In the repo root, run ```python -m mock_drone.main```.
 
-Multiple drones can be started, but all drones except the first one needs to be passed a unique id as the first parameter. replace <drone_id> with an id. If a video path is provided, that video will be streamed
- ```python -m mock_drone.main <drone_id> <video_path>```
+Multiple drones can be started, but all drones except the first one needs to be passed a unique id as the first parameter. replace <drone_id> with an id. A video will be streamed. If the second argument is ```drain```, the battery will be drained. If not provided it has infinite battery.
+ ```python -m mock_drone.main <drone_id> <drain?>```
 
 
 The drone registers itself with full specs, and streams video if a video file is provided. It sends telemetry messages continuously.
