@@ -164,7 +164,6 @@
         const BACKEND_URL_HTTP = "http://localhost:8000";
 
         // ── State ──────────────────────────────────────────────────────────────
-        const activeMissions = {};      // { "drone_id": "mission_id" }
         const markers = {};             // { "drone_id": leaflet marker }
         const lastDronePositions = {};  // { "drone_id": [lat, lon] }
         const specsLoaded = {};         // { "drone_id": true }
@@ -261,9 +260,6 @@
                 const response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions`);
                 const missions = await response.json();
                 activeMissionsData = missions.filter(mission => mission.status === "DISPATCHED" || mission.status === "WAITING");
-                activeMissionsData.forEach(mission => {
-                    activeMissions[mission.drone_id] = mission.mission_id;
-                });
                 updateActiveMissionsList(activeMissionsData);
             } catch (error) {
                 console.error("Failed to fetch missions:", error);
@@ -290,7 +286,6 @@
                     removeProposedMissionSetLocally(missionSetId);
                     bootstrap.Modal.getInstance(missionModal)?.hide();
                     alert("Mission dispatched ok");
-                    activeMissions[result.mission.drone_id] = result.mission.mission_id;
                     activeMissionsData.push(result.mission);
                     updateActiveMissionsList(activeMissionsData);
                 }
@@ -443,7 +438,7 @@
 
         // ── Abort mission ──────────────────────────────────────────────────────
         async function abortMission(droneId) {
-            const missionId = activeMissions[droneId];
+            const missionId = activeMissionsData.find(m => m.drone_id === droneId && m.status === "DISPATCHED")?.mission_id;
             if (!missionId) { alert("Ingen aktiv mission för " + droneId); return; }
             if (!confirm(`Avbryt mission för ${droneId}?`)) return;
 
@@ -455,7 +450,6 @@
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Mission avbruten!");
-                delete activeMissions[droneId];
                 activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
                 updateActiveMissionsList(activeMissionsData);
             } catch (error) {
@@ -474,7 +468,6 @@
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
                 alert("Drönaren åker hem!");
-                delete activeMissions[droneId];
                 activeMissionsData = activeMissionsData.filter(m => m.drone_id !== droneId);
                 activeMissionsData.push(data.mission);
                 updateActiveMissionsList(activeMissionsData);
@@ -496,7 +489,6 @@
                 let response = await fetch(`${BACKEND_URL_HTTP}/api/v1/missions/return_home/${droneId}`, { method: "POST" });
                 const data = await response.json();
                 if (data.error) { alert("Fel: " + data.error); return; }
-                delete activeMissions[droneId];
                 activeMissionsData.push(data.mission);
             }
             alert("Alla drönare åker hem!");
@@ -1001,7 +993,7 @@
                 drone_ids: [droneId],
                 gps_position: [lat, lng],
                 object_type: "person",
-                detection_id: increasingDetectionId++,
+                detection_id: document.getElementById("detection_id").value || ++increasingDetectionId,
                 timestamp: Date.now()
             };
             fetch("/api/v1/set_detections", {
@@ -1180,7 +1172,6 @@
 
                         console.log(result.data.mission)
 
-                        activeMissions[result.data.mission.drone_id] = result.data.mission_id;
                         activeMissionsData.push(result.data.mission);
                         updateActiveMissionsList(activeMissionsData);
 
@@ -1286,7 +1277,6 @@
                 const droneId = data.drone_id;
                 removeDroneStatusCard(droneId);
                 removeVideoDropdownOptions(droneId);
-                delete activeMissions[droneId];
                 delete specsLoaded[droneId];
                 delete lastDronePositions[droneId];
                 if (markers[droneId]) {
@@ -1378,10 +1368,6 @@
                     activeMissionsData.push(incoming);
                 }
 
-                if (incoming.drone_id) {
-                    activeMissions[incoming.drone_id] = incoming.mission_id;
-                }
-
                 updateActiveMissionsList(activeMissionsData);
             }
 
@@ -1407,11 +1393,6 @@
                 } else {
                     // Insert new mission
                     activeMissionsData.push(incoming);
-                }
-
-                // Keep lookup map in sync
-                if (incoming.drone_id) {
-                    activeMissions[incoming.drone_id] = incoming.mission_id;
                 }
 
                 updateActiveMissionsList(activeMissionsData);
