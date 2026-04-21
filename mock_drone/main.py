@@ -21,6 +21,13 @@ import communication_software.communication_software.common.json_schemas as json
 SERVER_WS_URL = "ws://localhost:14500"
 DRONE_ID = "haubits_77"
 TELEMETRY_INTERVAL = 5
+BATTERY_DRAIN_PER_MINUTE = 20  # Battery decreases by 20% per minute
+
+# Battery tracking
+current_battery = 60.0
+battery_drain_per_interval = BATTERY_DRAIN_PER_MINUTE / (
+    60 / TELEMETRY_INTERVAL
+)  # Drain per 5s interval
 
 liseberg = (57.696162, 11.991556)
 VIDEO_PATH = "mock_drone/test_video_2024.mp4"
@@ -28,7 +35,12 @@ VIDEO_PATH = "mock_drone/test_video_2024.mp4"
 
 async def send_telemetry(websocket, drone_id: str):
     """Continuously sends telemetry using the TelemetryMessage class."""
+    global current_battery
+
     while True:
+        # Decrease battery
+        current_battery = int(max(0.0, current_battery - battery_drain_per_interval))
+
         # Create the Telemetry sub-model
         current_telemetry = json_schemas.Telemetry(
             lat=liseberg[0] + (random.uniform(-0.001, 0.001)),
@@ -36,7 +48,7 @@ async def send_telemetry(websocket, drone_id: str):
             alt=random.uniform(110, 120),
             heading=random.randint(0, 359),
             speed=random.uniform(0.0, 5.5),
-            battery_percent=88,
+            battery_percent=current_battery,
         )
 
         # Wrap in the TelemetryMessage envelope
@@ -202,7 +214,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                     alt=random.uniform(110, 120),
                     heading=random.randint(0, 359),
                     speed=random.uniform(0.0, 5.5),
-                    battery_percent=88,
+                    battery_percent=current_battery,
                 ),
             )
 

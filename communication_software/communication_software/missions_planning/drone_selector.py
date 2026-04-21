@@ -411,7 +411,7 @@ class DroneSelector:
         available: list[DroneCandidate] = []
 
         for candidate in candidates:
-            if not MissionRegistry.is_drone_dispatched(candidate.drone_id):
+            if not MissionRegistry.is_drone_dispatched_or_waiting(candidate.drone_id):
                 available.append(candidate)
             else:
                 logger.info(

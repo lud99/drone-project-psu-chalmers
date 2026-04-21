@@ -56,6 +56,22 @@ class MissionRegistry:
                 f"Cannot dispatch drone {mission['drone_id']}, it is already on a mission"
             )
 
+        # if the drone has a waiting mission, only dispatch the mission_id if the waiting mission is the same as the mission_id, otherwise raise an exception
+        if MissionRegistry.is_drone_waiting(mission["drone_id"]):
+            waiting_mission = next(
+                (
+                    m
+                    for m in MissionRegistry.get_all()
+                    if m["drone_id"] == mission["drone_id"]
+                    and m["status"] == MissionStatus.WAITING.value
+                ),
+                None,
+            )
+            if waiting_mission and waiting_mission["mission_id"] != mission_id:
+                raise Exception(
+                    f"Cannot dispatch mission {mission_id} for drone {mission['drone_id']}, it has a waiting mission {waiting_mission['mission_id']}"
+                )
+
         mission["status"] = MissionStatus.DISPATCHED.value
 
         r.set(f"mission_{mission_id}_state", json.dumps(mission))
@@ -71,7 +87,10 @@ class MissionRegistry:
     def abort_mission(mission_id: str, exception_on_not_dispatched: bool = True):
         mission = json.loads(r.get(f"mission_{mission_id}_state"))
 
-        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]):
+        # This should actually only be to check if the drone is dispatched, but looks complicated..
+        if not MissionRegistry.is_drone_dispatched(mission["drone_id"]) and (
+            not MissionRegistry.is_drone_waiting(mission["drone_id"])
+        ):
             if exception_on_not_dispatched:
                 raise Exception(
                     f"Cannot abort mission {mission_id}, drone {mission['drone_id']} is not on a mission"
@@ -99,8 +118,7 @@ class MissionRegistry:
                 m
                 for m in all_missions
                 if m["drone_id"] == drone_id
-                and m["status"]
-                in [MissionStatus.DISPATCHED.value, MissionStatus.PENDING.value]
+                and m["status"] in [MissionStatus.DISPATCHED.value]
             ),
             None,
         )
@@ -170,6 +188,27 @@ class MissionRegistry:
         for mission in MissionRegistry.get_all():
             if mission["drone_id"] == drone_id:
                 if mission["status"] == MissionStatus.DISPATCHED.value:
+                    return True
+
+        return False
+
+    @staticmethod
+    def is_drone_waiting(drone_id: str) -> bool:
+        for mission in MissionRegistry.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] == MissionStatus.WAITING.value:
+                    return True
+
+        return False
+
+    @staticmethod
+    def is_drone_dispatched_or_waiting(drone_id: str) -> bool:
+        for mission in MissionRegistry.get_all():
+            if mission["drone_id"] == drone_id:
+                if mission["status"] in [
+                    MissionStatus.DISPATCHED.value,
+                    MissionStatus.WAITING.value,
+                ]:
                     return True
 
         return False

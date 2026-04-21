@@ -591,6 +591,35 @@ class DroneCommunication:
                         MissionRegistry.update_status(
                             message.mission_id, MissionStatus.COMPLETED
                         )
+
+                        # Check if there's a pending surveil mission to dispatch
+                        pending_surveil_raw = r.get("pending_surveil_mission")
+                        if pending_surveil_raw:
+                            try:
+                                pending_surveil = json.loads(pending_surveil_raw)
+                                pending_mission_id = pending_surveil["mission_id"]
+                                coverage_corners = pending_surveil["coverage_corners"]
+                                new_drone_id = pending_surveil["new_drone_id"]
+
+                                print(
+                                    f"[handle_task_event] Dispatching pending surveil mission {pending_mission_id} for drone {new_drone_id}"
+                                )
+                                MissionRegistry.dispatch_mission(pending_mission_id)
+                                r.set(
+                                    "watch_area_coverage", json.dumps(coverage_corners)
+                                )
+
+                                # Remove the pending mission from Redis
+                                r.delete("pending_surveil_mission")
+
+                                print(
+                                    f"[handle_task_event] Replaced surveil mission: old drone {connection_id} -> new drone {new_drone_id}"
+                                )
+                            except Exception as exc:
+                                print(
+                                    f"[handle_task_event] Error dispatching pending surveil mission: {exc}"
+                                )
+
                         return
 
                 next_task_raw = r.lpop(f"mission_{message.mission_id}_task_queue")
