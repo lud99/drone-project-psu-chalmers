@@ -64,10 +64,10 @@ class DroneCommunication:
         self.peer_connections = {}
 
         # For testing
-        with open(
-            "./src/communication_software/communication_software/common/test_mock_mission.json",
-            "r",
-        ) as f:
+        _json_path = os.path.join(
+            os.path.dirname(__file__), "common", "test_mock_mission.json"
+        )
+        with open(_json_path, "r") as f:
             self.base_task_list = json.loads(f.read())
         self.task_list = []
         self.task_index = 0

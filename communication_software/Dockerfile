@@ -24,7 +24,7 @@ EXPOSE 5000
 WORKDIR ${WORKSPACE_DIR}
 
 # Build the ROS 2 package (using bash -c for robustness)
-RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && colcon build --symlink-install"
+RUN bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && colcon build"
 
 # Add sourcing of the workspace setup to .bashrc (for interactive shells)
 RUN echo "source ${WORKSPACE_DIR}/install/local_setup.bash" >> ~/.bashrc
