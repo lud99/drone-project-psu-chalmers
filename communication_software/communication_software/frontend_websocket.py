@@ -17,10 +17,15 @@ from communication_software.missions_planning.mission_status import MissionStatu
 
 
 from typing import Optional
+from pydantic import BaseModel
 
 from communication_software.constants import (
     DRONE_EVENT_CHANNEL,
     SURVEIL_AREA_CHANNEL,
+)
+from communication_software.mavlink_bridge import (
+    MavlinkBridgeClient,
+    MavlinkBridgeError,
 )
 
 import communication_software.common.json_schemas as json_schemas
@@ -91,6 +96,19 @@ class ATOSController:
 
 
 atos = ATOSController()
+mavlink_bridge = MavlinkBridgeClient()
+
+
+class MavlinkGotoRequest(BaseModel):
+    latitude: float
+    longitude: float
+    relative_altitude_m: float = 10.0
+    acceptance_radius_m: Optional[float] = None
+    yaw_deg: Optional[float] = None
+
+
+class MavlinkTakeoffRequest(BaseModel):
+    relative_altitude_m: float = 2.0
 
 
 def get_telemetry_and_capabilities_key_tuples() -> list[tuple[str, str, str]]:
@@ -356,16 +374,82 @@ async def set_watch_area(payload: str = Body(...)):
 
 @app.post("/api/v1/set_detections")
 async def set_detections(payload: str = Body(...)):
+    bridge_result = None
+    bridge_error = None
+
     try:
         detections = json_schemas.parse_detections(payload).root
 
-        for _detection in detections:
+        for detection in detections:
             redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
             r.set(redis_key_detections, payload)
 
+            auto_trigger = (
+                os.environ.get("MAVLINK_AUTOTRIGGER_ON_DETECTION", "false").lower()
+                == "true"
+            )
+            if auto_trigger and bridge_result is None:
+                lat, lon = detection.gps_position
+                auto_alt = float(os.environ.get("MAVLINK_AUTOTRIGGER_ALT_M", "10"))
+                try:
+                    bridge_result = mavlink_bridge.goto(
+                        latitude=lat,
+                        longitude=lon,
+                        relative_altitude_m=auto_alt,
+                    )
+                except MavlinkBridgeError as exc:
+                    bridge_error = str(exc)
+
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
-    return {"msg_type": "response", "error": None}
+    return {
+        "msg_type": "response",
+        "error": None,
+        "mavlink_bridge": bridge_result,
+        "mavlink_bridge_error": bridge_error,
+    }
+
+
+@app.post("/api/v1/integration/mavlink/goto")
+def integration_mavlink_goto(request: MavlinkGotoRequest):
+    try:
+        result = mavlink_bridge.goto(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            relative_altitude_m=request.relative_altitude_m,
+            acceptance_radius_m=request.acceptance_radius_m,
+            yaw_deg=request.yaw_deg,
+        )
+        return {"status": "forwarded", "command": "goto", "result": result}
+    except MavlinkBridgeError as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.post("/api/v1/integration/mavlink/takeoff")
+def integration_mavlink_takeoff(request: MavlinkTakeoffRequest):
+    try:
+        result = mavlink_bridge.takeoff(request.relative_altitude_m)
+        return {"status": "forwarded", "command": "takeoff", "result": result}
+    except MavlinkBridgeError as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.post("/api/v1/integration/mavlink/hold")
+def integration_mavlink_hold():
+    try:
+        result = mavlink_bridge.hold()
+        return {"status": "forwarded", "command": "hold", "result": result}
+    except MavlinkBridgeError as e:
+        return {"msg_type": "response", "error": str(e)}
+
+
+@app.post("/api/v1/integration/mavlink/land")
+def integration_mavlink_land():
+    try:
+        result = mavlink_bridge.land()
+        return {"status": "forwarded", "command": "land", "result": result}
+    except MavlinkBridgeError as e:
+        return {"msg_type": "response", "error": str(e)}
 
 
 @app.post("/api/v1/missions/abort/{mission_id}")

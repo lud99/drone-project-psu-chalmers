@@ -6,6 +6,7 @@ services:
     env_file:
       - path: ./.env
       - path: ./host_ip.env
+        required: false
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -32,6 +33,9 @@ services:
       - WEBSOCKET_PORT=${WEBSOCKET_PORT}
       - REDIS_PORT=6379
       - REDIS_URL=redis
+      - MAVLINK_API_BASE_URL=http://mavlink_backend:8010
+      - MAVLINK_AUTOTRIGGER_ON_DETECTION=false
+      - MAVLINK_AUTOTRIGGER_ALT_M=10
     volumes:
       - .:/root/atos_ws/src/communication_software
     depends_on:
@@ -85,6 +89,24 @@ services:
       - atos-net
     ports:
       - 8001:80
+
+  mavlink_backend:
+    container_name: mavlink_backend
+    build:
+      context: ..
+      dockerfile: ../mavlink_client/Dockerfile
+    environment:
+      - BACKEND_WS_URL=ws://backend:${WEBSOCKET_PORT}
+      - API_PORT=8010
+      - USE_MOCK_DRONE=true
+      - DRONE_ID=drone2
+      - DRONE_TYPE=mavlink
+    depends_on:
+      - backend
+    networks:
+      - atos-net
+    ports:
+      - 8010:8010
 
   image_stitching:
     container_name: image_stitching
