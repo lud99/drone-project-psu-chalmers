@@ -34,7 +34,21 @@ The bridge target is configured by env var:
 1. Start stack with compose command above.
 2. Open ATOS UI (`http://127.0.0.1:8001`).
 3. Open MAVLink UI (`http://127.0.0.1:8010`) to observe state/telemetry.
-4. Trigger bridge call from host shell:
+4. Trigger a takeoff via the ATOS bridge:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/integration/mavlink/takeoff \
+  -H "Content-Type: application/json" \
+  -d '{"relative_altitude_m":2}'
+```
+
+5. Check MAVLink state:
+
+```bash
+curl http://127.0.0.1:8010/api/status
+```
+
+6. Trigger bridge GoTo from host shell:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/integration/mavlink/goto \
@@ -42,7 +56,16 @@ curl -X POST http://127.0.0.1:8000/api/v1/integration/mavlink/goto \
   -d '{"latitude":57.7058,"longitude":11.9381,"relative_altitude_m":10}'
 ```
 
-5. Verify MAVLink UI/API reflects command execution.
+7. Verify MAVLink UI/API reflects command execution.
+
+Notes:
+- If GoTo returns an IDLE state error, issue takeoff first and retry GoTo.
+- If MAVLink backend starts before ATOS websocket is ready, restart it once:
+
+```bash
+cd communication_software
+docker compose restart mavlink_backend
+```
 
 Optional detection-triggered forwarding:
 - Set `MAVLINK_AUTOTRIGGER_ON_DETECTION=true` in backend env.
