@@ -39,6 +39,15 @@ class MockMissionExecutor:
         self.mock_drone.arm()
         self.mock_drone.takeoff(target_alt)
 
+    def fly_to_coordinate(
+        self,
+        lat: float,
+        lon: float,
+        alt: float,
+        heading: Optional[float] = None,
+    ) -> None:
+        self.mock_drone.goto(lat, lon, alt, heading)
+
     def land(self) -> None:
         self.mock_drone.land()
 
