@@ -280,7 +280,9 @@ class AutoMissionSuggester:
                         )
                         continue
 
-                    print("[area_listener] GotoAndSurveil - dispatchar automatiskt")
+                    print(
+                        f"[area_listener] Dispatching watch-area mission: {surveil_mission.__class__.__name__}"
+                    )
 
                     MissionRegistry.store(surveil_mission)
                     MissionRegistry.dispatch_mission(surveil_mission.mission_id)
@@ -333,7 +335,23 @@ class AutoMissionSuggester:
         )
 
         if surveil_mission is None:
-            return None, None, None, "No drone available"
+            # Fallback for non-camera drones (e.g. MAVLink demo): keep ATOS flow going
+            # with a navigation-only mission while preserving camera path for DJI drones.
+            goto_only_mission = select_drone_for_mission(
+                mission_type=GotoOnly,
+                coordinates=coordinates,
+                params={},
+            )
+            if goto_only_mission is None:
+                return None, None, None, "No drone available"
+            if exclude_drone_id and goto_only_mission.drone_id == exclude_drone_id:
+                return None, None, None, "Only excluded drone available"
+
+            print(
+                "[area_listener] No camera-capable drone available, "
+                "falling back to GotoOnly"
+            )
+            return goto_only_mission, coverage_corners, min_rect_corners, None
 
         if exclude_drone_id and surveil_mission.drone_id == exclude_drone_id:
             return None, None, None, "Only excluded drone available"
@@ -359,7 +377,21 @@ class AutoMissionSuggester:
         if surveil_mission is None or (
             exclude_drone_id and surveil_mission.drone_id == exclude_drone_id
         ):
-            return None, None, None, "No suitable drone after FOV adjustment"
+            goto_only_mission = select_drone_for_mission(
+                mission_type=GotoOnly,
+                coordinates=coordinates,
+                params={},
+            )
+            if goto_only_mission is None:
+                return None, None, None, "No suitable drone after FOV adjustment"
+            if exclude_drone_id and goto_only_mission.drone_id == exclude_drone_id:
+                return None, None, None, "Only excluded drone available"
+
+            print(
+                "[area_listener] No suitable surveil drone after FOV adjustment, "
+                "falling back to GotoOnly"
+            )
+            return goto_only_mission, coverage_corners, min_rect_corners, None
 
         return surveil_mission, coverage_corners, min_rect_corners, None
 

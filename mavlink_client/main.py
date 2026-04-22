@@ -78,6 +78,45 @@ def telemetry_dict(snapshot: Any) -> dict[str, Any]:
     }
 
 
+def registration_telemetry_dict(snapshot: Any) -> dict[str, Any]:
+    return {
+        "lat": snapshot.lat if snapshot.lat is not None else 0.0,
+        "lon": snapshot.lon if snapshot.lon is not None else 0.0,
+        "alt": snapshot.alt if snapshot.alt is not None else 0.0,
+        "heading": snapshot.heading if snapshot.heading is not None else 0,
+        "speed": snapshot.speed if snapshot.speed is not None else 0.0,
+        "battery_percent": (
+            snapshot.battery_percent if snapshot.battery_percent is not None else 0
+        ),
+    }
+
+
+async def connect_backend_with_retries(
+    ws_client: BackendWebSocketClient,
+    attempts: int = 10,
+    delay_sec: float = 1.0,
+) -> bool:
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            print(
+                f"[WS] Connecting to backend at {ws_client.url} "
+                f"(attempt {attempt}/{attempts})"
+            )
+            await ws_client.connect()
+            print(f"[WS] Connected to backend at {ws_client.url}")
+            return True
+        except Exception as e:
+            last_error = e
+            print(f"[WS] Backend connection attempt {attempt} failed: {e}")
+            if attempt < attempts:
+                await asyncio.sleep(delay_sec)
+
+    print(f"[WS] Backend not available after {attempts} attempts: {last_error}")
+    return False
+
+
 async def call_blocking_method(obj: Any, method_name: str, *args: Any) -> Any:
     method = getattr(obj, method_name, None)
     if method is None:
@@ -343,15 +382,7 @@ async def main() -> None:
         api_thread.start()
         print(f"[API] Server started on port {config.api_port}")
 
-        try:
-            print(f"[WS] Connecting to backend at {config.backend_ws_url}")
-            await ws_client.connect()
-            backend_connected = True
-            print(f"[WS] Connected to backend at {config.backend_ws_url}")
-        except Exception as e:
-            backend_connected = False
-            print(
-                f"[WS] Backend not available, continuing without websocket: {e}")
+        backend_connected = await connect_backend_with_retries(ws_client)
 
         if backend_connected:
             initial_snapshot = telemetry_manager.snapshot()
@@ -364,10 +395,10 @@ async def main() -> None:
                     "camera": None,
                     "led": None,
                     "spotlight": False,
-                    "speaker": False,
+                    "speaker": None,
                     "max_speed": int(config.max_speed_m_s),
                 },
-                "telemetry": telemetry_dict(initial_snapshot),
+                "telemetry": registration_telemetry_dict(initial_snapshot),
             }
             print("[DEBUG REGISTER PAYLOAD]", register_payload)
             await ws_client.send_json(register_payload)
