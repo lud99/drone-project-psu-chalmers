@@ -140,7 +140,7 @@ class GotoAndAudio(Mission):
         all_files = self.speaker_helper.get_all_files()
         if all_files:
             return all_files[0].audio_file
-        raise NoAudioFileError("No suitable audio file found for this mission.")Sonnet 4.6
+        raise NoAudioFileError("No suitable audio file found for this mission.")
 
     def get_audio_params(self) -> json_schemas.PlayAudioParams:
         return json_schemas.PlayAudioParams(

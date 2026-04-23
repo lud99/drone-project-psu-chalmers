@@ -301,4 +301,4 @@ if __name__ == "__main__":
     if len(sys.argv) <= 2 or sys.argv[2] != "drain":
         battery_drain_per_interval = 0
 
-    asyncio.run(run_drone_client(drone_id, None))
+    asyncio.run(run_drone_client(drone_id, VIDEO_PATH))
