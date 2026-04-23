@@ -33,10 +33,14 @@ wait_for_url() {
   start="$(date +%s)"
 
   while true; do
-    # Some UIs can close the connection early while still returning HTTP 200.
-    # Rely on HTTP status code instead of curl process exit code.
+    # Prefer HEAD checks for readiness because some mounted frontends can
+    # intermittently fail response body reads while still serving valid headers.
     local code
-    code="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 8 "$url" 2>/dev/null || true)"
+    code="$(curl -sS -I -o /dev/null -w "%{http_code}" --max-time 8 "$url" 2>/dev/null || true)"
+    if [[ ! "$code" =~ ^[23][0-9][0-9]$ ]]; then
+      # Fallback to GET for endpoints that do not support HEAD.
+      code="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 8 "$url" 2>/dev/null || true)"
+    fi
     if [[ "$code" =~ ^[23][0-9][0-9]$ ]]; then
       log "$name is ready ($url)"
       return 0
