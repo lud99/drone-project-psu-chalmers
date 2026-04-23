@@ -144,7 +144,7 @@ public class TaskTestRunner {
     }
 
     public void runSpotlight(String missionId, int taskIndex) {
-        adapter.spotlight(0.5f, 5, missionId, taskIndex);
+        adapter.spotlight(0.5f, null, missionId, taskIndex);
     }
 
     public void runDeactivateLed(String missionId, int taskIndex) {

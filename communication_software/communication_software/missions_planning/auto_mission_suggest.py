@@ -542,7 +542,7 @@ class AutoMissionSuggester:
         dy_new = (lat_object - lat_new) * m_per_deg
         dx_new = (lon_object - lon_new) * m_per_deg * math.cos(math.radians(lat_new))
         heading_rad = math.atan2(dx_new, dy_new)
-        heading = int((math.degrees(heading_rad) + 360) % 360)
+        heading = int((math.degrees(heading_rad)))
 
         return json_schemas.GoToParams(
             lat=lat_new, lon=lon_new, alt=alt_new, heading=heading

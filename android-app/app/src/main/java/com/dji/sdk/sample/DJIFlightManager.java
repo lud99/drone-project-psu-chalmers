@@ -737,18 +737,25 @@ class DJIFlightManager {
         double arm_lon = aircraftLocation.getLongitude();
         float cruise_alt = Math.max(aircraftLocation.getAltitude(), Math.max(waypoint_alt + 5.0f, 15.0f));
 
-            int effective_heading = waypoint_heading != null
-                ? waypoint_heading
-                : (int) Math.round(state.getAttitude().yaw);
+        waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
 
-            waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
+        waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt));
 
-            Waypoint wp2 = new Waypoint(waypoint_lat, waypoint_lon, cruise_alt);
-            wp2.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, effective_heading));
-            waypointList.add(wp2);
-
-            waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt));
-            waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+        Waypoint mission_waypoint = new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt);
+        if (waypoint_heading != null) {
+            int heading = waypoint_heading;
+            if (heading > 180) heading = heading - 360;
+            if (heading < -180) heading = heading + 360;
+            mission_waypoint.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, heading));
+        } else if (state.getAttitude() != null) {
+            double yaw = state.getAttitude().yaw;
+            if (!Double.isNaN(yaw) && yaw >= -180 && yaw <= 180) {
+                int heading = (int) Math.round(yaw);
+                mission_waypoint.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, heading));
+            }
+        }
+        waypointList.add(mission_waypoint);
+        waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
 
         WaypointMissionOperator operator = getWaypointMissionOperator();
         if (operator == null) {
@@ -777,7 +784,7 @@ class DJIFlightManager {
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 Log.d("DJI", "Trying to upload new mission...");
                 uploadWayPointMission();
-            }, 500);
+            }, 2000);
 
         });
     }

@@ -514,7 +514,9 @@ public class WebsocketClientHandler {
                         params.optDouble("lat", 0.0),
                         params.optDouble("lon", 0.0),
                         (float) params.optDouble("alt", 0.0),
-                        params.has("heading") ? params.optInt("heading") : null,
+                        params.has("heading") && !params.isNull("heading")
+                        ? (params.optInt("heading") > 180 ? params.optInt("heading") - 360 : params.optInt("heading"))
+                        : null,
                         missionId,
                         taskIndex
                 );
@@ -532,7 +534,9 @@ public class WebsocketClientHandler {
                 droneAdapter.playAudio(
                         params.optString("file", ""),
                         (float) params.optDouble("volume", 1.0),
-                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        params.has("duration_seconds") && !params.isNull("duration_seconds")
+                        ? (int) params.optDouble("duration_seconds")
+                        : null,
                         missionId,
                         taskIndex
                 );
@@ -543,7 +547,9 @@ public class WebsocketClientHandler {
             case "led":
                 droneAdapter.led(
                         params.optString("type", params.optString("color", "beacon")),
-                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        params.has("duration_seconds") && !params.isNull("duration_seconds")
+                        ? (int) params.optDouble("duration_seconds")
+                        : null,
                         missionId,
                         taskIndex
                 );
@@ -558,7 +564,9 @@ public class WebsocketClientHandler {
             case "spotlight":
                 droneAdapter.spotlight(
                         (float) params.optDouble("brightness", 1.0),
-                        params.has("duration_seconds") ? params.optInt("duration_seconds") : null,
+                        params.has("duration_seconds") && !params.isNull("duration_seconds")
+                            ? (int) params.optDouble("duration_seconds")
+                            : null,
                         missionId,
                         taskIndex
                 );
