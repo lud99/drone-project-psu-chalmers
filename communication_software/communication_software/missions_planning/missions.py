@@ -121,12 +121,11 @@ class GotoAndAudio(Mission):
     def can_execute(self) -> bool:
         if self.capabilities.speaker is None:
             return False
-
         if self.audio_file:
             return self.speaker_helper.has_file(self.audio_file)
         if self.audio_type:
-            return self.speaker_helper.has_type(self.audio_type)
-        return False
+            return self.speaker_helper.has_type(self.audio_type) or self.speaker_helper.has_files()
+        return self.speaker_helper.has_files()
 
     def get_audio_file(self) -> str:
         if self.capabilities.speaker is None:
@@ -134,12 +133,14 @@ class GotoAndAudio(Mission):
         if self.audio_file:
             return self.audio_file
         if self.audio_type:
-            audio_file_obj = self.speaker_helper.get_single_file_by_type(
-                self.audio_type
-            )
+            audio_file_obj = self.speaker_helper.get_single_file_by_type(self.audio_type)
             if audio_file_obj is not None:
                 return audio_file_obj.audio_file
-        raise NoAudioFileError("No suitable audio file found for this mission.")
+        # Fallback: spela upp första tillgängliga filen
+        all_files = self.speaker_helper.get_all_files()
+        if all_files:
+            return all_files[0].audio_file
+        raise NoAudioFileError("No suitable audio file found for this mission.")Sonnet 4.6
 
     def get_audio_params(self) -> json_schemas.PlayAudioParams:
         return json_schemas.PlayAudioParams(

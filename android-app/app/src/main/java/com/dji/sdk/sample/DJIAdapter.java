@@ -64,8 +64,7 @@ public class DJIAdapter implements DroneAdapter {
 
     @Override
     public void spotlight(float brightness, Integer durationSeconds, String missionID, int taskIndex) {
-        int safeDurationSeconds = durationSeconds == null ? 0 : durationSeconds;
-        flightManager().activateSpotlight(brightness, safeDurationSeconds, missionID, taskIndex);
+        flightManager().activateSpotlight(brightness, durationSeconds, missionID, taskIndex);
     }
 
     @Override

@@ -116,10 +116,14 @@ public class TaskTestRunner {
             return;
         }
 
-        double testLat = telemetry.lat + 0.0003;
-        double testLon = telemetry.lon + 0.0003;
-        float testAlt = 30.0f;
-        int heading = 90;
+        // double testLat = telemetry.lat + 0.0003;
+        // double testLon = telemetry.lon + 0.0003;
+        // float testAlt = 30.0f;
+        // int heading = 90;
+        double testLat = 57.695587;
+        double testLon = 11.991797;
+        float testAlt = 3.0f;
+        Integer heading = null;
         adapter.goTo(testLat, testLon, testAlt, heading, missionId, taskIndex);
     }
 
