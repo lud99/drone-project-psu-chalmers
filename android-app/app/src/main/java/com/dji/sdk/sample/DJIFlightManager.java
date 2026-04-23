@@ -64,7 +64,7 @@ class DJIFlightManager {
     public static WaypointMission.Builder waypointMissionBuilder;
     private WaypointMissionOperator waypointMissionOperator;
     private WaypointMissionFinishedAction mFinishedAction = WaypointMissionFinishedAction.NO_ACTION;
-    private WaypointMissionHeadingMode mHeadingMode = WaypointMissionHeadingMode.AUTO;
+    private WaypointMissionHeadingMode mHeadingMode = WaypointMissionHeadingMode.USING_WAYPOINT_HEADING;
     private WaypointMissionFlightPathMode mFlightPathMode = WaypointMissionFlightPathMode.NORMAL;
     private FlightController controller;
     private BatteryState batteryState;
@@ -735,20 +735,20 @@ class DJIFlightManager {
         // First waypoint, straight up from start to achieve two waypoints in total (required by DJI)
         double arm_lat = aircraftLocation.getLatitude();
         double arm_lon = aircraftLocation.getLongitude();
-        float cruise_alt = Math.max(aircraftLocation.getAltitude(), 30.0f); // Upp till 30m
-        waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
+        float cruise_alt = Math.max(aircraftLocation.getAltitude(), 15.0f);
 
-        waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt));
+            int effective_heading = waypoint_heading != null
+                ? waypoint_heading
+                : (int) Math.round(state.getAttitude().yaw);
 
-        Waypoint mission_waypoint = new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt);
-        // If heading is specified. Set it to rotate on arrival
-        if (waypoint_heading != null){
-            WaypointAction rotate = new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, (int) waypoint_heading);
-            mission_waypoint.addAction(rotate); // [-180, 180] Sets the drone yaw when arriving
-        }
+            waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
 
-        waypointList.add(mission_waypoint);
-        waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
+            Waypoint wp2 = new Waypoint(waypoint_lat, waypoint_lon, cruise_alt);
+            wp2.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, effective_heading));
+            waypointList.add(wp2);
+
+            waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt));
+            waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
 
         WaypointMissionOperator operator = getWaypointMissionOperator();
         if (operator == null) {
