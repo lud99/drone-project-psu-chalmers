@@ -735,10 +735,10 @@ class DJIFlightManager {
         // First waypoint, straight up from start to achieve two waypoints in total (required by DJI)
         double arm_lat = aircraftLocation.getLatitude();
         double arm_lon = aircraftLocation.getLongitude();
-        float arm_alt = Math.max(aircraftLocation.getAltitude(), 10.0f); // Go up to 10m or stay at current altitude if above 10m
+        float cruise_alt = Math.max(aircraftLocation.getAltitude(), 30.0f); // Upp till 30m
+        waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
 
-        waypointList.add(new Waypoint(arm_lat, arm_lon, arm_alt)); // First waypoint makes it go up to h=10 or current height
-        
+        waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt));
 
         Waypoint mission_waypoint = new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt);
         // If heading is specified. Set it to rotate on arrival

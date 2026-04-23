@@ -539,8 +539,11 @@ class AutoMissionSuggester:
         lat_new = lat_drone + travel * (lat_object - lat_drone)
         lon_new = lon_drone + travel * (lon_object - lon_drone)
         alt_new = alt_drone + offset_meters
+        heading_rad = math.atan2(dx, dy)
+        heading = int((math.degrees(heading_rad) + 360) % 360)
+
         return json_schemas.GoToParams(
-            lat=lat_new, lon=lon_new, alt=alt_new, heading=None
+            lat=lat_new, lon=lon_new, alt=alt_new, heading=heading
         )
 
         # TODO: This won't work as we can't get altitude from detection

@@ -269,7 +269,7 @@ class GotoAndIlluminate(Mission):
 
     def get_parameters(self) -> json_schemas.SpotlightParams:
         return json_schemas.SpotlightParams(
-            pattern="stready", duration_seconds=self.duration_seconds
+            pattern="steady", duration_seconds=self.duration_seconds
         )
 
     def build_tasks(self) -> None:
