@@ -135,6 +135,7 @@ celerybeat.pid
 .env
 host_ip.env
 .venv
+.venv*/
 env/
 venv/
 ENV/
