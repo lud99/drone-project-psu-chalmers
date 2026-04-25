@@ -1,0 +1,18 @@
+numpy
+opencv-python-headless
+
+# Image processing utilities
+imutils
+pillow
+
+# Object detection and tracking
+ultralytics
+supervision
+
+# Database interaction (Redis)
+redis
+
+lap
+torch
+
+pydantic

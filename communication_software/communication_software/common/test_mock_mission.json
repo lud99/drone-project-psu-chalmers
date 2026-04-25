@@ -1,0 +1,100 @@
+[
+    {
+        "msg_type": "task",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555",
+        "index": 0,
+        "task_action": {
+            "action": "go_to",
+            "params": {
+                "lat": 22.5430,
+                "lon": 113.9590,
+                "alt": 25.0,
+                "heading": 180
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "drone_id": "AZL-55555",
+        "index": 1,
+        "task_action": {
+            "action": "play_audio",
+            "params": {
+                "file": "ticking_sound",
+                "volume": 0.5,
+                "duration_seconds": 5
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "type": "front",
+                "duration_seconds": null
+            }
+        }
+    },
+        {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "type": "rear",
+                "duration_seconds": 5
+            }
+        }
+    },
+        {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 2,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "led",
+            "params": {
+                "type": "beacon",
+                "duration_seconds": 3
+            }
+        }
+    },
+    {
+        "msg_type": "task",
+        "mission_id": "mission_102",
+        "index": 3,
+        "drone_id": "AZL-55555",
+        "task_action": {
+            "action": "spotlight",
+            "params": {
+                "pattern": "steady",
+                "duration_seconds": 5
+            }
+        }
+    },
+    {
+        "msg_type": "abort_task",
+        "mission_id": "mission_102",
+        "drone_id": "AZL-55555",
+        "task_action": "led_front"
+    },
+    {
+        "msg_type": "abort_task",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555",
+        "task_action": "all"
+    },
+    {
+        "msg_type": "go_home",
+        "mission_id": "mission_101",
+        "drone_id": "AZL-55555"
+    }
+]

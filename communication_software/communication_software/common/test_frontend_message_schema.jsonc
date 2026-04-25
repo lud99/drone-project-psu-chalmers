@@ -1,0 +1,161 @@
+[
+    // Messages that are sent by the client should be sent over HTTP to a /api/v1/<name> endpoint.
+    // Messages are received using a web socket.
+    // Sending HTTP request allows easily waiting for responses and handling errors.
+    // To make it easy, json data is submitted as the body. The "msg_type" fields specified are
+    // either all sent to the same endpoint, or to different ones there the msg_name is the name of the endpoint
+    // Sent
+    {
+        "msg_type": "accept_mission",
+        "mission_id": "1"
+    },
+    // Sent
+    {
+        "msg_type": "reject_missions" // The user chooses to not do a mission. 
+        // The mission planning should know what mission should be rejected
+    },
+    // Received
+    {
+        "msg_type": "proposed_missions",
+        "detection_id": 123,
+        "object_type": "person",
+        "gps_position": [57.7089, 11.9746],
+        "timestamp": 1713000000000,
+        "missions": [
+            {
+                "drone_id": "1",
+                "mission_id": "f7c2fa0d-44e0-4ad4-bf16-5bb35b501730",
+                "mission_type": "GotoAndSurveil",
+                "description": "[drone 1] GoTo and Surveil for ∞s",
+                "tasks": [
+                    {
+                        "action": "go_to",
+                        "params": {
+                            "lat": 57.7089,
+                            "lon": 11.9746,
+                            "alt": 30,
+                            "heading": null
+                        }
+                    },
+                    {
+                        "action": "angle_camera",
+                        "params": {
+                            "pitch": -90,
+                            "yaw": 0,
+                            "duration_seconds": null
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    // received
+    {
+        "msg_type": "active_missions",
+        "missions": [
+            // Array of mission details. refer to "interface/backend_mission_format.jsonc"
+        ]
+    },
+    // Received
+    {
+        "msg_type": "telemetry",
+        "drone_id": "1",
+        "telemetry": {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
+        }
+    },
+    // Sent
+    {
+        "msg_type": "start_drone", // 
+        "drone_id": "0"
+    },
+    // Received
+    {
+        "msg_type": "drone_connected",
+        "drone_id": "1",
+        "capabilities": {
+            "camera": null, // This is possible to retrieve (at least from DJI SDK)
+            "led": null, // Depends on what info we can get from the drone
+            "spotlight": false,
+            "speaker": {"audio_files": ["alarm"]}
+        },
+        "telemetry": {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
+        }
+    },
+    //
+    {
+        "msg_type": "connected_drones",
+        "drones": [{
+        "drone_id": "1",
+         "capabilities": {
+            "camera": null, // This is possible to retrieve (at least from DJI SDK)
+            "led": null, // Depends on what info we can get from the drone
+            "spotlight": false,
+            "speaker": {"audio_files": ["alarm"]}
+        },
+        "telemetry":  {
+            "lat": 57.7089,
+            "lon": 11.9746,
+            "alt": 30.5,
+            "heading": 180, // Not in current code, maybe add?
+            "speed": 5.20,
+            "battery_percent": 70
+        }}]
+    },
+    // Received
+    {
+        "msg_type": "drone_disconnected",
+        "drone_id": "1"
+    },
+    // Sent
+    {
+        "msg_type": "set_watch_area",
+        "points": [
+            {
+                "lat": 12.3,
+                "lon": 16.5
+            }
+            // .. and more
+        ]
+    },
+    // Received
+    {
+        "msg_type": "get_watch_areas",
+        "areas": [
+            {
+                "drone_id": "0",
+                "points": [
+                    {
+                        "lat": 12.3,
+                        "lon": 16.5
+                    }
+                ]
+            }
+            // ...
+        ]
+    },
+    // For receiving responses
+    {
+        "msg_type": "response",
+        "error": null
+    },
+    {
+        "msg_type": "response",
+        "error": "Drone '1' doesn't exist"
+    },
+    {
+        "msg_type": "error",
+        "error": "Drone '1' doesn't exist"
+    }
+]

@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug backend",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/install/communication_software/lib/communication_software/run_main",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONUNBUFFERED": "1",
+                "AMENT_PREFIX_PATH": "${workspaceFolder}/install:${env:AMENT_PREFIX_PATH}",
+                "COLCON_PREFIX_PATH": "${workspaceFolder}/install:${env:COLCON_PREFIX_PATH}",
+                "ROS_PACKAGE_PATH": "${workspaceFolder}/src:${env:ROS_PACKAGE_PATH}",
+                "PYTHONPATH": "${workspaceFolder}/install/lib/python3.*/site-packages:${env:PYTHONPATH}"
+            },
+            "preLaunchTask": "source_ros_setup"
+        }
+    ]
+}

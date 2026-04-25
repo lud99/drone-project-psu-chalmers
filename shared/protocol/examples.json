@@ -1,0 +1,38 @@
+{
+  "register": {
+    "msg_type": "register",
+    "drone_id": "drone2",
+    "drone_type": "mavlink",
+    "model": "PX4/ArduPilot",
+    "capabilities": {
+      "camera": null,
+      "led": null,
+      "spotlight": false,
+      "speaker": false,
+      "maxSpeed": 8
+    }
+  },
+  "telemetry": {
+    "msg_type": "telemetry",
+    "drone_id": "drone2",
+    "lat": 57.777531,
+    "lon": 12.781457,
+    "alt": 15.0,
+    "heading": 90.0,
+    "speed": 5.2,
+    "battery_percent": 84,
+    "mode": "GUIDED",
+    "armed": true,
+    "gps_fix_type": 3,
+    "satellites_visible": 14,
+    "timestamp": 1773717000.0
+  },
+  "goto": {
+    "msg_type": "goto",
+    "drone_id": "drone2",
+    "lat": 57.777531,
+    "lon": 12.781457,
+    "alt": 20.0,
+    "heading": 90
+  }
+}

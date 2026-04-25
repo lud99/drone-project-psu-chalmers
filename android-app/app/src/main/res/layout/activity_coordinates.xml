@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:keepScreenOn="true"
+    tools:context=".CoordinatesActivity">
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter desired final coordinate"
+        android:textSize="20dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.057"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.051" />
+
+    <EditText
+        android:id="@+id/latInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:hint="Enter Latitude"
+        android:inputType="numberDecimal|numberSigned"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.10"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.20" />
+
+    <TextView
+        android:id="@+id/latOutput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="none"
+        android:text="Loaded Latitude"
+        android:textSize="17dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.85"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintBaseline_toBaselineOf="@id/latInput" />
+
+    <EditText
+        android:id="@+id/lonInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:hint="Enter Longitude"
+        android:inputType="numberDecimal|numberSigned"
+        app:layout_constraintLeft_toLeftOf="@id/latInput"
+        app:layout_constraintRight_toRightOf="@id/latInput"
+        app:layout_constraintTop_toBottomOf="@id/latInput" />
+
+    <TextView
+        android:id="@+id/lonOutput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="none"
+        android:text="Loaded Longitude"
+        android:textSize="17dp"
+        app:layout_constraintLeft_toLeftOf="@id/latOutput"
+        app:layout_constraintRight_toRightOf="@id/latOutput"
+        app:layout_constraintBaseline_toBaselineOf="@id/lonInput" />
+
+    <EditText
+        android:id="@+id/altInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:hint="Enter Altitude"
+        android:inputType="numberDecimal|numberSigned"
+        app:layout_constraintLeft_toLeftOf="@id/latInput"
+        app:layout_constraintRight_toRightOf="@id/latInput"
+        app:layout_constraintTop_toBottomOf="@id/lonInput" />
+
+    <TextView
+        android:id="@+id/altOutput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="none"
+        android:text="Loaded Altitude"
+        android:textSize="17dp"
+        app:layout_constraintLeft_toLeftOf="@id/lonOutput"
+        app:layout_constraintRight_toRightOf="@id/lonOutput"
+        app:layout_constraintBaseline_toBaselineOf="@id/altInput" />
+
+    <EditText
+        android:id="@+id/jawInput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:hint="Enter yaw"
+        android:inputType="numberDecimal|numberSigned"
+        app:layout_constraintLeft_toLeftOf="@id/altInput"
+        app:layout_constraintRight_toRightOf="@id/altInput"
+        app:layout_constraintTop_toBottomOf="@id/altInput" />
+
+    <TextView
+        android:id="@+id/jawOutput"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ems="10"
+        android:inputType="none"
+        android:text="Loaded yaw"
+        android:textSize="17dp"
+        app:layout_constraintBaseline_toBaselineOf="@id/jawInput"
+        app:layout_constraintLeft_toLeftOf="@id/altOutput"
+        app:layout_constraintRight_toRightOf="@id/altOutput" />
+
+    <Button
+        android:id="@+id/apply_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="handleText"
+        android:text="Apply"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.82" />
+
+    <Button
+        android:id="@+id/home_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="backToHome"
+        android:text="   Home   "
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.15"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.82" />
+
+    <Button
+        android:id="@+id/gibbcoords"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="loadCoordsFromServer"
+        android:text="Request coords"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.95"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.01" />
+    <Button
+        android:id="@+id/mosscoords"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="loadMossCoords"
+        android:text="Mossen coords"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.65"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.01" />
+</androidx.constraintlayout.widget.ConstraintLayout>

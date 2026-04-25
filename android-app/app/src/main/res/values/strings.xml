@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">AstaZero Drone Control</string>
+    <string name="action_settings">Settings</string>
+    <!-- Strings used for fragments for navigation -->
+    <string name="first_fragment_label">Device setup</string>
+    <string name="second_fragment_label">Live feed</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="button_enabled">Show feed</string>
+    <string name="run_test">Run Test</string>
+    <string name="button_disabled">Feed unavailable…</string>
+    <string name="await_registration">Awaiting app registration. Please wait…</string>
+    <string name="lorem_ipsum">Lorem ipsum dolor sit amet.</string>
+    <string name="device_unknown">Device unknown</string>
+    <string name="connected_to">"Connected to: "</string>
+    <string name="no_device_connected">No device connected!</string>
+    <string name="disconnected">No drone connected :(</string>
+    <string name="button">Fit view</string>
+    <string name="not_streaming">Go live</string>
+    <string name="streaming">Live!</string>
+    <string name="stream_url">rtmp://10.13.13.4:1935/live/livestream</string>
+    <string name="error">"Error "</string>
+    <string name="start">"Start</string>
+    <string name="abort">Abort</string>
+    <string name="config">"Config</string>
+    <string name="position">"Position</string>
+    <string name="not_implemented">Not implemented!</string>
+    <string name="rotate_down">Point Down</string>
+    <string name="rotate_right">Rotate R</string>
+    <string name="rotate_left">Rotate L</string>
+    <string name="pointed_down">Pointed down!</string>
+    <string name="gohome">Go Home</string>
+    <string name="end">End</string>
+    <string name="Home_pos">Home position</string>
+    <string name="Home_pos_loaded">Home position loaded at:</string>
+    <string name="status_unknown">Status unknown</string>
+    <string name="arm_flightplan">Arm</string>
+    <string name="connect_socket">Connect</string>
+    <string name="send_socket">Send data</string>
+    <string name="refresh_text">Refresh text</string>
+    <string name="refresh_to_view">Refresh to view...</string>
+
+
+</resources>

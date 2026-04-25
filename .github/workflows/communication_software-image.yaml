@@ -1,0 +1,37 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+    tags: [v*]  
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/inspirers/communication_software
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io  
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.GHCR_PASSWORD_TOKEN }}   
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./communication_software 
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:v1.0.0

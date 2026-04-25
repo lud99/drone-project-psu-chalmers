@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "source_ros_setup",
+      "type": "shell",
+      "command": "source /root/atos_ws/install/local_setup.bash",
+      "problemMatcher": [],
+      "options": {
+        "shell": {
+          "executable": "/bin/bash",
+          "args": ["-c"]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug image_stitching",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/image_stitching/src/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/image_stitching/src"
+    }
+  ]
+}

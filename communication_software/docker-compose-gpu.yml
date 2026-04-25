@@ -1,0 +1,101 @@
+services:
+  comm_software:
+    container_name: comm_software
+    stdin_open: true
+    tty: true
+    build: 
+      context: .
+      dockerfile: ./Dockerfile
+    command: bash -c "source /root/atos_ws/install/local_setup.bash ; ros2 run communication_software run_main"
+    networks:
+      - atos-net
+    ports:
+      - 8765:8765
+      - 14500:14500
+      - 5000:5000
+      - 8000:8000
+      - 3478:3478/udp  # STUN server port
+      - 8765:8765/udp  # WebRTC signaling port
+    environment: 
+      - ENV_ALTITUDE= 15 # does not matter probably
+      - ENV_LATITUDE= 57.68819679236606
+      - ENV_LONGITUDE= 11.98050450974414
+      - DEBUG_MODE=True
+      - N_DRONES=2
+      - OVERLAP=0.5
+    depends_on:
+      - atos
+      - redis
+  atos:
+    image: astazero/atos_docker_env:latest
+    container_name: atos
+    networks:
+      - atos-net
+    ports:
+      - "80:80" 
+      - "8080:8080" 
+      - "8081:8081"
+      - "8082:8082"
+      - "3000:3000" 
+      - "3443:3443"
+      - "55555:55555"
+      - "443:443"
+      - "9090:9090" 
+    volumes: 
+      - .astazero/ATOS/:/root/.astazero/ATOS/
+    command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
+    depends_on:
+      - isoObject
+
+  isoObject:
+    image: astazero/iso_object_demo:latest
+    container_name: isoObject
+    networks:
+      - atos-net
+    deploy: # Add deploy section for resource limits
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 128M
+  frontend:
+    container_name: frontend
+    build: 
+      context: ../frontend
+      dockerfile: ../frontend/Dockerfile
+    networks:
+      - atos-net
+    ports:
+      - 8001:80
+    depends_on:
+      - comm_software
+  image_stitching:
+    container_name: image_stitching
+    environment:
+      - REDIS_URL=redis #192.168.1.41 # use redis or localhost for Docker
+    build: 
+      context: ../image_stitching
+    networks:
+      - atos-net
+    depends_on:
+      - redis
+    deploy: 
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: "all" 
+              capabilities: [gpu] 
+  redis:
+    container_name: astazero-redis
+    image: public.ecr.aws/docker/library/redis:latest
+    ports:
+      - '6379:6379'
+    networks:
+      - atos-net
+
+networks:
+  atos-net:
+    driver: bridge
