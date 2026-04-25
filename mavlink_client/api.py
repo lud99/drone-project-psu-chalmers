@@ -188,7 +188,6 @@ async def root():
 <head>
     <title>Drone Control Interface</title>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { font-family: Arial, sans-serif; margin: 16px; background: #f5f5f5; }
@@ -219,43 +218,6 @@ async def root():
             padding: 12px;
             box-sizing: border-box;
         }
-        .live-feed-video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 4px;
-            display: none;
-            background: #000;
-        }
-        .camera-status {
-            font-size: 0.84em;
-            color: #666;
-            margin-bottom: 8px;
-        }
-        /* Gimbal Control */
-        .gimbal-status-bar { font-size: 0.85em; color: #555; background: #f0f0f0; border-radius: 4px; padding: 5px 8px; margin-bottom: 10px; }
-        .gimbal-inner { background: #1e2330; border-radius: 6px; padding: 12px; color: #ddd; }
-        .gimbal-inner.disabled {
-            opacity: 0.45;
-            filter: grayscale(0.25);
-        }
-        .gimbal-inner label { display: block; font-size: 0.8em; color: #aaa; margin: 8px 0 3px; text-transform: uppercase; letter-spacing: 0.04em; }
-        .gimbal-slider-row { display: flex; align-items: center; gap: 6px; }
-        .gimbal-slider-row span { font-size: 0.78em; color: #888; white-space: nowrap; }
-        .gimbal-slider-row input[type=range] { flex: 1; accent-color: #4af; }
-        .gimbal-val { font-size: 0.85em; color: #4af; min-width: 28px; text-align: right; }
-        .dpad { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 4px; width: 120px; margin: 4px 0; }
-        .dpad button { padding: 7px 0; font-size: 1em; background: #2c3347; color: #ddd; border: 1px solid #3a4460; border-radius: 4px; cursor: pointer; margin: 0; }
-        .dpad button:hover { background: #3a4f7a; }
-        .dpad .center { background: #2c3347; }
-        .zoom-ticks { display: flex; justify-content: space-between; font-size: 0.72em; color: #888; margin-top: 2px; }
-        .gimbal-angle-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-        .gimbal-angle-row input { width: 60px; background: #2c3347; color: #ddd; border: 1px solid #3a4460; border-radius: 4px; padding: 4px 6px; }
-        .gimbal-angle-row input::placeholder { color: #666; }
-        .gimbal-btn { background: #2c3347; color: #ddd; border: 1px solid #3a4460; border-radius: 4px; padding: 6px 12px; cursor: pointer; margin: 2px; }
-        .gimbal-btn:hover { background: #3a4f7a; }
-        .gimbal-btn.active { background: #c44; border-color: #b33; }
-        .gimbal-section-label { font-size: 0.8em; color: #aaa; text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 4px; display: block; }
     </style>
 </head>
 <body>
@@ -264,9 +226,7 @@ async def root():
     <div class="page-row">
         <div class="panel">
             <h2>Live Feed</h2>
-            <div class="camera-status" id="cameraConnectionLabel">Camera disconnected. Connect laptop to AstaPi Wi-Fi.</div>
-            <div class="live-feed-placeholder" id="liveFeedPlaceholder">Camera disconnected</div>
-            <video id="liveFeedVideo" class="live-feed-video" muted autoplay playsinline></video>
+            <div class="live-feed-placeholder">Drone camera stream will appear here</div>
         </div>
         <div class="panel">
             <h2>Map</h2>
@@ -274,69 +234,7 @@ async def root():
         </div>
     </div>
 
-    <!-- Row 2: Gimbal Control | Commands/GeoFence -->
     <div class="page-row">
-        <!-- Gimbal Control panel -->
-        <div class="panel">
-            <h2>Gimbal Control</h2>
-            <div class="camera-status" id="gimbalConnectionLabel">Camera disconnected. Connect laptop to AstaPi Wi-Fi.</div>
-            <div class="gimbal-status-bar" id="gimbalStatusBar">Yaw: 0 &nbsp;|&nbsp; Pitch: 0 &nbsp;|&nbsp; Roll: 0</div>
-            <div class="gimbal-inner disabled" id="gimbalControlInner">
-
-                <label>Speed</label>
-                <div class="gimbal-slider-row">
-                    <span>Slow</span>
-                    <input type="range" id="gimbalSpeed" min="1" max="100" value="50"
-                           oninput="document.getElementById('gimbalSpeedVal').textContent=this.value; gimbalLog('speed',this.value)">
-                    <span>Fast</span>
-                    <span class="gimbal-val" id="gimbalSpeedVal">50</span>
-                </div>
-
-                <label>Pan / Tilt</label>
-                <div class="dpad">
-                    <div></div>
-                    <button onclick="gimbalNudge(0, 2)">&#9650;</button>
-                    <div></div>
-                    <button onclick="gimbalNudge(-2, 0)">&#9664;</button>
-                    <button class="center" onclick="gimbalCenter()">&#9678;</button>
-                    <button onclick="gimbalNudge(2, 0)">&#9654;</button>
-                    <div></div>
-                    <button onclick="gimbalNudge(0, -2)">&#9660;</button>
-                    <div></div>
-                </div>
-
-                <label>Zoom</label>
-                <div class="gimbal-slider-row">
-                    <input type="range" id="gimbalZoom" min="1" max="6" step="1" value="1"
-                           oninput="onZoomInput(this.value)"
-                           onchange="gimbalSetZoom(this.value)">
-                </div>
-                <div class="zoom-ticks"><span>1x</span><span>2x</span><span>3x</span><span>4x</span><span>5x</span><span>6x</span></div>
-                <div style="font-size:0.82em;color:#4af;margin-top:2px;">Zoom: <span id="gimbalZoomVal">1.0x</span></div>
-
-                <label>Absolute Angle</label>
-                <div class="gimbal-angle-row">
-                    <input type="number" id="gimbalYawInput" placeholder="Yaw" style="">
-                    <input type="number" id="gimbalPitchInput" placeholder="Pitch" style="">
-                    <button class="gimbal-btn" onclick="gimbalGoAbsolute()">Go</button>
-                </div>
-
-                <label>Camera</label>
-                <div>
-                    <button class="gimbal-btn" onclick="gimbalTakePhoto()">&#128247; Photo</button>
-                    <button class="gimbal-btn" id="gimbalRecordBtn" onclick="gimbalToggleRecord()">&#9210; Record</button>
-                </div>
-
-                <label>Scan Patterns</label>
-                <div>
-                    <button class="gimbal-btn" onclick="gimbalRunScan('patrol')">&#8635; Patrol Scan</button>
-                    <button class="gimbal-btn" onclick="gimbalRunScan('horizon')">&#8646; Horizon Sweep</button>
-                    <button class="gimbal-btn" onclick="gimbalRunScan('nod')">&#8693; Nod Search</button>
-                </div>
-
-            </div>
-        </div>
-
         <div class="panel">
             <h2>Commands</h2>
             <button onclick="arm()">Arm</button>
@@ -400,26 +298,16 @@ async def root():
                 <div id="circularFenceStatus" class="fence-status">None</div>
             </div>
         </div>
-    </div>
 
-    <!-- Row 3: Status | Telemetry -->
-    <div class="page-row">
         <div class="panel">
             <h2>Status</h2>
             <div id="status" class="status">Loading...</div>
-        </div>
-        <div class="panel">
             <h2>Telemetry</h2>
             <div id="telemetry" class="status">Loading...</div>
         </div>
     </div>
 
     <script>
-        const GIMBAL_BASE_URL = 'http://192.168.4.1:5000';
-        const HLS_STREAM_URL = 'http://192.168.4.1:8888/camera/index.m3u8';
-        const GIMBAL_POLL_MS = 1000;
-        const CAMERA_POLL_MS = 1000;
-
         let map;
         let droneMarker   = null;
         let polygonLayer  = null;
@@ -429,317 +317,6 @@ async def root():
         let draftPolyLayer    = null;
         let circleCenter      = null;
         let draftCenterMarker = null;
-
-        // ── Gimbal and Camera integration state ─────────────────────────
-        let gimbalRecording = false;
-        let cameraConnected = false;
-        let gimbalConnected = false;
-        let gimbalAngles = { yaw: 0, pitch: 0, roll: 0 };
-        let cameraPollTimer = null;
-        let gimbalPollTimer = null;
-        let gimbalPollInFlight = false;
-        let cameraPollInFlight = false;
-        let hlsInstance = null;
-
-        function clamp(value, min, max) {
-            return Math.min(max, Math.max(min, value));
-        }
-
-        function setCameraUiConnected(isConnected) {
-            cameraConnected = isConnected;
-            const camLabel = document.getElementById('cameraConnectionLabel');
-
-            if (isConnected) {
-                camLabel.textContent = 'Connected to AstaPi Camera';
-            } else {
-                camLabel.textContent = 'Camera disconnected. Connect laptop to AstaPi Wi-Fi.';
-            }
-        }
-
-        function setGimbalUiConnected(isConnected) {
-            gimbalConnected = isConnected;
-            const gimbalInner = document.getElementById('gimbalControlInner');
-            const gimbalLabel = document.getElementById('gimbalConnectionLabel');
-            const controls = gimbalInner.querySelectorAll('button, input, select, textarea');
-
-            controls.forEach((el) => {
-                el.disabled = !isConnected;
-            });
-            gimbalInner.classList.toggle('disabled', !isConnected);
-
-            if (isConnected) {
-                gimbalLabel.textContent = 'Connected to AstaPi Camera';
-            } else {
-                gimbalLabel.textContent = 'Camera disconnected. Connect laptop to AstaPi Wi-Fi.';
-            }
-        }
-
-        function updateGimbalAnglesDisplay(yaw, pitch, roll) {
-            document.getElementById('gimbalStatusBar').textContent =
-                'Yaw: ' + Number(yaw).toFixed(1) + ' | Pitch: ' + Number(pitch).toFixed(1) + ' | Roll: ' + Number(roll).toFixed(1);
-        }
-
-        function destroyLiveFeed() {
-            if (hlsInstance) {
-                try {
-                    hlsInstance.destroy();
-                } catch (e) {
-                    console.warn('[Camera] HLS destroy failed', e);
-                }
-                hlsInstance = null;
-            }
-
-            const video = document.getElementById('liveFeedVideo');
-            const placeholder = document.getElementById('liveFeedPlaceholder');
-            video.pause();
-            video.removeAttribute('src');
-            video.load();
-            video.style.display = 'none';
-            placeholder.style.display = 'flex';
-            placeholder.textContent = 'Camera disconnected';
-        }
-
-        function ensureLiveFeed() {
-            const video = document.getElementById('liveFeedVideo');
-            const placeholder = document.getElementById('liveFeedPlaceholder');
-
-            if (hlsInstance || video.style.display === 'block') {
-                return;
-            }
-
-            placeholder.style.display = 'none';
-            video.style.display = 'block';
-
-            if (window.Hls && Hls.isSupported()) {
-                hlsInstance = new Hls();
-                hlsInstance.loadSource(HLS_STREAM_URL);
-                hlsInstance.attachMedia(video);
-                hlsInstance.on(Hls.Events.ERROR, function(_event, data) {
-                    if (data && data.fatal) {
-                        console.warn('[Camera] HLS fatal error', data);
-                        destroyLiveFeed();
-                    }
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = HLS_STREAM_URL;
-            } else {
-                placeholder.style.display = 'flex';
-                video.style.display = 'none';
-                placeholder.textContent = 'HLS not supported in this browser';
-                return;
-            }
-
-            video.play().catch(function(err) {
-                console.warn('[Camera] Autoplay blocked or failed', err);
-            });
-        }
-
-        async function gimbalApiGet(path, queryParams = {}, allowWhenDisconnected = false) {
-            if (!allowWhenDisconnected && !gimbalConnected) {
-                return null;
-            }
-
-            const url = new URL(GIMBAL_BASE_URL + path);
-            Object.entries(queryParams).forEach(([key, value]) => {
-                url.searchParams.set(key, String(value));
-            });
-
-            const response = await fetch(url.toString(), { method: 'GET' });
-            if (!response.ok) {
-                throw new Error('HTTP ' + response.status);
-            }
-
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                return await response.json();
-            }
-            return null;
-        }
-
-        async function pollCameraStream() {
-            if (cameraPollInFlight) {
-                return;
-            }
-            cameraPollInFlight = true;
-
-            const abortCtrl = new AbortController();
-            const abortTimer = setTimeout(() => abortCtrl.abort(), 3000);
-
-            try {
-                await fetch(HLS_STREAM_URL, {
-                    method: 'GET',
-                    mode: 'no-cors',
-                    cache: 'no-store',
-                    signal: abortCtrl.signal,
-                });
-                clearTimeout(abortTimer);
-
-                if (!cameraConnected) {
-                    setCameraUiConnected(true);
-                }
-                ensureLiveFeed();
-            } catch (e) {
-                if (cameraConnected) {
-                    console.warn('[Camera] stream probe failed, marking disconnected', e);
-                }
-                setCameraUiConnected(false);
-                destroyLiveFeed();
-            } finally {
-                cameraPollInFlight = false;
-            }
-        }
-
-        async function pollGimbalAngles() {
-            if (gimbalPollInFlight) {
-                return;
-            }
-            gimbalPollInFlight = true;
-
-            try {
-                const data = await gimbalApiGet('/angles', {}, true);
-                if (!data) {
-                    throw new Error('No angle payload');
-                }
-
-                gimbalAngles.yaw = clamp(Number(data.yaw ?? 0), -45, 45);
-                gimbalAngles.pitch = clamp(Number(data.pitch ?? 0), -90, 25);
-                gimbalAngles.roll = Number(data.roll ?? 0);
-                updateGimbalAnglesDisplay(gimbalAngles.yaw, gimbalAngles.pitch, gimbalAngles.roll);
-
-                if (!gimbalConnected) {
-                    setGimbalUiConnected(true);
-                }
-            } catch (e) {
-                if (gimbalConnected) {
-                    console.warn('[Gimbal] Poll failed, marking disconnected', e);
-                }
-                setGimbalUiConnected(false);
-            } finally {
-                gimbalPollInFlight = false;
-            }
-        }
-
-        function onZoomInput(value) {
-            const zoom = clamp(Number(value), 1, 6);
-            document.getElementById('gimbalZoomVal').textContent = zoom.toFixed(1) + 'x';
-        }
-
-        function zoomToBackendLevel(zoom) {
-            const clampedZoom = clamp(Number(zoom), 1, 6);
-            return clamp(Math.round(clampedZoom) * 10, 10, 60);
-        }
-
-        function gimbalLog(action, value) {
-            console.log('[Gimbal]', action, value);
-        }
-
-        async function gimbalSetAngle(yaw, pitch) {
-            if (!gimbalConnected) {
-                return;
-            }
-
-            const targetYaw = clamp(Number(yaw), -45, 45);
-            const targetPitch = clamp(Number(pitch), -90, 25);
-
-            try {
-                await gimbalApiGet('/set_angle', { yaw: targetYaw, pitch: targetPitch });
-                gimbalAngles.yaw = targetYaw;
-                gimbalAngles.pitch = targetPitch;
-                updateGimbalAnglesDisplay(gimbalAngles.yaw, gimbalAngles.pitch, gimbalAngles.roll);
-            } catch (e) {
-                console.warn('[Gimbal] set_angle failed', e);
-            }
-        }
-
-        async function gimbalNudge(deltaYaw, deltaPitch) {
-            await gimbalSetAngle(gimbalAngles.yaw + deltaYaw, gimbalAngles.pitch + deltaPitch);
-        }
-
-        async function gimbalCenter() {
-            if (!gimbalConnected) {
-                return;
-            }
-            try {
-                await gimbalApiGet('/center');
-            } catch (e) {
-                console.warn('[Gimbal] center failed', e);
-            }
-        }
-
-        function gimbalGoAbsolute() {
-            const yaw = Number(document.getElementById('gimbalYawInput').value);
-            const pitch = Number(document.getElementById('gimbalPitchInput').value);
-            if (!Number.isFinite(yaw) || !Number.isFinite(pitch)) {
-                return;
-            }
-            gimbalSetAngle(yaw, pitch);
-        }
-
-        async function gimbalSetZoom(zoomValue) {
-            if (!gimbalConnected) {
-                return;
-            }
-            const level = zoomToBackendLevel(zoomValue);
-            try {
-                await gimbalApiGet('/zoom_abs', { level: level });
-            } catch (e) {
-                console.warn('[Gimbal] zoom_abs failed', e);
-            }
-        }
-
-        async function gimbalTakePhoto() {
-            if (!gimbalConnected) {
-                return;
-            }
-            try {
-                await gimbalApiGet('/photo');
-            } catch (e) {
-                console.warn('[Gimbal] photo failed', e);
-            }
-        }
-
-        async function gimbalRunScan(scanType) {
-            if (!gimbalConnected) {
-                return;
-            }
-
-            const validScan = {
-                patrol: '/patrol',
-                horizon: '/horizon',
-                nod: '/nod',
-            };
-
-            const endpoint = validScan[scanType];
-            if (!endpoint) {
-                return;
-            }
-
-            try {
-                await gimbalApiGet(endpoint);
-            } catch (e) {
-                console.warn('[Gimbal] scan failed', scanType, e);
-            }
-        }
-
-        function gimbalToggleRecord() {
-            if (!gimbalConnected) {
-                return;
-            }
-            gimbalRecording = !gimbalRecording;
-            const btn = document.getElementById('gimbalRecordBtn');
-
-            const endpoint = gimbalRecording ? '/record_start' : '/record_stop';
-            gimbalApiGet(endpoint)
-                .then(function() {
-                    btn.textContent = gimbalRecording ? '\u23F9 Stop' : '\u23FA Record';
-                    btn.classList.toggle('active', gimbalRecording);
-                })
-                .catch(function(e) {
-                    gimbalRecording = !gimbalRecording;
-                    console.warn('[Gimbal] record toggle failed', e);
-                });
-        }
-        // ────────────────────────────────────────────────────────────────
 
         function initMap() {
             map = L.map('map').setView([37.7749, -122.4194], 13);
@@ -1005,29 +582,8 @@ async def root():
         }
 
         initMap();
-        setCameraUiConnected(false);
-        setGimbalUiConnected(false);
-        destroyLiveFeed();
-
-        pollCameraStream();
-        cameraPollTimer = setInterval(pollCameraStream, CAMERA_POLL_MS);
-        pollGimbalAngles();
-        gimbalPollTimer = setInterval(pollGimbalAngles, GIMBAL_POLL_MS);
-
         updateStatus();
         setInterval(updateStatus, 1000);
-
-        window.addEventListener('beforeunload', function() {
-            if (cameraPollTimer) {
-                clearInterval(cameraPollTimer);
-                cameraPollTimer = null;
-            }
-            if (gimbalPollTimer) {
-                clearInterval(gimbalPollTimer);
-                gimbalPollTimer = null;
-            }
-            destroyLiveFeed();
-        });
     </script>
 </body>
 </html>
