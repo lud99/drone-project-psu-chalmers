@@ -113,7 +113,8 @@ async def connect_backend_with_retries(
             if attempt < attempts:
                 await asyncio.sleep(delay_sec)
 
-    print(f"[WS] Backend not available after {attempts} attempts: {last_error}")
+    print(
+        f"[WS] Backend not available after {attempts} attempts: {last_error}")
     return False
 
 

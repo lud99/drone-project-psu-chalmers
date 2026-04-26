@@ -7,18 +7,121 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
+        :root {
+            --bg-main: #f0f4f8;
+            --bg-panel: #ffffff;
+            --panel-border: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --input-bg: #f8fafc;
+            --input-border: #cbd5e1;
+            --live-bg: #0f172a;
+            --live-grid: #0f1118;
+            --map-bg: #e8f0e9;
+            --map-grid: #d1dbd2;
+            --ok: #22c55e;
+            --warn: #f59e0b;
+            --off: #cbd5e1;
+        }
+
+        body {
+            background: var(--bg-main);
+            color: var(--text-primary);
+        }
+
+        .container-fluid > h1 {
+            display: none;
+        }
+
+        .top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 2000;
+            background: #ffffff;
+            border-bottom: 0.5px solid #e2e8f0;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .top-logo-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22d3ee;
+        }
+
+        .top-title {
+            margin: 0;
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .top-badge {
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 0.5px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 2px 8px;
+        }
+
+        .top-signals {
+            margin-left: auto;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .top-signal {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: #475569;
+            font-size: 11px;
+        }
+
+        .top-signal-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #cbd5e1;
+        }
+
+        .top-signal-dot.ok {
+            background: #22c55e;
+        }
+
+        .top-signal-dot.warn {
+            background: #f59e0b;
+        }
+
         #map {
             height: 480px;
-            border-radius: 10px;
+            border-radius: 8px;
+            background: var(--map-bg);
         }
 
         .video-container {
             display: grid;
             gap: 5px;
             height: 480px;
-            background: #2c3e50;
-            border-radius: 10px;
+            background: var(--live-bg);
+            border-radius: 8px;
             overflow: hidden;
+            position: relative;
+            background-image:
+                linear-gradient(var(--live-grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--live-grid) 1px, transparent 1px);
+            background-size: 28px 28px;
         }
 
         .video-stream {
@@ -28,15 +131,305 @@
             object-position: center;
         }
 
+        .video-disconnected {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            color: #475569;
+            font-size: 11px;
+            pointer-events: none;
+        }
+
+        .video-disconnected svg {
+            width: 18px;
+            height: 18px;
+            stroke: #334155;
+            fill: none;
+            stroke-width: 1.6;
+        }
+
         .status-card {
-            background: rgba(255, 255, 255, 0.9);
+            background: #ffffff;
             padding: 15px;
-            border-radius: 10px;
+            border-radius: 8px;
+            border: 0.5px solid #e2e8f0;
+        }
+
+        .card,
+        .modal-content,
+        .mission-summary,
+        .list-group-item,
+        .bg-light {
+            background: #ffffff !important;
+            border: 0.5px solid #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        .card-header {
+            background: #ffffff !important;
+            border-bottom: 0.5px solid #e2e8f0 !important;
+            color: #94a3b8 !important;
+            font-size: 9px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 500 !important;
+        }
+
+        .card-body {
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        .text-muted {
+            color: #94a3b8 !important;
+        }
+
+        .modal-header,
+        .modal-footer {
+            border-color: #e2e8f0;
+        }
+
+        .form-control,
+        .form-select,
+        input,
+        select,
+        textarea {
+            background: #f8fafc !important;
+            border: 0.5px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            border-radius: 5px !important;
+            padding: 5px 8px !important;
+        }
+
+        .form-control::placeholder,
+        input::placeholder {
+            color: #94a3b8 !important;
+        }
+
+        .form-control:focus,
+        .form-select:focus,
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #bfdbfe !important;
+            box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15) !important;
+        }
+
+        .group-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #94a3b8;
+            margin: 8px 0 4px;
+        }
+
+        .btn {
+            border-radius: 5px;
+            border-width: 0.5px;
+        }
+
+        .btn-success {
+            background: #f0fdf4 !important;
+            color: #16a34a !important;
+            border-color: #bbf7d0 !important;
+        }
+
+        .btn-danger {
+            background: #fff1f2 !important;
+            color: #dc2626 !important;
+            border-color: #fecdd3 !important;
+        }
+
+        .btn-info,
+        .btn-primary {
+            background: #eff6ff !important;
+            color: #2563eb !important;
+            border-color: #bfdbfe !important;
+        }
+
+        .btn-secondary,
+        .btn-outline-secondary {
+            background: #f8fafc !important;
+            color: #475569 !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        .status-card .row > div:first-child {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            align-content: start;
+        }
+
+        .status-card .row > div:first-child > h5 {
+            grid-column: 1 / -1;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #94a3b8;
+            margin-bottom: 0;
+        }
+
+        .status-card .row > div:first-child > div:not(.drone-controls) {
+            background: #f8fafc;
+            border: 0.5px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 7px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            color: #94a3b8;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .status-card .row > div:first-child > div > span {
+            font-size: 15px;
+            text-transform: none;
+            letter-spacing: 0;
+            color: #0284c7;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .status-card .row > div:nth-child(2) {
+            display: block;
+        }
+
+        .status-card .row > div:nth-child(2) > h5 {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .status-card .row > div:nth-child(2) > div {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 0.5px solid #f1f5f9;
+            padding: 5px 0;
+            color: #475569;
+        }
+
+        .status-card .row > div:nth-child(2) > div > span {
+            color: #334155;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .map-wrap {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #e8f0e9;
+        }
+
+        .map-grid-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 401;
+            background-image:
+                linear-gradient(#d1dbd2 1px, transparent 1px),
+                linear-gradient(90deg, #d1dbd2 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        .map-coords {
+            position: absolute;
+            left: 8px;
+            bottom: 7px;
+            z-index: 500;
+            color: #64748b;
+            font-size: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.8);
+            border: 0.5px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 2px 6px;
+        }
+
+        .geofence-tabs {
+            display: inline-flex;
+            border: 0.5px solid #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .geofence-tab {
+            border: 0;
+            background: #f8fafc;
+            color: #94a3b8;
+            border-right: 0.5px solid #e2e8f0;
+            padding: 4px 9px;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .geofence-tab:last-child {
+            border-right: 0;
+        }
+
+        .geofence-tab.active {
+            background: #eff6ff;
+            color: #2563eb;
+            border-color: #bfdbfe;
+        }
+
+        .geofence-empty {
+            border: 0.5px dashed #cbd5e1;
+            color: #cbd5e1;
+            min-height: 38px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            margin-top: 8px;
+        }
+
+        .leaflet-marker-icon {
+            filter: hue-rotate(190deg) saturate(1.4) brightness(1.05);
+            animation: pulseMarker 1.8s ease-out infinite;
+        }
+
+        @keyframes pulseMarker {
+            0% { box-shadow: 0 0 0 0 rgba(147, 197, 253, 0.65); }
+            100% { box-shadow: 0 0 0 14px rgba(147, 197, 253, 0); }
+        }
+
+        [id^="alt"], [id^="speed"], [id^="battery"] {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        @media (max-width: 991px) {
+            .top-signals {
+                margin-left: 0;
+            }
         }
     </style>
 </head>
 
 <body>
+    <div class="top-bar">
+        <span class="top-logo-dot" aria-hidden="true"></span>
+        <p class="top-title">MAVLink Drone Control</p>
+        <span class="top-badge">Backend: Connected</span>
+        <span class="top-badge">GPS: Fix</span>
+        <div class="top-signals">
+            <span class="top-signal"><span class="top-signal-dot ok"></span>Camera</span>
+            <span class="top-signal"><span class="top-signal-dot ok"></span>Telemetry</span>
+            <span class="top-signal"><span class="top-signal-dot warn"></span>Link</span>
+            <span class="top-signal"><span class="top-signal-dot"></span>Armed</span>
+        </div>
+    </div>
     <div class="container-fluid py-3">
         <h1 class="text-center mb-4">ATOS Drone Platform</h1>
 
@@ -48,6 +441,13 @@
                         <div id="videoContainer" class="video-container">
                             <img id="video1" class="video-stream" src="">
                             <img id="video2" class="video-stream" src="" style="display: none;">
+                            <div class="video-disconnected">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="3" y="7" width="13" height="10" rx="1.5"></rect>
+                                    <path d="M16 10l5-3v10l-5-3z"></path>
+                                </svg>
+                                <span>camera disconnected</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -68,7 +468,7 @@
 
                                 <div class="mt-3 all-drone-controls text-center">
                                     <hr>
-                                    <h5>All Drone Commands</h5>
+                                    <div class="group-label">Arm / Disarm</div>
                                     <div class="mb-2">
                                         <button id="armAllBtn" data-command="flight_arm"
                                             class="btn btn-success btn-sm all-drone-command-btn">Take Off All</button>
@@ -81,8 +481,11 @@
 
                                     </div>
 
+                                    <div class="group-label">Takeoff</div>
+                                    <div class="group-label">Goto</div>
+
                                     <div class="mt-3 p-2 border rounded bg-light">
-                                        <h6>Manual Test Detection</h6>
+                                        <div class="group-label">Land / Hold</div>
                                         <button id="sendDetection" class="btn btn-secondary btn-sm">Send
                                             Detection</button>
                                         <button id="clearDetection"
@@ -123,7 +526,20 @@
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">Create Surveillance Area</div>
                     <div class="card-body p-0">
-                        <div id="map"></div>
+                        <div class="px-2 pt-2">
+                            <div class="geofence-tabs">
+                                <button type="button" class="geofence-tab active">Polygon</button>
+                                <button type="button" class="geofence-tab">Circular</button>
+                            </div>
+                        </div>
+                        <div class="map-wrap">
+                            <div id="map"></div>
+                            <div class="map-grid-overlay"></div>
+                            <div class="map-coords">lat ---, lon ---</div>
+                        </div>
+                        <div class="px-2 pb-2">
+                            <div class="geofence-empty">No geofence points yet</div>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
