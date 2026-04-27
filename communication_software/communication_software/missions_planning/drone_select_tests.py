@@ -7,6 +7,7 @@ import communication_software.common.json_schemas as json_schemas
 from communication_software.missions_planning.drone_selector import (
     select_drone_for_mission,
 )
+import communication_software.missions_planning.drone_capability_helpers as capability_helpers
 
 # --- Setup & Helpers ---
 
@@ -77,7 +78,9 @@ BASE_DRONES: list[Drone] = [
             ),
             led=None,
             spotlight=False,
-            speaker=json_schemas.SpeakerCapabilities(audio_files=["stay", "horn"]),
+            speaker=json_schemas.SpeakerCapabilities(
+                audio_files=["stay", "horn", "restart_transponder", "siren"]
+            ),
         ),
         telemetry=json_schemas.Telemetry(
             lat=LOCS["ullevi"][0],
@@ -208,6 +211,14 @@ def test_all_mission_types():
     )
     assert m_audio is not None
     assert m_audio.drone_id == "dji-01"
+
+    # 1.6. Test all audio files
+    for category, sounds in capability_helpers.audio_file_mapping.items():
+        for sound in sounds:
+            m_audio = select_drone_for_mission(
+                missions.GotoAndAudio, target, {"audio_file": sound}
+            )
+            print(m_audio)
 
     # 2. Blink (Requires LED 'beacon')
     m_blink = select_drone_for_mission(missions.GotoAndBlink, target)

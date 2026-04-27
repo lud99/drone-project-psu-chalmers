@@ -19,6 +19,7 @@ from .drone_selector import select_drone_for_mission
 from communication_software.missions_planning.mission_status import MissionStatus
 from communication_software.constants import DRONE_EVENT_CHANNEL, SURVEIL_AREA_CHANNEL
 from communication_software.missions_planning.mission_registry import MissionRegistry
+import communication_software.missions_planning.drone_capability_helpers as capability_helpers
 
 COOLDOWN_SECONDS = 60.0
 DEDUP_DISTANCE_METERS = 10.0
@@ -605,49 +606,73 @@ class AutoMissionSuggester:
         missions_order = [
             (
                 GotoAndAudio,
-                ({"audio_type": "intruder_instructions"}, {"audio_type": "alert"}),
+                ({}),
             ),
             (GotoAndBlink, ({"duration_seconds": None},)),
             (GotoAndIlluminate, ({"duration_seconds": None},)),
-            (GotoAndSurveil, ({"duration_seconds": None},)),
+            # (GotoAndSurveil, ({"duration_seconds": None},)),
             (GotoOnly, ({},)),
         ]
 
-        # Try each mission type in order until one has an available drone
+        viable_missions_type_tuple = []
         viable_missions = []
         for mission_type, params_tuple in missions_order:
-            for params in params_tuple:
-                try:
-                    mission = select_drone_for_mission(
-                        mission_type=mission_type,
-                        coordinates=json_schemas.GoToParams(
-                            lat=coordinates[0], lon=coordinates[1], alt=0
-                        ),
-                        params=params,
-                    )
-                except Exception as exc:
-                    print(
-                        f"Skipping mission type {mission_type.__name__} for person detection: {exc}"
-                    )
-                    continue
-
-                if mission:
-                    # Update the coordinates of the mission to be 3m this way and 3m up from object
-                    offset_missions = [GotoAndAudio, GotoAndIlluminate, GotoAndSurveil]
-                    if mission_type in offset_missions:
-                        new_coordinates = self.get_offset_coordinates_for_drone(
-                            drone_id=mission.drone_id,
-                            object_coords=coordinates,
-                            offset_meters=3,
+            try:
+                if mission_type == GotoAndAudio:
+                    for (
+                        category,
+                        sounds,
+                    ) in capability_helpers.audio_file_mapping.items():
+                        for sound in sounds:
+                            mission = select_drone_for_mission(
+                                mission_type=mission_type,
+                                coordinates=json_schemas.GoToParams(
+                                    lat=coordinates[0], lon=coordinates[1], alt=0
+                                ),
+                                params={"audio_file": sound},
+                            )
+                            if mission is not None:
+                                viable_missions_type_tuple.append(
+                                    (mission_type, mission)
+                                )
+                else:
+                    for params in params_tuple:
+                        mission = select_drone_for_mission(
+                            mission_type=mission_type,
+                            coordinates=json_schemas.GoToParams(
+                                lat=coordinates[0], lon=coordinates[1], alt=0
+                            ),
+                            params=params,
                         )
-                    else:
-                        # TODO: This won't work as we can't get altitude from detection
-                        new_coordinates = self.get_coordinates_above_for_drone(
-                            object_coords=coordinates, offset_meters=3
-                        )
+                        if mission is not None:
+                            viable_missions_type_tuple.append((mission_type, mission))
+            except Exception as exc:
+                print(
+                    f"Skipping mission type {mission_type.__name__} for vehicle detection: {exc}"
+                )
+                continue
 
-                    mission.coordinates = new_coordinates
-                    viable_missions.append(mission)
+        for mission_type, mission in viable_missions_type_tuple:
+            # Update the coordinates of the mission to be 3m this way and 3m up from object
+            offset_missions = [
+                GotoAndAudio,
+                GotoAndIlluminate,
+            ]  # GotoAndSurveil
+            if mission_type in offset_missions:
+                offset = 10 if mission_type == GotoAndSurveil else 4
+                new_coordinates = self.get_offset_coordinates_for_drone(
+                    drone_id=mission.drone_id,
+                    object_coords=coordinates,
+                    offset_meters=offset,
+                )
+                mission.coordinates = new_coordinates
+            else:
+                new_coordinates = self.get_coordinates_above_for_drone(
+                    object_coords=coordinates, offset_meters=5
+                )
+
+            mission.coordinates = new_coordinates
+            viable_missions.append(mission)
 
         if viable_missions:
             self.send_proposed_missions(viable_missions, detection)
@@ -667,46 +692,74 @@ class AutoMissionSuggester:
         """
         coordinates = detection.gps_position
         missions_order = [
-            (GotoAndAudio, ({"audio_type": "stray_car"}, {"audio_type": "alert"})),
+            (
+                GotoAndAudio,
+                ({}),
+            ),  # ({"audio_type": "stray_car"}, {"audio_type": "alert"})),
             (GotoAndBlink, ({"duration_seconds": 10},)),
             (GotoAndIlluminate, ({"duration_seconds": 10},)),
-            (GotoAndSurveil, ({"duration_seconds": None},)),
+            # (GotoAndSurveil, ({"duration_seconds": None},)),
             (GotoOnly, ({},)),
         ]
 
+        viable_missions_type_tuple = []
         viable_missions = []
         for mission_type, params_tuple in missions_order:
-            for params in params_tuple:
-                try:
-                    mission = select_drone_for_mission(
-                        mission_type=mission_type,
-                        coordinates=json_schemas.GoToParams(
-                            lat=coordinates[0], lon=coordinates[1], alt=0
-                        ),
-                        params=params,
-                    )
-                except Exception as exc:
-                    print(
-                        f"Skipping mission type {mission_type.__name__} for vehicle detection: {exc}"
-                    )
-                    continue
+            try:
+                if mission_type == GotoAndAudio:
+                    for (
+                        category,
+                        sounds,
+                    ) in capability_helpers.audio_file_mapping.items():
+                        for sound in sounds:
+                            mission = select_drone_for_mission(
+                                mission_type=mission_type,
+                                coordinates=json_schemas.GoToParams(
+                                    lat=coordinates[0], lon=coordinates[1], alt=0
+                                ),
+                                params={"audio_file": sound},
+                            )
+                            if mission is not None:
+                                viable_missions_type_tuple.append(
+                                    (mission_type, mission)
+                                )
+                else:
+                    for params in params_tuple:
+                        mission = select_drone_for_mission(
+                            mission_type=mission_type,
+                            coordinates=json_schemas.GoToParams(
+                                lat=coordinates[0], lon=coordinates[1], alt=0
+                            ),
+                            params=params,
+                        )
+                        if mission is not None:
+                            viable_missions_type_tuple.append((mission_type, mission))
+            except Exception as exc:
+                print(
+                    f"Skipping mission type {mission_type.__name__} for vehicle detection: {exc}"
+                )
+                continue
 
-                if mission:
-                    offset_missions = [GotoAndAudio, GotoAndIlluminate, GotoAndSurveil]
-                    if mission_type in offset_missions:
-                        offset = 10 if mission_type == GotoAndSurveil else 5
-                        new_coordinates = self.get_offset_coordinates_for_drone(
-                            drone_id=mission.drone_id,
-                            object_coords=coordinates,
-                            offset_meters=offset,
-                        )
-                        mission.coordinates = new_coordinates
-                    else:
-                        new_coordinates = self.get_coordinates_above_for_drone(
-                            object_coords=coordinates, offset_meters=5
-                        )
-                        mission.coordinates = new_coordinates
-                    viable_missions.append(mission)
+        for mission_type, mission in viable_missions_type_tuple:
+            offset_missions = [
+                GotoAndAudio,
+                GotoAndIlluminate,
+            ]
+            if mission_type in offset_missions:
+                offset = 10 if mission_type == GotoAndSurveil else 4
+                new_coordinates = self.get_offset_coordinates_for_drone(
+                    drone_id=mission.drone_id,
+                    object_coords=coordinates,
+                    offset_meters=offset,
+                )
+                mission.coordinates = new_coordinates
+            else:
+                new_coordinates = self.get_coordinates_above_for_drone(
+                    object_coords=coordinates, offset_meters=5
+                )
+                mission.coordinates = new_coordinates
+            viable_missions.append(mission)
+
         if viable_missions:
             self.send_proposed_missions(viable_missions, detection)
         else:

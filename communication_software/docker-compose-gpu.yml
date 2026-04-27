@@ -1,48 +1,58 @@
 services:
-  comm_software:
-    container_name: comm_software
+  backend:
+    container_name: backend
     stdin_open: true
     tty: true
-    build: 
+    env_file:
+      - path: ./.env
+      - path: ./host_ip.env
+    build:
       context: .
       dockerfile: ./Dockerfile
-    command: bash -c "source /root/atos_ws/install/local_setup.bash ; ros2 run communication_software run_main"
+    command: ${backend_command}
     networks:
       - atos-net
     ports:
       - 8765:8765
-      - 14500:14500
+      - "${WEBSOCKET_PORT}:${WEBSOCKET_PORT}" # Websocket port
       - 5000:5000
       - 8000:8000
-      - 3478:3478/udp  # STUN server port
-      - 8765:8765/udp  # WebRTC signaling port
-    environment: 
+      - 3478:3478/udp # STUN server port
+      - 8765:8765/udp # WebRTC signaling port
+      - 5678:5678 # Python debugger port
+      - 9992:9992/udp # Multicast port
+    environment:
+      #
       - ENV_ALTITUDE= 15 # does not matter probably
-      - ENV_LATITUDE= 57.68819679236606
-      - ENV_LONGITUDE= 11.98050450974414
-      - DEBUG_MODE=True
+      - ENV_LATITUDE= 57.77293201101717
+      - ENV_LONGITUDE= 12.773497400522357
+      - DEBUG_MODE=False
       - N_DRONES=2
       - OVERLAP=0.5
+      - WEBSOCKET_PORT=${WEBSOCKET_PORT}
+      - REDIS_PORT=6379
+      - REDIS_URL=redis
+    volumes:
+      - .:/root/atos_ws/src/communication_software
     depends_on:
       - atos
       - redis
+
   atos:
     image: astazero/atos_docker_env:latest
     container_name: atos
     networks:
       - atos-net
     ports:
-      - "80:80" 
-      - "8080:8080" 
+      - "80:80"
+      - "8080:8080"
       - "8081:8081"
       - "8082:8082"
-      - "3000:3000" 
+      - "3000:3000"
       - "3443:3443"
-      - "55555:55555"
+      - "55556:55555"
       - "443:443"
-      - "9090:9090" 
-    volumes: 
-      - .astazero/ATOS/:/root/.astazero/ATOS/
+      - "9090:9090"
     command: bash -c "source /root/atos_ws/install/setup.sh ; ros2 launch atos launch_basic.py insecure:=True"
     depends_on:
       - isoObject
@@ -52,7 +62,8 @@ services:
     container_name: isoObject
     networks:
       - atos-net
-    deploy: # Add deploy section for resource limits
+    deploy:
+      # Add deploy section for resource limits
       resources:
         limits:
           cpus: "0.1"
@@ -60,34 +71,46 @@ services:
         reservations:
           cpus: "0.05"
           memory: 128M
+
   frontend:
     container_name: frontend
-    build: 
+    build:
       context: ../frontend
       dockerfile: ../frontend/Dockerfile
+    depends_on:
+      - backend
+    volumes:
+      - ../frontend:/usr/share/nginx/html
     networks:
       - atos-net
     ports:
       - 8001:80
-    depends_on:
-      - comm_software
+
   image_stitching:
     container_name: image_stitching
     environment:
       - REDIS_URL=redis #192.168.1.41 # use redis or localhost for Docker
-    build: 
+      - PYTHONUNBUFFERED=1
+
+    build:
       context: ../image_stitching
     networks:
       - atos-net
+    volumes:
+      # bind-mount image_stitching source for live development
+      - ../image_stitching/src:/root/image_stitching/src
+      - ./communication_software/common:/root/image_stitching/src/common
     depends_on:
       - redis
-    deploy: 
+    command: ${image_stitching_command}
+    deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: "all" 
-              capabilities: [gpu] 
+              count: "all"
+              capabilities: [ gpu ]
+
   redis:
     container_name: astazero-redis
     image: public.ecr.aws/docker/library/redis:latest
