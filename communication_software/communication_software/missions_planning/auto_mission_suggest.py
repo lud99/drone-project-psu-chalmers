@@ -609,7 +609,7 @@ class AutoMissionSuggester:
             ),
             (GotoAndBlink, ({"duration_seconds": None},)),
             (GotoAndIlluminate, ({"duration_seconds": None},)),
-            (GotoAndSurveil, ({"duration_seconds": None},)),
+            # (GotoAndSurveil, ({"duration_seconds": None},)),
             (GotoOnly, ({},)),
         ]
 
@@ -633,15 +633,17 @@ class AutoMissionSuggester:
 
                 if mission:
                     # Update the coordinates of the mission to be 3m this way and 3m up from object
-                    offset_missions = [GotoAndAudio, GotoAndIlluminate, GotoAndSurveil]
+                    offset_missions = [
+                        GotoAndAudio,
+                        GotoAndIlluminate,
+                    ]  # GotoAndSurveil
                     if mission_type in offset_missions:
                         new_coordinates = self.get_offset_coordinates_for_drone(
                             drone_id=mission.drone_id,
                             object_coords=coordinates,
-                            offset_meters=3,
+                            offset_meters=4,
                         )
                     else:
-                        # TODO: This won't work as we can't get altitude from detection
                         new_coordinates = self.get_coordinates_above_for_drone(
                             object_coords=coordinates, offset_meters=3
                         )
@@ -670,7 +672,7 @@ class AutoMissionSuggester:
             (GotoAndAudio, ({"audio_type": "stray_car"}, {"audio_type": "alert"})),
             (GotoAndBlink, ({"duration_seconds": 10},)),
             (GotoAndIlluminate, ({"duration_seconds": 10},)),
-            (GotoAndSurveil, ({"duration_seconds": None},)),
+            # (GotoAndSurveil, ({"duration_seconds": None},)),
             (GotoOnly, ({},)),
         ]
 
@@ -692,9 +694,12 @@ class AutoMissionSuggester:
                     continue
 
                 if mission:
-                    offset_missions = [GotoAndAudio, GotoAndIlluminate, GotoAndSurveil]
+                    offset_missions = [
+                        GotoAndAudio,
+                        GotoAndIlluminate,
+                    ]  # GotoAndSurveil
                     if mission_type in offset_missions:
-                        offset = 10 if mission_type == GotoAndSurveil else 5
+                        offset = 10 if mission_type == GotoAndSurveil else 4
                         new_coordinates = self.get_offset_coordinates_for_drone(
                             drone_id=mission.drone_id,
                             object_coords=coordinates,
