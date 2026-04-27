@@ -64,7 +64,7 @@ class DJIFlightManager {
     public static WaypointMission.Builder waypointMissionBuilder;
     private WaypointMissionOperator waypointMissionOperator;
     private WaypointMissionFinishedAction mFinishedAction = WaypointMissionFinishedAction.NO_ACTION;
-    private WaypointMissionHeadingMode mHeadingMode = WaypointMissionHeadingMode.USING_WAYPOINT_HEADING;
+    private WaypointMissionHeadingMode mHeadingMode = WaypointMissionHeadingMode.AUTO;
     private WaypointMissionFlightPathMode mFlightPathMode = WaypointMissionFlightPathMode.NORMAL;
     private FlightController controller;
     private BatteryState batteryState;
@@ -739,7 +739,7 @@ class DJIFlightManager {
 
         waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
 
-        waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt));
+        // waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt)); # Skippar det för nu.
 
         Waypoint mission_waypoint = new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt);
         if (waypoint_heading != null) {

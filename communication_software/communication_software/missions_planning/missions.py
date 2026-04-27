@@ -29,6 +29,19 @@ class MissionBuildError(Exception):
     pass
 
 
+def _camera_tilt_task_if_available(
+    capabilities: json_schemas.Capabilities, pitch: float
+) -> list[json_schemas.AngleCameraTask]:
+    """Builds a camera tilt task when the drone has a camera."""
+    if capabilities.camera is None:
+        return []
+    return [
+        json_schemas.AngleCameraTask(
+            params=json_schemas.AngleCameraParams(pitch=pitch, yaw=0)
+        )
+    ]
+
+
 class Mission(ABC):
     tasks: list[json_schemas.AnyTaskAction] = []
 
@@ -124,7 +137,10 @@ class GotoAndAudio(Mission):
         if self.audio_file:
             return self.speaker_helper.has_file(self.audio_file)
         if self.audio_type:
-            return self.speaker_helper.has_type(self.audio_type) or self.speaker_helper.has_files()
+            return (
+                self.speaker_helper.has_type(self.audio_type)
+                or self.speaker_helper.has_files()
+            )
         return self.speaker_helper.has_files()
 
     def get_audio_file(self) -> str:
@@ -133,7 +149,9 @@ class GotoAndAudio(Mission):
         if self.audio_file:
             return self.audio_file
         if self.audio_type:
-            audio_file_obj = self.speaker_helper.get_single_file_by_type(self.audio_type)
+            audio_file_obj = self.speaker_helper.get_single_file_by_type(
+                self.audio_type
+            )
             if audio_file_obj is not None:
                 return audio_file_obj.audio_file
         # Fallback: spela upp första tillgängliga filen
@@ -153,9 +171,9 @@ class GotoAndAudio(Mission):
         return self.get_audio_params()
 
     def build_tasks(self) -> None:
-        json_schemas.PlayAudioTask(params=self.get_audio_params())
-        tasks = [
+        tasks: list[json_schemas.AnyTaskAction] = [
             json_schemas.GoToTask(params=self.coordinates),
+            *_camera_tilt_task_if_available(self.capabilities, pitch=-45),
             json_schemas.PlayAudioTask(params=self.get_audio_params()),
         ]
         if (self.duration_seconds is not None) and mission_constants.RETURN_HOME:
@@ -196,8 +214,9 @@ class GotoAndBlink(Mission):
         )
 
     def build_tasks(self) -> None:
-        tasks = [
+        tasks: list[json_schemas.AnyTaskAction] = [
             json_schemas.GoToTask(params=self.coordinates),
+            *_camera_tilt_task_if_available(self.capabilities, pitch=-90),
             json_schemas.LEDTask(params=self.get_parameters()),
         ]
         if (self.duration_seconds is not None) and mission_constants.RETURN_HOME:
@@ -238,7 +257,7 @@ class GotoAndSurveil(Mission):
         )
 
     def build_tasks(self) -> None:
-        tasks = [
+        tasks: list[json_schemas.AnyTaskAction] = [
             json_schemas.GoToTask(params=self.coordinates),
             json_schemas.AngleCameraTask(params=self.get_parameters()),
         ]
@@ -274,8 +293,9 @@ class GotoAndIlluminate(Mission):
         )
 
     def build_tasks(self) -> None:
-        tasks = [
+        tasks: list[json_schemas.AnyTaskAction] = [
             json_schemas.GoToTask(params=self.coordinates),
+            *_camera_tilt_task_if_available(self.capabilities, pitch=-45),
             json_schemas.SpotlightTask(params=self.get_parameters()),
         ]
         if (self.duration_seconds is not None) and mission_constants.RETURN_HOME:
