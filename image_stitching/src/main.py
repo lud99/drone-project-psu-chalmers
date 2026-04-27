@@ -37,10 +37,10 @@ VERBOSE_DETECTION_LOGGING = False
 # Each drone needs a separate model instance to allow for tracking
 model_for_drones: dict[str, YOLO] = dict()
 
-# Enable if running on slow computer, disable if you want fluid motion
+# Enable if running on slow computer, disable if you want fluid motion.
+# If it is enabled, the YOLO model will for some reason have a more difficult time finding objects, depending on the queue size
 ONLY_DETECT_LATEST_FRAME = False
-
-queue_max_size = 1 if ONLY_DETECT_LATEST_FRAME else 9999
+queue_max_size = 60 if ONLY_DETECT_LATEST_FRAME else 9999
 
 redis_url = os.environ.get("REDIS_URL", "localhost")
 # Redis connection (create a Redis client if it doesn't exist)
@@ -164,6 +164,8 @@ async def set_frame(
                 pipe.set(redis_key_detections, detections.model_dump_json())
                 pipe.expire(redis_key_detections, expiration)
                 pipe.execute()  # Execute both commands together
+
+            r.publish("detections_channel", detections.model_dump_json())
         else:
             print("Failed to encode frame!")
     except Exception as e:

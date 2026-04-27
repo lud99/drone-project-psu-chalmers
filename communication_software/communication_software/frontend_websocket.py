@@ -363,6 +363,8 @@ async def set_detections(payload: str = Body(...)):
             redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
             r.set(redis_key_detections, payload)
 
+        r.publish("detections_channel", payload)
+
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
     return {"msg_type": "response", "error": None}

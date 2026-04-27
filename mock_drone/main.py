@@ -1,4 +1,5 @@
 import asyncio
+import math
 import random
 import sys
 import time
@@ -24,40 +25,106 @@ TELEMETRY_INTERVAL = 5
 BATTERY_DRAIN_PER_MINUTE = 20  # Battery decreases by 20% per minute
 
 # Battery tracking
-current_battery = 40.0
+current_battery = 90.0
 battery_drain_per_interval = BATTERY_DRAIN_PER_MINUTE / (
     60 / TELEMETRY_INTERVAL
 )  # Drain per 5s interval
 
-liseberg = (57.696162, 11.991556)
+# liseberg = (57.696162, 11.991556)
+emilsborg_football_field = (57.68088480716388, 11.982436321054934)
 VIDEO_PATH = "mock_drone/test_video_2024.mp4"
+
+# Drone state tracking
+current_lat = emilsborg_football_field[0] + random.uniform(-0.001, 0.001)
+current_lon = emilsborg_football_field[1] + random.uniform(-0.001, 0.001)
+current_alt = 0.0
+current_heading = 0.0
+current_speed = 0.0
+home_position = (current_lat, current_lon, 0.0)
+
+
+def _geo_offset(lat: float, lon: float, dx: float, dy: float) -> tuple[float, float]:
+    lat_out = lat + dy / 111111.0
+    lon_out = lon + dx / (111111.0 * math.cos(math.radians(lat)))
+    return lat_out, lon_out
+
+
+def _distance_and_heading(
+    lat1: float, lon1: float, lat2: float, lon2: float
+) -> tuple[float, float, float, int]:
+    dy = (lat2 - lat1) * 111111.0
+    dx = (lon2 - lon1) * 111111.0 * math.cos(math.radians(lat1))
+    dist2d = math.hypot(dx, dy)
+    heading = int((math.degrees(math.atan2(dx, dy)) + 360.0) % 360.0)
+    return dx, dy, dist2d, heading
+
+
+async def _fly_to_target(
+    target_lat: float,
+    target_lon: float,
+    target_alt: float,
+    speed_mps: float = 5.0,
+    update_interval: float = 0.5,
+) -> None:
+    global current_lat, current_lon, current_alt, current_heading, current_speed
+
+    while True:
+        dx, dy, dist2d, heading = _distance_and_heading(
+            current_lat, current_lon, target_lat, target_lon
+        )
+        dz = target_alt - current_alt
+        dist3d = math.hypot(dist2d, dz)
+
+        if dist3d <= 2.0:
+            current_lat = target_lat
+            current_lon = target_lon
+            current_alt = target_alt
+            current_speed = 0.0
+            return
+
+        travel = min(speed_mps * update_interval, dist3d)
+        fraction = travel / dist3d
+        move_dx = dx * fraction
+        move_dy = dy * fraction
+        move_dz = dz * fraction
+
+        current_lat, current_lon = _geo_offset(
+            current_lat, current_lon, move_dx, move_dy
+        )
+        current_alt += move_dz
+        current_speed = travel / update_interval
+        current_heading = heading if dist2d > 0.1 else current_heading
+
+        await asyncio.sleep(update_interval)
 
 
 async def send_telemetry(websocket, drone_id: str):
     """Continuously sends telemetry using the TelemetryMessage class."""
-    global current_battery
+    global \
+        current_battery, \
+        current_speed, \
+        current_heading, \
+        current_lat, \
+        current_lon, \
+        current_alt
 
     while True:
-        # Decrease battery
         current_battery = int(max(0.0, current_battery - battery_drain_per_interval))
 
-        # Create the Telemetry sub-model
         current_telemetry = json_schemas.Telemetry(
-            lat=liseberg[0] + (random.uniform(-0.001, 0.001)),
-            lon=liseberg[1] + (random.uniform(-0.001, 0.001)),
-            alt=random.uniform(110, 120),
-            heading=random.randint(0, 359),
-            speed=random.uniform(0.0, 5.5),
+            lat=current_lat,
+            lon=current_lon,
+            alt=current_alt,
+            heading=int(current_heading),
+            speed=current_speed,
             battery_percent=current_battery,
         )
 
-        # Wrap in the TelemetryMessage envelope
         msg = json_schemas.TelemetryMessage(
             msg_type="telemetry", drone_id=drone_id, telemetry=current_telemetry
         )
 
         await websocket.send(msg.model_dump_json())
-        # print(f"[{time.strftime('%H:%M:%S')}] Telemetry validated and sent.")
         await asyncio.sleep(TELEMETRY_INTERVAL)
 
 
@@ -94,7 +161,16 @@ async def do_task(
 
     if isinstance(action, json_schemas.GoToTask):
         print("Going to a position")
-        await asyncio.sleep(10)
+        if current_alt < 18.0:
+            print("Ascending to 20 meters before moving horizontally")
+            await _fly_to_target(current_lat, current_lon, 20.0, speed_mps=2.0)
+        print("Traveling to destination along shortest 3D path")
+        await _fly_to_target(
+            action.params.lat,
+            action.params.lon,
+            action.params.alt,
+            speed_mps=5.0,
+        )
         await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.PlayAudioTask):
@@ -142,7 +218,9 @@ async def do_task(
 
     elif isinstance(action, json_schemas.GoHomeTask):
         print("Going home")
-        await asyncio.sleep(10)
+        await _fly_to_target(
+            home_position[0], home_position[1], home_position[2], speed_mps=5.0
+        )
         await send_task_complete(ws, drone_id, task_message)
 
 
@@ -211,11 +289,11 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                     ),
                 ),
                 telemetry=json_schemas.Telemetry(
-                    lat=57.705 + (random.uniform(-0.001, 0.001)),
-                    lon=11.938 + (random.uniform(-0.001, 0.001)),
-                    alt=random.uniform(110, 120),
-                    heading=random.randint(0, 359),
-                    speed=random.uniform(0.0, 5.5),
+                    lat=current_lat,
+                    lon=current_lon,
+                    alt=current_alt,
+                    heading=current_heading,
+                    speed=current_speed,
                     battery_percent=int(current_battery),
                 ),
             )
