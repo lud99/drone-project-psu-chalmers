@@ -735,18 +735,25 @@ class DJIFlightManager {
         // First waypoint, straight up from start to achieve two waypoints in total (required by DJI)
         double arm_lat = aircraftLocation.getLatitude();
         double arm_lon = aircraftLocation.getLongitude();
-        float arm_alt = Math.max(aircraftLocation.getAltitude(), 10.0f); // Go up to 10m or stay at current altitude if above 10m
+        float cruise_alt = Math.max(aircraftLocation.getAltitude(), Math.max(waypoint_alt + 5.0f, 15.0f));
 
-        waypointList.add(new Waypoint(arm_lat, arm_lon, arm_alt)); // First waypoint makes it go up to h=10 or current height
-        
+        waypointList.add(new Waypoint(arm_lat, arm_lon, cruise_alt));
+
+        // waypointList.add(new Waypoint(waypoint_lat, waypoint_lon, cruise_alt)); # Skippar det för nu.
 
         Waypoint mission_waypoint = new Waypoint(waypoint_lat, waypoint_lon, waypoint_alt);
-        // If heading is specified. Set it to rotate on arrival
-        if (waypoint_heading != null){
-            WaypointAction rotate = new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, (int) waypoint_heading);
-            mission_waypoint.addAction(rotate); // [-180, 180] Sets the drone yaw when arriving
+        if (waypoint_heading != null) {
+            int heading = waypoint_heading;
+            if (heading > 180) heading = heading - 360;
+            if (heading < -180) heading = heading + 360;
+            mission_waypoint.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, heading));
+        } else if (state.getAttitude() != null) {
+            double yaw = state.getAttitude().yaw;
+            if (!Double.isNaN(yaw) && yaw >= -180 && yaw <= 180) {
+                int heading = (int) Math.round(yaw);
+                mission_waypoint.addAction(new WaypointAction(WaypointActionType.ROTATE_AIRCRAFT, heading));
+            }
         }
-
         waypointList.add(mission_waypoint);
         waypointMissionBuilder.waypointList(waypointList).waypointCount(waypointList.size());
 
@@ -777,7 +784,7 @@ class DJIFlightManager {
             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                 Log.d("DJI", "Trying to upload new mission...");
                 uploadWayPointMission();
-            }, 500);
+            }, 2000);
 
         });
     }
@@ -1359,20 +1366,34 @@ class DJIFlightManager {
      */
     private void configWayPointMission(){
         float mSpeed = 6.0f;
-        // waypointMissionBuilder is always created in GoToWaypoint before this method is called.
         waypointMissionBuilder.finishedAction(mFinishedAction)
                 .headingMode(mHeadingMode)
                 .autoFlightSpeed(mSpeed)
                 .maxFlightSpeed(mSpeed)
                 .flightPathMode(mFlightPathMode);
 
+        // Logga alla waypoints innan upload
+        Log.d("DJI", "=== WAYPOINT MISSION CONFIG ===");
+        Log.d("DJI", "Number of waypoints: " + waypointList.size());
+        for (int i = 0; i < waypointList.size(); i++) {
+            Waypoint wp = waypointList.get(i);
+            Log.d("DJI", "Waypoint " + i
+
+                + " alt=" + wp.altitude
+                + " actions=" + wp.waypointActions.size());
+        }
+
         DJIError error = getWaypointMissionOperator().loadMission(waypointMissionBuilder.build());
         if (error != null) {
-            showToastOnMainThread("loadWaypoint failed in stage config " + error.getDescription());
+            Log.e("DJI", "loadMission failed: " + error.getDescription());
+            showToastOnMainThread("loadWaypoint failed: " + error.getDescription());
+            if (MessageHandler.getInstance() != null) {
+                MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, "loadMission failed: " + error.getDescription());
+            }
         } else {
             Log.d("DJI", "Mission loaded successfully in config stage, ready to upload");
         }
-    }
+}
 
     /**
      * Sends mission details to the drone after everything has been configured
@@ -1385,13 +1406,17 @@ class DJIFlightManager {
                 Log.d("DJI", "Mission uploaded successfully, starting mission...");
                 startWaypointMission();
             } else {
-                showToastOnMainThread("Mission upload failed, error: " + error.getDescription() + " retrying...");
-                Log.e("DJI", "Mission upload failed: " + error.getDescription() + ", retrying...");
+                Log.e("DJI", "Mission upload failed: " + error.getDescription());
+                showToastOnMainThread("Mission upload failed: " + error.getDescription() + " retrying...");
                 getWaypointMissionOperator().retryUploadMission(djiError -> {
                     if (djiError == null) {
                         Log.d("DJI", "Retry upload successful!");
+                        startWaypointMission();
                     } else {
                         Log.e("DJI", "Retry upload failed: " + djiError.getDescription());
+                        if (MessageHandler.getInstance() != null) {
+                            MessageHandler.getInstance().taskFailed(currentMissionID, currentTaskIndex, "Upload failed: " + djiError.getDescription());
+                        }
                     }
                 });
             }

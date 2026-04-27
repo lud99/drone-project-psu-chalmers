@@ -216,7 +216,13 @@ def compute_hardware_score(
         + speaker_score * profile.speaker
         + lights_score * profile.lights
     )
-
+    if mission_type == GotoAndSurveil:
+        if capabilities.speaker:
+            total -= 15.0
+        if capabilities.led:
+            total -= 5.0
+        if capabilities.spotlight:
+            total -= 5.0
     # This solution is a bit scuffed, but it seems to work fine for our limited use cases
     total_unweighted = (
         resolution_value + fov_score + speaker_score + lights_score

@@ -38,7 +38,7 @@ VERBOSE_DETECTION_LOGGING = False
 model_for_drones: dict[str, YOLO] = dict()
 
 # Enable if running on slow computer, disable if you want fluid motion
-ONLY_DETECT_LATEST_FRAME = True
+ONLY_DETECT_LATEST_FRAME = False
 
 queue_max_size = 1 if ONLY_DETECT_LATEST_FRAME else 9999
 
