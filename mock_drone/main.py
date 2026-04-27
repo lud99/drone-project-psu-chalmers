@@ -204,9 +204,11 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                         resolution_height=1080,
                         resolution_width=1920,
                     ),
-                    led=None if drone_id == DRONE_ID else json_schemas.LEDCapabilities(types=["rear", "beacon"]),
-                    spotlight=False if drone_id == DRONE_ID else True,
-                    speaker=None if drone_id == DRONE_ID else json_schemas.SpeakerCapabilities(audio_files=["horn", "hello"]),
+                    led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
+                    spotlight=True,
+                    speaker=json_schemas.SpeakerCapabilities(
+                        audio_files=["horn", "hello", "restart_transponder", "siren"]
+                    ),
                 ),
                 telemetry=json_schemas.Telemetry(
                     lat=57.705 + (random.uniform(-0.001, 0.001)),
@@ -214,7 +216,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                     alt=random.uniform(110, 120),
                     heading=random.randint(0, 359),
                     speed=random.uniform(0.0, 5.5),
-                    battery_percent=current_battery,
+                    battery_percent=int(current_battery),
                 ),
             )
 
@@ -294,6 +296,7 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
         print(f"Client error: {e}")
     finally:
         await pc.close()
+
 
 if __name__ == "__main__":
     drone_id = sys.argv[1] if len(sys.argv) > 1 else DRONE_ID

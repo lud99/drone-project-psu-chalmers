@@ -39,9 +39,8 @@ except redis.exceptions.ConnectionError as e:
     print(f"[Drone Communication Server] Error connecting to Redis: {e}")
     exit()
 
-import communication_software.missions_planning.drone_select_tests as drone_select_tests
-
-drone_select_tests.run_tests()
+# import communication_software.missions_planning.drone_select_tests as drone_select_tests
+# drone_select_tests.run_tests()
 
 # Set to `true` in .env to run mock mission from test_mock_mission.json when receiving registration.
 DO_MOCK_MISSION = os.environ.get("DO_MOCK_MISSION", "false").lower() == "true"

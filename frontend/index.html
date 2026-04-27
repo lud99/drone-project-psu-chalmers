@@ -727,6 +727,21 @@
 
             renderMissionTypeButtons(missionSet, selectedMission.mission_type);
 
+            let audioFiles = []
+            console.log(missionSet)
+            if (selectedMission.mission_type === "GotoAndAudio") {
+                // iterate all tasks and find all audio files
+                missionSet.missions.forEach(mission => {
+                    if (mission.drone_id != selectedMission.drone_id) return;
+
+                    mission.tasks.forEach(task => {
+                        if (task.action === 'play_audio' && task.params?.file) {
+                            audioFiles.push([task.params.file, mission]);
+                        }
+                    });
+                });
+            }
+
             modalTitle.textContent = `Mission for detected ${detectionType} with ID:${detectedId}`;
 
             let fullContent = '';
@@ -747,7 +762,10 @@
                     paramsHtml = `<strong>Coordinates:</strong> ${formatCoordinate(p.lat)}, ${formatCoordinate(p.lon)}<br><strong>Altitude:</strong> ${p.alt}m`;
                 }
                 else if (action === 'play_audio') {
-                    paramsHtml = `<p><strong>Plays audiofile:</strong> ${p.file} (${p.duration_seconds}s)</p>`;
+                    paramsHtml = `<p><strong>Plays audiofile:</strong> 
+                    <select class="form-select">
+                        ${audioFiles.map(([file, mission]) => `<option value="${file}" ${file === p.file ? 'selected' : ''}>${file}</option>`).join('')}
+                    </select> (${p.duration_seconds}s)</p>`;
                 } else if (action === 'led') {
                     paramsHtml = `<p><strong>Type:</strong> ${p.type}</p>`;
                 } else if (action === 'spotlight') {
@@ -784,6 +802,13 @@
     `;
 
             modalBody.innerHTML = mapHtml + missionDescriptionHtml + fullContent;
+
+            document.querySelector("#mission-dynamic-content select")?.addEventListener('change', (event) => {
+                const selectedFile = event.target.value;
+
+                currentMissionModalId = audioFiles.find(([file, mission]) => file == selectedFile)[1].mission_id;
+                console.log(currentMissionModalId)
+            });
 
             if (missionModal.classList.contains('show')) {
                 setTimeout(() => {
@@ -1259,6 +1284,308 @@
             const normalizedDroneId = String(droneId ?? '');
             if (!normalizedDroneId) return null;
             return droneSlotById.get(normalizedDroneId) ?? registerDroneDisplayName(normalizedDroneId);
+        }
+
+        abc = {
+            "msg_type": "proposed_missions",
+            "detection_id": 301,
+            "object_type": "person",
+            "gps_position": [
+                57.68784083987639,
+                11.97942573658205
+            ],
+            "timestamp": 1777279397652,
+            "missions": [
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "baaac787-46c4-41b6-9ba7-3b4b351e0c41",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: horn for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "horn",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "31b14139-27b9-4ea0-a736-50eca9159978",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: siren for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "siren",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "c310fac6-b656-4d29-bff5-041994c382fb",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: hello for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "hello",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "438fdae1-b78d-4b3d-8982-0c2c59b9c4e7",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: restart_transponder for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "restart_transponder",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "adad7f32-aa4e-45fc-8c80-11fea2ff5b94",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: horn for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "horn",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "55423190-3655-4f7d-9fe0-47f2dd01a2c8",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: siren for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "siren",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "649ac872-8487-4391-88c8-8e8db30aa2b5",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: hello for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "hello",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "746f5764-b1cf-4575-a65c-d6dc6da9bf5f",
+                    "mission_type": "GotoAndAudio",
+                    "description": "[drone isaclilla] GoTo and play Audio file: restart_transponder for 30s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "play_audio",
+                            "params": {
+                                "file": "restart_transponder",
+                                "volume": 1,
+                                "duration_seconds": 30
+                            }
+                        },
+                        {
+                            "action": "go_home"
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "d41fbfbc-d199-4cdc-ae02-77a09557f957",
+                    "mission_type": "GotoAndBlink",
+                    "description": "[drone isaclilla] GoTo and Blink with LED type: beacon for ∞s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68784083987639,
+                                "lon": 11.97942573658205,
+                                "alt": 5,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "led",
+                            "params": {
+                                "type": "beacon",
+                                "duration_seconds": null
+                            }
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "e4d2509d-69ae-4e54-b964-1504035d16f5",
+                    "mission_type": "GotoAndIlluminate",
+                    "description": "[drone isaclilla] GoTo and Spotlight for ∞s",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68787026493534,
+                                "lon": 11.979464547514073,
+                                "alt": 118.6125931000004,
+                                "heading": null
+                            }
+                        },
+                        {
+                            "action": "spotlight",
+                            "params": {
+                                "pattern": "stready",
+                                "duration_seconds": null
+                            }
+                        }
+                    ]
+                },
+                {
+                    "drone_id": "isaclilla",
+                    "mission_id": "2339b6dc-4ae2-4ae2-a0bc-8bcbf7271e6d",
+                    "mission_type": "GotoOnly",
+                    "description": "[drone isaclilla] GoTo, lat:57.687841, lon:11.979426 alt:5.0",
+                    "tasks": [
+                        {
+                            "action": "go_to",
+                            "params": {
+                                "lat": 57.68784083987639,
+                                "lon": 11.97942573658205,
+                                "alt": 5,
+                                "heading": null
+                            }
+                        }
+                    ]
+                }
+            ]
         }
 
 
