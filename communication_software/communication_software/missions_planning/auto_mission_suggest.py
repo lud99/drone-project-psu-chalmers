@@ -21,8 +21,8 @@ from communication_software.constants import DRONE_EVENT_CHANNEL, SURVEIL_AREA_C
 from communication_software.missions_planning.mission_registry import MissionRegistry
 import communication_software.missions_planning.drone_capability_helpers as capability_helpers
 
-COOLDOWN_SECONDS = 60.0
-DEDUP_DISTANCE_METERS = 10.0
+COOLDOWN_SECONDS = 20.0
+DEDUP_DISTANCE_METERS = 5.0
 GROUND_ALTITUDE = 0.0
 BATTERY_THRESHOLD = 20.0  # Battery level threshold for replacement
 
@@ -456,43 +456,31 @@ class AutoMissionSuggester:
             DRONE_EVENT_CHANNEL, pending_surveil_mission_message.model_dump_json()
         )
 
-    def object_listener(self):
+    async def object_listener(self):
         """
         Continuously polls Redis for new detection snapshots and dispatches
         detected objects for mission suggestion.
         """
 
-        last_processed_by_key: dict[str, str] = {}
+        try:
+            pubsub = self._redis_async.pubsub()
+            await pubsub.subscribe("detections_channel")
 
-        while not self._stop_event.is_set():
-            for key in self._redis.scan_iter(match="frame_drone*_detections"):
-                raw = self._redis.get(key)
-                if not raw:
-                    continue
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    detections = json_schemas.parse_detections(message["data"])
 
-                # Skip already handled frames for this key.
-                if last_processed_by_key.get(key) == raw:
-                    continue
-
-                try:
-                    detections = json_schemas.parse_detections(raw)
-                except Exception as exc:
-                    print(f"Failed to parse detections in {key}: {exc}")
-                    continue
-
-                last_processed_by_key[key] = raw
-
-                for detection in detections.root:
-                    # Only propose missions if the drone is flying
-                    if MissionRegistry.is_drone_dispatched_or_waiting(
-                        detection.drone_ids[0]
-                    ):
-                        self.handle_detected_object(detection)
-                    else:
-                        pass
-                        # print("Found detection but drone is not dispatched")
-
-            self._sleep_with_stop_check(0.5)
+                    for detection in detections.root:
+                        # Only propose missions if the drone is flying
+                        if MissionRegistry.is_drone_dispatched_or_waiting(
+                            detection.drone_ids[0]
+                        ):
+                            self.handle_detected_object(detection)
+                        else:
+                            pass
+                            # print("Found detection but drone is not dispatched")
+        except Exception as exc:
+            print(f"[object_listener] Error in Redis listener: {exc}")
 
     def is_allowed(self, object_type: str, coordinates: dict) -> bool:
         """Check with ATOS if object is expected. Currently just a placeholder"""
@@ -589,10 +577,13 @@ class AutoMissionSuggester:
             f"Found new detection {detection.detection_id}, will generate and propose missions..."
         )
 
-        if detection.object_type == "person":
-            self.handle_detected_person(detection)
-        elif detection.object_type in ["vehicle", "car", "truck", "bus"]:
+        if detection.object_type in ["vehicle", "car", "truck", "bus"]:
             self.handle_detected_vehicle(detection)
+        elif detection.object_type == "person":
+            self.handle_detected_person(detection)
+        else:  # This should not be able to happen
+            print(f"Handling unknown object type {detection.object_type}")
+            self.handle_detected_person(detection)
 
     def handle_detected_person(self, detection: json_schemas.SingleDetection) -> None:
         """

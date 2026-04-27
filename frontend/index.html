@@ -734,8 +734,11 @@
                 missionSet.missions.forEach(mission => {
                     if (mission.drone_id != selectedMission.drone_id) return;
 
+                    // Only do this for the last play_audio task
+
                     mission.tasks.forEach(task => {
-                        if (task.action === 'play_audio' && task.params?.file) {
+                        // Don't include the warning file as it is hardcoded
+                        if (task.action === 'play_audio' && task.params?.file && task.params.file != "warning") {
                             audioFiles.push([task.params.file, mission]);
                         }
                     });
@@ -803,7 +806,8 @@
 
             modalBody.innerHTML = mapHtml + missionDescriptionHtml + fullContent;
 
-            document.querySelector("#mission-dynamic-content select")?.addEventListener('change', (event) => {
+            const selectElems = document.querySelector("#mission-dynamic-content select");
+            selectElems[selectElems.length - 1]?.addEventListener('change', (event) => {
                 const selectedFile = event.target.value;
 
                 currentMissionModalId = audioFiles.find(([file, mission]) => file == selectedFile)[1].mission_id;
