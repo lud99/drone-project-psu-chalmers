@@ -144,8 +144,9 @@ PROFILE_GOTO_AND_ILLUMINATE = HardwareProfile(
 
 # GotoAndSurveil: camera quality is primary
 PROFILE_GOTO_AND_SURVEIL = HardwareProfile(
-    resolution=0.60,
-    fov=0.40,
+    resolution=0.3,
+    fov=0.5,
+    no_hardware=0.2
 )
 
 # GotoOnly: here there is no special hardware needed
