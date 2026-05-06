@@ -171,11 +171,29 @@ class GotoAndAudio(Mission):
         return self.get_audio_params()
 
     def build_tasks(self) -> None:
-        tasks: list[json_schemas.AnyTaskAction] = [
-            json_schemas.GoToTask(params=self.coordinates),
-            *_camera_tilt_task_if_available(self.capabilities, pitch=-45),
-            json_schemas.PlayAudioTask(params=self.get_audio_params()),
-        ]
+        tasks: list[json_schemas.AnyTaskAction] = []
+
+        if self.speaker_helper.has_file("warning"):
+            tasks = [
+                *_camera_tilt_task_if_available(self.capabilities, pitch=-45),
+                json_schemas.PlayAudioTask(
+                    params=json_schemas.PlayAudioParams(
+                        file="warning",
+                        duration_seconds=None,
+                        volume=self.volume,
+                    )
+                ),
+                json_schemas.GoToTask(params=self.coordinates),
+                # json_schemas.AbortTaskMessage(drone_id=self.drone_id, mission_id=self.mission_id, task_action="play_audio"),
+                json_schemas.PlayAudioTask(params=self.get_audio_params()),
+            ]
+        else:
+            tasks = [
+                *_camera_tilt_task_if_available(self.capabilities, pitch=-45),
+                json_schemas.GoToTask(params=self.coordinates),
+                json_schemas.PlayAudioTask(params=self.get_audio_params()),
+            ]
+
         if (self.duration_seconds is not None) and mission_constants.RETURN_HOME:
             tasks.append(json_schemas.GoHomeTask())
         self.tasks = tasks
@@ -215,8 +233,8 @@ class GotoAndBlink(Mission):
 
     def build_tasks(self) -> None:
         tasks: list[json_schemas.AnyTaskAction] = [
-            json_schemas.GoToTask(params=self.coordinates),
             *_camera_tilt_task_if_available(self.capabilities, pitch=-90),
+            json_schemas.GoToTask(params=self.coordinates),
             json_schemas.LEDTask(params=self.get_parameters()),
         ]
         if (self.duration_seconds is not None) and mission_constants.RETURN_HOME:
@@ -258,8 +276,8 @@ class GotoAndSurveil(Mission):
 
     def build_tasks(self) -> None:
         tasks: list[json_schemas.AnyTaskAction] = [
-            json_schemas.GoToTask(params=self.coordinates),
             json_schemas.AngleCameraTask(params=self.get_parameters()),
+            json_schemas.GoToTask(params=self.coordinates),
         ]
         # {"action": "hover", "params": {"duration_seconds": self.duration_seconds}},
 

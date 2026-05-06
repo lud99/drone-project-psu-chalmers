@@ -360,6 +360,7 @@ async def set_detections(payload: str = Body(...)):
         detections = json_schemas.parse_detections(payload).root
 
         for _detection in detections:
+            print(detections[0].drone_ids[0])
             redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
             r.set(redis_key_detections, payload)
 

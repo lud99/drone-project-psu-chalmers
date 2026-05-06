@@ -605,7 +605,7 @@ class DroneCommunication:
                             try:
                                 pending_surveil = json.loads(pending_surveil_raw)
                                 pending_mission = pending_surveil["mission"]
-                                coverage_corners = pending_surveil["coverage_corners"]
+                                # coverage_corners = pending_surveil["coverage_corners"]
                                 new_drone_id = pending_mission["drone_id"]
 
                                 print(
@@ -614,9 +614,9 @@ class DroneCommunication:
                                 surveil_mission = MissionRegistry.dispatch_mission(
                                     pending_mission["mission_id"]
                                 )
-                                r.set(
-                                    "watch_area_coverage", json.dumps(coverage_corners)
-                                )
+                                # r.set(
+                                #     "watch_area_coverage", json.dumps(coverage_corners)
+                                # )
 
                                 # Remove the pending mission from Redis
                                 r.delete("pending_surveil_mission")
