@@ -131,7 +131,7 @@ class AutoMissionSuggester:
 
     @staticmethod
     def _point_in_polygon(
-        point: tuple[float, float], polygon: list[tuple[float, float]]
+        point: tuple[float, float], polygon: list[dict[str, float]]
     ) -> bool:
         """Returns True if a point is inside a polygon using ray casting."""
         lat, lng = point
@@ -140,8 +140,10 @@ class AutoMissionSuggester:
         inside = False
         n = len(polygon)
         for i in range(n):
-            lat_i, lng_i = polygon[i]
-            lat_j, lng_j = polygon[(i + 1) % n]
+            lat_i = polygon[i]["lat"]
+            lng_i = polygon[i]["lng"]
+            lat_j = polygon[(i + 1) % n]["lat"]
+            lng_j = polygon[(i + 1) % n]["lng"]
             xi = lng_i
             yi = lat_i
             xj = lng_j
@@ -153,22 +155,27 @@ class AutoMissionSuggester:
                 inside = not inside
         return inside
 
-    def _load_watch_area_min_rect(self) -> list[tuple[float, float]] | None:
-        """Load the stored watch area minimum rectangle from Redis."""
-        raw = self._redis.get("watch_area_min_rect")
-        if not raw:
-            return None
-        rect = json.loads(raw)
-        return [(float(lat), float(lng)) for lat, lng in rect]
+    # def _load_watch_area_min_rect(self) -> list[tuple[float, float]] | None:
+    #     """Load the stored watch area minimum rectangle from Redis."""
+    #     raw = self._redis.get("watch_area_min_rect")
+    #     if not raw:
+    #         return None
+    #     rect = json.loads(raw)
+    #     return [(float(lat), float(lng)) for lat, lng in rect]
 
     def _is_detection_within_watch_area(
         self, detection_gps_position: tuple[float, float]
     ) -> bool:
         """Check whether a detection falls inside the stored watch area rectangle."""
-        polygon = self._load_watch_area_min_rect()
-        if not polygon:
+        points_raw = self._redis.get("watch_area")
+        if not points_raw:
+            print("No watch area stored, cannot check if detection is within surveil mission area.")
             return False
-        return self._point_in_polygon(detection_gps_position, polygon)
+
+        points = json.loads(points_raw)["points"]
+        watch_area = self._extract_watch_area_points(points)
+
+        return self._point_in_polygon(detection_gps_position, watch_area)
 
     def _should_skip_detection(self, detection: json_schemas.SingleDetection) -> bool:
         now = time.time()

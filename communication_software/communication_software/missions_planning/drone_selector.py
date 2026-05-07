@@ -215,11 +215,11 @@ def compute_hardware_score(
     if mission_type == GotoAndSurveil:
         over_equipment_score = (
             speaker_score + lights_score
-        )
+        ) / 2.0 
     if mission_type == GotoOnly:
         over_equipment_score = (
             resolution_value + fov_score + speaker_score + lights_score
-        )
+        ) / 4.0
    
     # Account for no_hardware factor
     no_hardware_score = 100 - over_equipment_score
@@ -231,13 +231,6 @@ def compute_hardware_score(
         + lights_score * profile.lights
         + no_hardware_score * profile.no_hardware
     )
-
-    # lerp between the total score and the reducing score. if no_hardware is 1, then total_no_hardware is used
-    # _total_with_reduction = total + profile.no_hardware * (total_no_hardware - total)
-
-    # print(
-    #     f"[{drone_id}] total score w/o reduction {total}, {_total_with_reduction}, {total_unweighted}"
-    # )
 
     return round(total, 2)
 
