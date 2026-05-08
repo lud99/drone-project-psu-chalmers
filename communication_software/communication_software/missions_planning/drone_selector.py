@@ -143,11 +143,7 @@ PROFILE_GOTO_AND_ILLUMINATE = HardwareProfile(
 )
 
 # GotoAndSurveil: camera quality is primary
-PROFILE_GOTO_AND_SURVEIL = HardwareProfile(
-    resolution=0.3,
-    fov=0.5,
-    no_hardware=0.2
-)
+PROFILE_GOTO_AND_SURVEIL = HardwareProfile(resolution=0.3, fov=0.5, no_hardware=0.2)
 
 # GotoOnly: here there is no special hardware needed
 PROFILE_GOTO_ONLY = HardwareProfile(no_hardware=1.0)
@@ -213,14 +209,12 @@ def compute_hardware_score(
 
     over_equipment_score = 0.0
     if mission_type == GotoAndSurveil:
-        over_equipment_score = (
-            speaker_score + lights_score
-        ) / 2.0 
+        over_equipment_score = (speaker_score + lights_score) / 2.0
     if mission_type == GotoOnly:
         over_equipment_score = (
             resolution_value + fov_score + speaker_score + lights_score
         ) / 4.0
-   
+
     # Account for no_hardware factor
     no_hardware_score = 100 - over_equipment_score
 
@@ -247,13 +241,12 @@ def compute_total_score(
     )
 
     # Convert to factor between 0-100. Distances beyond DISTANCE_MAX should have the same score
-    travel_score: float = min(travel_distance / DISTANCE_MAX, 1.0) * 100.0
+    travel_score: float = min(1 - travel_distance / DISTANCE_MAX, 1.0) * 100.0
 
     return round(
-        WEIGHT_BATTERY * telemetry.battery_percent
-        - WEIGHT_PROXIMITY
-        * travel_score  # Minus since travel_score is proportional to distance
-        + WEIGHT_HARDWARE * hardware_score,
+        telemetry.battery_percent * WEIGHT_BATTERY
+        + travel_score * WEIGHT_PROXIMITY
+        + hardware_score * WEIGHT_HARDWARE,
         2,
     )
 
