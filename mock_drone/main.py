@@ -174,7 +174,9 @@ async def do_task(
         await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.PlayAudioTask):
-        print(f"Playing sound for {action.params.duration_seconds}s")
+        print(
+            f"Playing sound for {action.params.file} for {action.params.duration_seconds or '∞'}s"
+        )
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
@@ -184,7 +186,7 @@ async def do_task(
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.LEDTask):
-        print(f"Activating LED for {action.params.duration_seconds}s")
+        print(f"Activating LED for {action.params.duration_seconds or '∞'}s")
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
@@ -194,7 +196,7 @@ async def do_task(
             await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.SpotlightTask):
-        print(f"Activating spotlight for {action.params.duration_seconds}s")
+        print(f"Activating spotlight for {action.params.duration_seconds or '∞'}s")
         asyncio.create_task(waiter(event))
         if action.params.duration_seconds is not None:
             await asyncio.sleep(action.params.duration_seconds)
@@ -209,7 +211,7 @@ async def do_task(
         await send_task_complete(ws, drone_id, task_message)
 
     elif isinstance(action, json_schemas.HoverTask):
-        print(f"Hovering for {action.params.duration_seconds}s")
+        print(f"Hovering for {action.params.duration_seconds or '∞'}s")
         if action.params.duration_seconds:
             await asyncio.sleep(action.params.duration_seconds)
         else:
