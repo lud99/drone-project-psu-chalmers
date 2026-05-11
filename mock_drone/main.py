@@ -285,7 +285,13 @@ async def run_drone_client(drone_id: str, video_path: Optional[str]):
                     led=json_schemas.LEDCapabilities(types=["rear", "beacon"]),
                     spotlight=True,
                     speaker=json_schemas.SpeakerCapabilities(
-                        audio_files=["horn", "hello", "restart_transponder", "siren"]
+                        audio_files=[
+                            "horn",
+                            "hello",
+                            "restart_transponder",
+                            "siren",
+                            "warning",
+                        ]
                     ),
                 ),
                 telemetry=json_schemas.Telemetry(

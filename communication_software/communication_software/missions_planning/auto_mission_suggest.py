@@ -134,7 +134,6 @@ class AutoMissionSuggester:
     def _point_in_polygon(
         point: tuple[float, float], polygon: list[dict[str, float]]
     ) -> bool:
-        print(polygon)
         """Returns True if a point is inside a polygon using ray casting."""
         lat, lng = point
         x = lng
