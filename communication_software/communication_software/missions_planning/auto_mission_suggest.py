@@ -134,7 +134,6 @@ class AutoMissionSuggester:
     def _point_in_polygon(
         point: tuple[float, float], polygon: list[dict[str, float]]
     ) -> bool:
-        print(polygon)
         """Returns True if a point is inside a polygon using ray casting."""
         lat, lng = point
         x = lng
@@ -549,8 +548,6 @@ class AutoMissionSuggester:
             lat=lat_new, lon=lon_new, alt=alt_new, heading=heading
         )
 
-        # TODO: This won't work as we can't get altitude from detection
-
     def get_coordinates_above_for_drone(
         self, object_coords: tuple[float, float], offset_meters: float | int
     ) -> json_schemas.GoToParams:
@@ -662,11 +659,8 @@ class AutoMissionSuggester:
                 GotoAndIlluminate,
             ]  # GotoAndSurveil
             if mission_type in offset_missions:
-                offset = 10 if mission_type == GotoAndSurveil else 4
-                new_coordinates = self.get_offset_coordinates_for_drone(
-                    drone_id=mission.drone_id,
-                    object_coords=coordinates,
-                    offset_meters=offset,
+                new_coordinates = self.get_coordinates_above_for_drone(
+                    object_coords=coordinates, offset_meters=8
                 )
                 mission.coordinates = new_coordinates
             else:
@@ -749,11 +743,9 @@ class AutoMissionSuggester:
                 GotoAndIlluminate,
             ]
             if mission_type in offset_missions:
-                offset = 10 if mission_type == GotoAndSurveil else 4
-                new_coordinates = self.get_offset_coordinates_for_drone(
-                    drone_id=mission.drone_id,
-                    object_coords=coordinates,
-                    offset_meters=offset,
+                # offset = 10 if mission_type == GotoAndSurveil else 4
+                new_coordinates = self.get_coordinates_above_for_drone(
+                    object_coords=coordinates, offset_meters=8
                 )
                 mission.coordinates = new_coordinates
             else:

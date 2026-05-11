@@ -9,7 +9,7 @@ Each audio file belongs to a specific type (e.g. alert, greeting, intruder instr
 # only the audio type is specified in the mission parameters.
 
 audio_file_mapping = {
-    "alert": ["horn", "siren"],
+    "alert": ["horn", "siren", "warning"],
     "greeting": ["hello", "hi", "welcome"],
     "intruder_instructions": ["leave_track", "stay"],
     "stray_car": ["restart_transponder", "go_home"],

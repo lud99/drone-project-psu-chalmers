@@ -360,6 +360,7 @@ async def set_detections(payload: str = Body(...)):
         detections = json_schemas.parse_detections(payload).root
 
         for _detection in detections:
+            print(detections[0].drone_ids[0])
             redis_key_detections = f"frame_drone{detections[0].drone_ids[0]}_detections"
             r.set(redis_key_detections, payload)
 
@@ -385,13 +386,13 @@ def abort_mission(mission_id: str):
 
 
 @app.post("/api/v1/missions/abort_all")
-def abort_all_missions(mission_id: str):
+def abort_all_missions():
     try:
         missions = MissionRegistry.get_all()
         for mission in missions:
             MissionRegistry.abort_mission(mission["mission_id"], False)
 
-        return {"status": "aborted", "mission_id": mission_id}
+        return {"status": "aborted"}
     except Exception as e:
         return {"msg_type": "response", "error": str(e)}
 

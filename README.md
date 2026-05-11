@@ -12,7 +12,6 @@ Before you begin, ensure you have the following installed on your Linux system:
 
 ### Required extensions for our workflow 
 https://marketplace.visualstudio.com/items?itemName=ms-python.python  
-https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker  
 https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens Optional, but much better than built-in Git  
 
 Refer to ```Linting setup.md``` for setting up linter
@@ -69,6 +68,7 @@ Try to avoid running --build as it will build a new image, and after many runs y
 I have changed to we use a volume instead of copying the source files to the container. Practically, this means that any changes made to the container will actually persist. You can use the normal way of starting the docker containers, but you will not be able to debug any python code, nor easliy apply your changes without having to restart the container. It is your preference how you wish to do.
 
 ## Work and debug inside a container
+NOTE: This workflow was never used by the team, so it may be outdated and not work anymore,
 The programming and debugging of the backend should be done in the docker container, for the respective submodule you wish to work on.
 
 Install the Vs Code extensions ```Docker```and ```Dev Containers```
