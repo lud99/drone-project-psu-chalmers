@@ -3,6 +3,7 @@ import time
 import os
 import json
 import threading
+import traceback
 from typing import Optional
 import redis
 import communication_software.common.json_schemas as json_schemas
@@ -133,6 +134,7 @@ class AutoMissionSuggester:
     def _point_in_polygon(
         point: tuple[float, float], polygon: list[dict[str, float]]
     ) -> bool:
+        print(polygon)
         """Returns True if a point is inside a polygon using ray casting."""
         lat, lng = point
         x = lng
@@ -141,9 +143,9 @@ class AutoMissionSuggester:
         n = len(polygon)
         for i in range(n):
             lat_i = polygon[i]["lat"]
-            lng_i = polygon[i]["lng"]
+            lng_i = polygon[i]["lon"]
             lat_j = polygon[(i + 1) % n]["lat"]
-            lng_j = polygon[(i + 1) % n]["lng"]
+            lng_j = polygon[(i + 1) % n]["lon"]
             xi = lng_i
             yi = lat_i
             xj = lng_j
@@ -169,7 +171,9 @@ class AutoMissionSuggester:
         """Check whether a detection falls inside the stored watch area rectangle."""
         points_raw = self._redis.get("watch_area")
         if not points_raw:
-            print("No watch area stored, cannot check if detection is within surveil mission area.")
+            print(
+                "No watch area stored, cannot check if detection is within surveil mission area."
+            )
             return False
 
         points = json.loads(points_raw)["points"]
@@ -488,6 +492,7 @@ class AutoMissionSuggester:
                             # print("Found detection but drone is not dispatched")
         except Exception as exc:
             print(f"[object_listener] Error in Redis listener: {exc}")
+            print(traceback.format_exc())
 
     def is_allowed(self, object_type: str, coordinates: dict) -> bool:
         """Check with ATOS if object is expected. Currently just a placeholder"""
