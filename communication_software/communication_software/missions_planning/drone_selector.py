@@ -280,7 +280,7 @@ class DroneSelector:
 
     # Minimum battery level required to even be considered
     MIN_BATTERY_THRESHOLD: float = (
-        20.0  # At 20 the drone will go home, to send it on a mission 30 is required
+        30.0  # At 20 the drone will go home, to send it on a mission 30 is required
     )
 
     def __init__(self):
