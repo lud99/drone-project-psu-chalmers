@@ -143,10 +143,7 @@ PROFILE_GOTO_AND_ILLUMINATE = HardwareProfile(
 )
 
 # GotoAndSurveil: camera quality is primary
-PROFILE_GOTO_AND_SURVEIL = HardwareProfile(
-    resolution=0.60,
-    fov=0.40,
-)
+PROFILE_GOTO_AND_SURVEIL = HardwareProfile(resolution=0.3, fov=0.5, no_hardware=0.2)
 
 # GotoOnly: here there is no special hardware needed
 PROFILE_GOTO_ONLY = HardwareProfile(no_hardware=1.0)
@@ -210,33 +207,24 @@ def compute_hardware_score(
     speaker_score = 100.0 if capabilities.speaker else 0.0
     lights_score = 100.0 if (capabilities.spotlight or capabilities.led) else 0.0
 
+    over_equipment_score = 0.0
+    if mission_type == GotoAndSurveil:
+        over_equipment_score = (speaker_score + lights_score) / 2.0
+    if mission_type == GotoOnly:
+        over_equipment_score = (
+            resolution_value + fov_score + speaker_score + lights_score
+        ) / 4.0
+
+    # Account for no_hardware factor
+    no_hardware_score = 100 - over_equipment_score
+
     total = (
         resolution_value * profile.resolution
         + fov_score * profile.fov
         + speaker_score * profile.speaker
         + lights_score * profile.lights
+        + no_hardware_score * profile.no_hardware
     )
-    if mission_type == GotoAndSurveil:
-        if capabilities.speaker:
-            total -= 15.0
-        if capabilities.led:
-            total -= 5.0
-        if capabilities.spotlight:
-            total -= 5.0
-    # This solution is a bit scuffed, but it seems to work fine for our limited use cases
-    total_unweighted = (
-        resolution_value + fov_score + speaker_score + lights_score
-    ) / 4.0
-
-    # Account for no_hardware factor
-    total_no_hardware = (-total_unweighted) + 100
-
-    # lerp between the total score and the reducing score. if no_hardware is 1, then total_no_hardware is used
-    _total_with_reduction = total + profile.no_hardware * (total_no_hardware - total)
-
-    # print(
-    #     f"[{drone_id}] total score w/o reduction {total}, {_total_with_reduction}, {total_unweighted}"
-    # )
 
     return round(total, 2)
 
@@ -253,13 +241,12 @@ def compute_total_score(
     )
 
     # Convert to factor between 0-100. Distances beyond DISTANCE_MAX should have the same score
-    travel_score: float = min(travel_distance / DISTANCE_MAX, 1.0) * 100.0
+    travel_score: float = min(1 - travel_distance / DISTANCE_MAX, 1.0) * 100.0
 
     return round(
-        WEIGHT_BATTERY * telemetry.battery_percent
-        - WEIGHT_PROXIMITY
-        * travel_score  # Minus since travel_score is proportional to distance
-        + WEIGHT_HARDWARE * hardware_score,
+        telemetry.battery_percent * WEIGHT_BATTERY
+        + travel_score * WEIGHT_PROXIMITY
+        + hardware_score * WEIGHT_HARDWARE,
         2,
     )
 
