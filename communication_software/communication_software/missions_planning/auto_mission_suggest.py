@@ -549,8 +549,6 @@ class AutoMissionSuggester:
             lat=lat_new, lon=lon_new, alt=alt_new, heading=heading
         )
 
-        # TODO: This won't work as we can't get altitude from detection
-
     def get_coordinates_above_for_drone(
         self, object_coords: tuple[float, float], offset_meters: float | int
     ) -> json_schemas.GoToParams:
@@ -576,14 +574,14 @@ class AutoMissionSuggester:
         Parses the message and sends a mission suggestion to the backend.
         """
 
-        # if self._should_skip_detection(detection):
-        # return
+        if self._should_skip_detection(detection):
+            return
 
-        # if not self._is_detection_within_watch_area(detection.gps_position):
-        #     print(
-        #         f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
-        #     )
-        #     return
+        if not self._is_detection_within_watch_area(detection.gps_position):
+            print(
+                f"Detection {detection.detection_id} at {detection.gps_position[0]}, {detection.gps_position[1]} is outside watch area, skipping."
+            )
+            return
 
         print(
             f"Found new detection {detection.detection_id}, will generate and propose missions..."
@@ -662,7 +660,6 @@ class AutoMissionSuggester:
                 GotoAndIlluminate,
             ]  # GotoAndSurveil
             if mission_type in offset_missions:
-                # offset = 10 if mission_type == GotoAndSurveil else 4
                 new_coordinates = self.get_coordinates_above_for_drone(
                     object_coords=coordinates, offset_meters=8
                 )
