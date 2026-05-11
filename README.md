@@ -1,6 +1,10 @@
-# Communication Software - Backend Setup (2025 Version)
+# Prone Platform 
+The project is a Chalmers Bachelor Thesis and a collaboration between Chalmers University of Technology and Pennsylvania State University.
+The PSU MAVLink integration code is on the ```integration-showcase``` branch.
 
-This guide outlines the steps to set up the 2025 version of the Communication Software backend using Docker on a Linux system.
+# Setup
+
+This guide outlines the steps to set up the 2026 version of the Communication Software backend using Docker on a Linux system. It is mainly based on the 2025 version.
 
 ## 1. Prerequisites
 
